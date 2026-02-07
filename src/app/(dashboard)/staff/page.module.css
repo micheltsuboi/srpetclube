@@ -1,0 +1,395 @@
+.container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+/* Loading */
+.loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    gap: 1rem;
+    color: var(--text-muted);
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--color-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Stats Grid */
+.statsGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+}
+
+.statCard {
+    background: rgba(30, 41, 59, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    transition: all 0.2s ease;
+}
+
+.statCard:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.statCard.pending {
+    border-left: 3px solid var(--status-pending);
+}
+
+.statCard.inProgress {
+    border-left: 3px solid var(--status-in-progress);
+}
+
+.statCard.done {
+    border-left: 3px solid var(--status-done);
+}
+
+.statIcon {
+    font-size: 2rem;
+    line-height: 1;
+}
+
+.statInfo {
+    display: flex;
+    flex-direction: column;
+}
+
+.statValue {
+    font-size: 1.75rem;
+    font-weight: 700;
+}
+
+.statLabel {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+}
+
+/* Filter Tabs */
+.filterTabs {
+    display: flex;
+    gap: 0.5rem;
+    background: rgba(30, 41, 59, 0.4);
+    padding: 0.375rem;
+    border-radius: 0.75rem;
+    width: fit-content;
+}
+
+.filterTab {
+    padding: 0.625rem 1.25rem;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.filterTab:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.filterTab.active {
+    background: var(--gradient-primary);
+    color: white;
+}
+
+/* Pets List */
+.petsList {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.emptyState {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4rem 2rem;
+    color: var(--text-muted);
+    gap: 1rem;
+}
+
+.emptyIcon {
+    font-size: 3rem;
+    opacity: 0.5;
+}
+
+/* Pet Card */
+.petCard {
+    background: rgba(30, 41, 59, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 1rem;
+    padding: 1.25rem;
+    display: flex;
+    gap: 1.25rem;
+    align-items: flex-start;
+    transition: all 0.2s ease;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.petCard:hover {
+    background: rgba(51, 65, 85, 0.6);
+    border-color: rgba(99, 102, 241, 0.3);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.petAvatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 1rem;
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.petAvatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.petInfo {
+    flex: 1;
+    min-width: 0;
+}
+
+.petHeader {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.375rem;
+}
+
+.petName {
+    font-size: 1.125rem;
+    font-weight: 600;
+}
+
+.badge {
+    display: inline-flex;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    border-radius: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.badge.pending {
+    background: rgba(251, 191, 36, 0.15);
+    color: var(--status-pending);
+}
+
+.badge.confirmed {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--status-confirmed);
+}
+
+.badge.inProgress {
+    background: rgba(139, 92, 246, 0.15);
+    color: var(--status-in-progress);
+}
+
+.badge.done {
+    background: rgba(16, 185, 129, 0.15);
+    color: var(--status-done);
+}
+
+.badge.canceled {
+    background: rgba(239, 68, 68, 0.15);
+    color: var(--status-canceled);
+}
+
+.petBreed {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+}
+
+.petCustomer,
+.petService {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.petNotes {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+    background: rgba(251, 191, 36, 0.1);
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    margin-top: 0.75rem;
+    border-left: 2px solid var(--status-pending);
+}
+
+.petTags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.75rem;
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--status-done);
+    border-radius: 1rem;
+}
+
+.tag.tagWarning {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--status-canceled);
+}
+
+/* Pet Actions */
+.petActions {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+.actionBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.625rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 0.625rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.actionBtn:active {
+    transform: scale(0.98);
+}
+
+.actionBtn.primary {
+    background: var(--gradient-primary);
+    color: white;
+}
+
+.actionBtn.primary:hover {
+    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+}
+
+.actionBtn.secondary {
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--color-primary-light);
+}
+
+.actionBtn.secondary:hover {
+    background: rgba(99, 102, 241, 0.3);
+}
+
+.actionBtn.success {
+    background: var(--gradient-secondary);
+    color: white;
+}
+
+.actionBtn.success:hover {
+    box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.actionBtn.outline {
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.actionBtn.outline:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: var(--text-primary);
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .statsGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .statsGrid {
+        grid-template-columns: 1fr;
+    }
+
+    .petCard {
+        flex-direction: column;
+    }
+
+    .petAvatar {
+        width: 56px;
+        height: 56px;
+    }
+
+    .petActions {
+        flex-direction: row;
+        width: 100%;
+    }
+
+    .actionBtn {
+        flex: 1;
+    }
+
+    .filterTabs {
+        width: 100%;
+        overflow-x: auto;
+    }
+
+    .filterTab {
+        flex-shrink: 0;
+    }
+}
