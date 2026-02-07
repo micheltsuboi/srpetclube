@@ -35,14 +35,16 @@ export async function updateSession(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser()
 
-    // Protected routes - require authentication
-    if (
-        !user &&
-        !request.nextUrl.pathname.startsWith('/login') &&
-        !request.nextUrl.pathname.startsWith('/auth') &&
-        !request.nextUrl.pathname.startsWith('/tutor') &&
-        request.nextUrl.pathname !== '/'
-    ) {
+    // Rotas públicas - não requerem autenticação
+    // Durante desenvolvimento, /staff e /admin são públicos
+    const publicPaths = ['/', '/login', '/auth', '/tutor', '/staff', '/admin']
+    const isPublicPath = publicPaths.some(path =>
+        request.nextUrl.pathname === path ||
+        request.nextUrl.pathname.startsWith(path + '/')
+    )
+
+    // Redireciona para login se não autenticado em rota protegida
+    if (!user && !isPublicPath) {
         const url = request.nextUrl.clone()
         url.pathname = '/login'
         return NextResponse.redirect(url)
