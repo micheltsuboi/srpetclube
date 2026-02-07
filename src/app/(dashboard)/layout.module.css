@@ -6,8 +6,8 @@
 /* Sidebar */
 .sidebar {
     width: 260px;
-    background: rgba(15, 23, 42, 0.95);
-    border-right: 1px solid rgba(255, 255, 255, 0.05);
+    background: rgba(13, 27, 42, 0.95);
+    border-right: 1px solid rgba(140, 180, 201, 0.1);
     display: flex;
     flex-direction: column;
     padding: 1.5rem;
@@ -26,14 +26,16 @@
     margin-bottom: 2rem;
 }
 
-.logoIcon {
-    font-size: 2rem;
+.logoImage {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
 }
 
 .logoText {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #6366f1, #a855f7);
+    background: linear-gradient(135deg, #E8826A, #8CB4C9);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -59,14 +61,14 @@
 }
 
 .navItem:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(140, 180, 201, 0.1);
     color: var(--text-primary);
 }
 
 .navItem.active {
-    background: var(--gradient-primary);
+    background: linear-gradient(135deg, #2B4B6F, #3D6089);
     color: white;
-    box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+    box-shadow: 0 4px 15px rgba(43, 75, 111, 0.4);
 }
 
 .navIcon {
@@ -80,7 +82,7 @@
 .sidebarFooter {
     margin-top: auto;
     padding-top: 1.5rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    border-top: 1px solid rgba(140, 180, 201, 0.1);
 }
 
 .clockButton {
@@ -90,7 +92,7 @@
     justify-content: center;
     gap: 0.5rem;
     padding: 1rem;
-    background: var(--gradient-secondary);
+    background: linear-gradient(135deg, #E8826A, #F0A090);
     border: none;
     border-radius: 0.75rem;
     color: white;
@@ -102,7 +104,7 @@
 
 .clockButton:hover {
     transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 8px 20px rgba(232, 130, 106, 0.4);
 }
 
 /* Main Content */
@@ -119,9 +121,9 @@
     justify-content: space-between;
     align-items: center;
     padding: 1.5rem 2rem;
-    background: rgba(15, 23, 42, 0.8);
+    background: rgba(13, 27, 42, 0.9);
     backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid rgba(140, 180, 201, 0.1);
     position: sticky;
     top: 0;
     z-index: 50;
@@ -170,7 +172,7 @@
     width: 44px;
     height: 44px;
     border-radius: 50%;
-    background: var(--gradient-primary);
+    background: linear-gradient(135deg, #E8826A, #8CB4C9);
     display: flex;
     align-items: center;
     justify-content: center;

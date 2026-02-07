@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import styles from './page.module.css'
@@ -39,8 +40,13 @@ export default function LoginPage() {
                 <div className={styles.card}>
                     {/* Logo */}
                     <div className={styles.logo}>
-                        <span className={styles.logoIcon}>🐾</span>
-                        <h1 className={styles.title}>SR Pet Clube</h1>
+                        <Image
+                            src="/logo.png"
+                            alt="Sr. Pet Clube"
+                            width={100}
+                            height={100}
+                            className={styles.logoImage}
+                        />
                     </div>
 
                     <p className={styles.subtitle}>Entre na sua conta</p>

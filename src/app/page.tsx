@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import styles from './page.module.css'
 
@@ -14,8 +15,14 @@ export default function Home() {
         {/* Hero Section */}
         <section className={styles.hero}>
           <div className={styles.logoContainer}>
-            <span className={styles.logoIcon}>🐾</span>
-            <h1 className={styles.title}>SR Pet Clube</h1>
+            <Image
+              src="/logo.png"
+              alt="Sr. Pet Clube"
+              width={180}
+              height={180}
+              className={styles.logoImage}
+              priority
+            />
           </div>
 
           <p className={styles.subtitle}>
@@ -75,7 +82,7 @@ export default function Home() {
         </section>
 
         <footer className={styles.footer}>
-          <p>© 2024 SR Pet Clube. Todos os direitos reservados.</p>
+          <p>© 2024 Sr. Pet Clube. Todos os direitos reservados.</p>
         </footer>
       </div>
     </main>

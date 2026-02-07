@@ -9,14 +9,14 @@
     padding: 2rem;
 }
 
-/* Animated gradient orbs */
+/* Animated gradient orbs - cores do logo */
 .gradientOrb1 {
     position: absolute;
     top: -20%;
     left: -10%;
     width: 600px;
     height: 600px;
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.3) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(232, 130, 106, 0.25) 0%, transparent 70%);
     border-radius: 50%;
     filter: blur(60px);
     animation: float 8s ease-in-out infinite;
@@ -28,7 +28,7 @@
     right: -10%;
     width: 500px;
     height: 500px;
-    background: radial-gradient(circle, rgba(16, 185, 129, 0.3) 0%, transparent 70%);
+    background: radial-gradient(circle, rgba(140, 180, 201, 0.25) 0%, transparent 70%);
     border-radius: 50%;
     filter: blur(60px);
     animation: float 10s ease-in-out infinite reverse;
@@ -65,15 +65,16 @@
 
 .logoContainer {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
     gap: 1rem;
-    margin-bottom: 1.5rem;
+    margin-bottom: 1rem;
 }
 
-.logoIcon {
-    font-size: 3.5rem;
-    animation: bounce 2s ease-in-out infinite;
+.logoImage {
+    width: 180px;
+    height: auto;
+    animation: bounce 3s ease-in-out infinite;
 }
 
 @keyframes bounce {
@@ -89,9 +90,9 @@
 }
 
 .title {
-    font-size: 3rem;
+    font-size: 2.5rem;
     font-weight: 800;
-    background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+    background: linear-gradient(135deg, #E8826A 0%, #8CB4C9 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -118,9 +119,9 @@
 }
 
 .card {
-    background: rgba(30, 41, 59, 0.6);
+    background: rgba(43, 75, 111, 0.4);
     backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(140, 180, 201, 0.15);
     border-radius: 1rem;
     padding: 2rem;
     text-decoration: none;
@@ -135,9 +136,9 @@
 
 .card:hover {
     transform: translateY(-5px);
-    background: rgba(51, 65, 85, 0.8);
-    border-color: rgba(99, 102, 241, 0.5);
-    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 30px rgba(99, 102, 241, 0.2);
+    background: rgba(43, 75, 111, 0.6);
+    border-color: rgba(232, 130, 106, 0.5);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), 0 0 30px rgba(232, 130, 106, 0.15);
 }
 
 .cardIcon {
@@ -168,16 +169,18 @@
     align-items: center;
     gap: 0.5rem;
     padding: 0.75rem 1.25rem;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(140, 180, 201, 0.1);
     border-radius: 2rem;
     font-size: 0.875rem;
     color: var(--text-secondary);
     transition: all 0.2s ease;
+    border: 1px solid rgba(140, 180, 201, 0.1);
 }
 
 .feature:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: var(--text-primary);
+    background: rgba(232, 130, 106, 0.1);
+    border-color: rgba(232, 130, 106, 0.3);
+    color: var(--color-coral);
 }
 
 .featureIcon {
@@ -199,7 +202,11 @@
     }
 
     .title {
-        font-size: 2rem;
+        font-size: 1.75rem;
+    }
+
+    .logoImage {
+        width: 140px;
     }
 
     .features {

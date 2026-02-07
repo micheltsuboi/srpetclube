@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import styles from './layout.module.css'
@@ -23,8 +24,14 @@ export default function DashboardLayout({
             {/* Sidebar */}
             <aside className={styles.sidebar}>
                 <div className={styles.logo}>
-                    <span className={styles.logoIcon}>🐾</span>
-                    <span className={styles.logoText}>SR Pet</span>
+                    <Image
+                        src="/logo.png"
+                        alt="Sr. Pet Clube"
+                        width={48}
+                        height={48}
+                        className={styles.logoImage}
+                    />
+                    <span className={styles.logoText}>Sr. Pet</span>
                 </div>
 
                 <nav className={styles.nav}>
