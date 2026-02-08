@@ -14,8 +14,13 @@ interface Appointment {
     status: 'pending' | 'confirmed' | 'in_progress' | 'done' | 'canceled' | 'no_show'
     checklist: { label: string, checked: boolean }[]
     notes: string
-    pets: { name: string, species: string, breed: string }
-    customers: { name: string }
+    pets: {
+        name: string
+        species: string
+        breed: string
+        customers?: { name: string }
+    }
+    customers?: { name: string }
     services: { name: string, duration: number }
 }
 
@@ -87,8 +92,12 @@ export default function AgendaPage() {
                 .from('appointments')
                 .select(`
                     id, pet_id, service_id, scheduled_at, status, checklist, notes,
-                    pets ( name, species, breed ),
-                    customers ( name ),
+                    pets ( 
+                        name, 
+                        species, 
+                        breed,
+                        customers ( name )
+                    ),
                     services ( name, duration_minutes )
                 `)
                 .eq('org_id', profile.org_id)
@@ -276,7 +285,7 @@ export default function AgendaPage() {
                             </div>
 
                             <div className={styles.cardFooter}>
-                                <span className={styles.customerName}>👤 {appt.customers?.name || 'Tutor não identificado'}</span>
+                                <span className={styles.customerName}>👤 {appt.pets?.customers?.name || 'Tutor não identificado'}</span>
                             </div>
                         </div>
                     ))
