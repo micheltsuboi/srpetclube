@@ -49,7 +49,7 @@
 }
 
 .card {
-    background: white;
+    background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.5rem;
@@ -65,7 +65,7 @@
 
 .inactiveCard {
     opacity: 0.6;
-    background: #f9f9f9;
+    background: var(--bg-secondary);
 }
 
 .cardHeader {
@@ -79,7 +79,7 @@
 .cardTitle {
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--text-dark);
+    color: var(--text-primary);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -94,7 +94,7 @@
 
 .cardMeta {
     font-size: 0.85rem;
-    color: #666;
+    color: var(--text-secondary);
     margin-bottom: 1rem;
 }
 
@@ -137,12 +137,12 @@
 }
 
 .serviceItem {
-    background: linear-gradient(135deg, rgba(52, 152, 219, 0.1), rgba(155, 89, 182, 0.1));
+    background: var(--bg-secondary);
     padding: 0.5rem 0.75rem;
     border-radius: 6px;
     font-size: 0.85rem;
     font-weight: 500;
-    color: var(--text-dark);
+    color: var(--text-primary);
     border-left: 3px solid var(--primary);
 }
 
@@ -154,7 +154,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.7);
     backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
@@ -164,7 +164,8 @@
 }
 
 .modal {
-    background: white;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 2rem;
     max-width: 700px;
@@ -192,7 +193,7 @@
 .label {
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--text-dark);
+    color: var(--text-secondary);
 }
 
 .input,
@@ -202,7 +203,8 @@
     border-radius: 8px;
     font-size: 1rem;
     transition: all 0.3s ease;
-    background: white;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
 }
 
 .input:focus,
@@ -251,22 +253,23 @@
 }
 
 .cancelBtn {
-    background: #e0e0e0;
-    color: #666;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-primary);
 }
 
 .cancelBtn:hover {
-    background: #d0d0d0;
+    background: var(--bg-secondary);
 }
 
 .deleteBtn {
-    background: #ff6b6b;
+    background: #ef4444;
     color: white;
     margin-right: auto;
 }
 
 .deleteBtn:hover {
-    background: #ff5252;
+    background: #dc2626;
     transform: translateY(-2px);
 }
 
@@ -291,24 +294,28 @@
 .sectionTitle {
     font-size: 1.1rem;
     font-weight: 700;
-    color: var(--text-dark);
+    color: var(--text-primary);
     margin-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+    margin-top: 1.5rem;
 }
 
 /* Services Table */
 
 .servicesTable {
-    background: #f8f9fa;
+    background: var(--bg-secondary);
     border-radius: 8px;
     padding: 1rem;
     margin-bottom: 1.5rem;
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+    border: 1px solid var(--border);
 }
 
 .serviceRow {
-    background: white;
+    background: var(--bg-card);
     padding: 0.75rem 1rem;
     border-radius: 8px;
     display: flex;
@@ -332,12 +339,12 @@
 
 .serviceName {
     font-weight: 600;
-    color: var(--text-dark);
+    color: var(--text-primary);
 }
 
 .serviceCategory {
     font-size: 0.75rem;
-    color: #666;
+    color: var(--text-secondary);
     text-transform: uppercase;
 }
 
@@ -366,17 +373,18 @@
 }
 
 .deleteBtnSmall:hover {
-    background: #fee;
+    background: rgba(239, 68, 68, 0.1);
     transform: scale(1.1);
 }
 
 /* Add Service Form */
 
 .addServiceForm {
-    background: linear-gradient(135deg, rgba(52, 152, 219, 0.05), rgba(155, 89, 182, 0.05));
+    background: var(--bg-secondary);
     padding: 1.5rem;
     border-radius: 8px;
-    border: 1px dashed var(--primary);
+    border: 1px dashed var(--border);
+    margin-top: 1rem;
 }
 
 /* Responsive */
