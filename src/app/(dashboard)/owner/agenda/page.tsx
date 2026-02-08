@@ -411,7 +411,10 @@ export default function AgendaPage() {
                                 {slotAppts.map(renderAppointmentCard)}
                                 {slotBlocks.length === 0 && slotAppts.length === 0 && (
                                     <>
-                                        <div className={styles.addSlotBtn} onClick={() => setShowNewModal(true)}>+</div>
+                                        <div className={styles.addSlotBtn} onClick={() => {
+                                            setSelectedHourSlot(h.toString().padStart(2, '0'))
+                                            setShowNewModal(true)
+                                        }}>+</div>
                                         <button
                                             className={`${styles.addSlotBtn} ${styles.blockBtn}`}
                                             style={{ maxWidth: '50px', borderLeft: '1px dashed #334155' }}
@@ -578,7 +581,10 @@ export default function AgendaPage() {
                             ⚠️ Inicializar Serviços
                         </button>
                     )}
-                    <button className={styles.actionButton} onClick={() => setShowNewModal(true)}>
+                    <button className={styles.actionButton} onClick={() => {
+                        setSelectedHourSlot(null)
+                        setShowNewModal(true)
+                    }}>
                         + Novo
                     </button>
                 </div>

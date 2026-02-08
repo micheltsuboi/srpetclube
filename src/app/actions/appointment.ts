@@ -47,6 +47,29 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
         return { message: 'Data ou hora inválida.', success: false }
     }
 
+    // Check Conflicts with Blocks
+    const { data: sData } = await supabase
+        .from('services')
+        .select('duration_minutes')
+        .eq('id', serviceId)
+        .maybeSingle()
+
+    const duration = sData?.duration_minutes || 60
+    const startDt = new Date(scheduledAt)
+    const endDt = new Date(startDt.getTime() + duration * 60000)
+    const endAt = endDt.toISOString()
+
+    const { data: conflictBlocks } = await supabase
+        .from('schedule_blocks')
+        .select('id')
+        .eq('org_id', profile.org_id)
+        .lt('start_at', endAt)
+        .gt('end_at', scheduledAt)
+
+    if (conflictBlocks && conflictBlocks.length > 0) {
+        return { message: 'Este horário está bloqueado na agenda.', success: false }
+    }
+
     // Get customer_id from the Pet
     const { data: petData, error: petError } = await supabase
         .from('pets')
