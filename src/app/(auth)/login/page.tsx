@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import styles from './page.module.css'
 
 export default function LoginPage() {
@@ -18,16 +19,56 @@ export default function LoginPage() {
         setLoading(true)
         setError('')
 
-        // TODO: Implementar autenticação real com Supabase
-        // Por enquanto, simular login
-        setTimeout(() => {
-            if (email && password) {
-                router.push('/staff')
-            } else {
-                setError('Por favor, preencha todos os campos')
+        try {
+            const supabase = createClient()
+
+            // 1. Sign In
+            const { error: signInError } = await supabase.auth.signInWithPassword({
+                email,
+                password
+            })
+
+            if (signInError) throw signInError
+
+            // 2. Get User Profile/Role
+            const { data: { user } } = await supabase.auth.getUser()
+
+            if (!user) throw new Error('Erro ao recuperar usuário.')
+
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('role')
+                .eq('id', user.id)
+                .single()
+
+            if (!profile) throw new Error('Perfil não encontrado.')
+
+            // 3. Redirect based on Role
+            switch (profile.role) {
+                case 'superadmin':
+                case 'admin': // Assuming 'admin' also goes to owner dashboard for now
+                    router.push('/owner')
+                    break
+                case 'staff':
+                    router.push('/staff')
+                    break
+                case 'customer':
+                    router.push('/tutor') // Adjust if needed
+                    break
+                default:
+                    router.push('/owner') // Fallback
             }
+
+        } catch (error) {
+            console.error('Login error:', error)
+            const errorMessage = error instanceof Error ? error.message : 'Ocorreu um erro desconhecido.'
+
+            setError(errorMessage.includes('Invalid login credentials')
+                ? 'Email ou senha incorretos.'
+                : 'Ocorreu um erro ao fazer login.')
+        } finally {
             setLoading(false)
-        }, 1000)
+        }
     }
 
     return (
@@ -103,22 +144,6 @@ export default function LoginPage() {
 
                     <div className={styles.divider}>
                         <span>ou</span>
-                    </div>
-
-                    {/* Quick Access for Demo */}
-                    <div className={styles.quickAccess}>
-                        <p className={styles.quickAccessTitle}>Acesso rápido (Demo)</p>
-                        <div className={styles.quickAccessButtons}>
-                            <Link href="/staff" className={styles.quickBtn}>
-                                📋 Staff
-                            </Link>
-                            <Link href="/owner" className={styles.quickBtn}>
-                                💼 Owner
-                            </Link>
-                            <Link href="/master-admin" className={styles.quickBtn}>
-                                ⚙️ Master
-                            </Link>
-                        </div>
                     </div>
 
                     <Link href="/" className={styles.backLink}>
