@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
-import { FinancialTransaction } from '@/types/database'
 
 type ServiceArea = 'all' | 'banho_tosa' | 'creche' | 'hotel'
 
@@ -14,13 +13,6 @@ interface FinancialMetrics {
     profit: number
     pendingPayments: number
     monthlyGrowth: number
-}
-
-interface ServiceStats {
-    area: ServiceArea
-    todayCount: number
-    monthCount: number
-    revenue: number
 }
 
 interface PetToday {
@@ -64,76 +56,76 @@ export default function OwnerDashboard() {
         pendingPayments: 0,
         monthlyGrowth: 0
     })
-    const [serviceStats] = useState<ServiceStats[]>([]) // Placeholder until Appointments are integrated
-    const [petsToday] = useState<PetToday[]>([]) // Placeholder until Appointments are integrated
+    // Placeholder states for future Appointments integration
+    const [petsToday] = useState<PetToday[]>([])
     const [loading, setLoading] = useState(true)
 
-    const fetchDashboardData = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
-
-            // Get user's organization
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('org_id')
-                .eq('id', user.id)
-                .single()
-
-            if (!profile?.org_id) return
-
-            // Calculate dates
-            const now = new Date()
-            const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-            const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
-            const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString()
-
-            // Fetch transactions for current and previous month
-            const { data: transactions, error } = await supabase
-                .from('financial_transactions')
-                .select('*')
-                .eq('org_id', profile.org_id)
-                .gte('date', startOfPreviousMonth)
-
-            if (error) throw error
-
-            if (transactions) {
-                // Current Month Metrics
-                const currentMonthTx = transactions.filter(t => t.date >= startOfCurrentMonth)
-                const revenue = currentMonthTx
-                    .filter(t => t.type === 'income')
-                    .reduce((acc, curr) => acc + curr.amount, 0)
-                const expenses = currentMonthTx
-                    .filter(t => t.type === 'expense')
-                    .reduce((acc, curr) => acc + curr.amount, 0)
-
-                // Previous Month Metrics for Growth
-                const prevMonthTx = transactions.filter(t => t.date >= startOfPreviousMonth && t.date <= endOfPreviousMonth)
-                const prevRevenue = prevMonthTx
-                    .filter(t => t.type === 'income')
-                    .reduce((acc, curr) => acc + curr.amount, 0)
-
-                const growth = prevRevenue > 0 ? ((revenue - prevRevenue) / prevRevenue) * 100 : 0
-
-                setFinancials({
-                    revenue,
-                    expenses,
-                    profit: revenue - expenses,
-                    pendingPayments: 0, // Not tracked yet
-                    monthlyGrowth: parseFloat(growth.toFixed(1))
-                })
-            }
-
-        } catch (error) {
-            console.error('Erro ao carregar dashboard:', error)
-        } finally {
-            setLoading(false)
-        }
-    }
-
     useEffect(() => {
+        const fetchDashboardData = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) return
+
+                // Get user's organization
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('org_id')
+                    .eq('id', user.id)
+                    .single()
+
+                if (!profile?.org_id) return
+
+                // Calculate dates
+                const now = new Date()
+                const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+                const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
+                const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString()
+
+                // Fetch transactions for current and previous month
+                const { data: transactions, error } = await supabase
+                    .from('financial_transactions')
+                    .select('*')
+                    .eq('org_id', profile.org_id)
+                    .gte('date', startOfPreviousMonth)
+
+                if (error) throw error
+
+                if (transactions) {
+                    // Current Month Metrics
+                    const currentMonthTx = transactions.filter(t => t.date >= startOfCurrentMonth)
+                    const revenue = currentMonthTx
+                        .filter(t => t.type === 'income')
+                        .reduce((acc, curr) => acc + curr.amount, 0)
+                    const expenses = currentMonthTx
+                        .filter(t => t.type === 'expense')
+                        .reduce((acc, curr) => acc + curr.amount, 0)
+
+                    // Previous Month Metrics for Growth
+                    const prevMonthTx = transactions.filter(t => t.date >= startOfPreviousMonth && t.date <= endOfPreviousMonth)
+                    const prevRevenue = prevMonthTx
+                        .filter(t => t.type === 'income')
+                        .reduce((acc, curr) => acc + curr.amount, 0)
+
+                    const growth = prevRevenue > 0 ? ((revenue - prevRevenue) / prevRevenue) * 100 : 0
+
+                    setFinancials({
+                        revenue,
+                        expenses,
+                        profit: revenue - expenses,
+                        pendingPayments: 0, // Not tracked yet
+                        monthlyGrowth: parseFloat(growth.toFixed(1))
+                    })
+                }
+
+            } catch (error) {
+                console.error('Erro ao carregar dashboard:', error)
+            } finally {
+                setLoading(false)
+            }
+        }
+
         fetchDashboardData()
-    }, [])
+    }, [supabase])
 
     const filteredPets = selectedArea === 'all'
         ? petsToday
@@ -146,8 +138,8 @@ export default function OwnerDashboard() {
         }).format(value)
     }
 
-    const getAreaStats = (area: ServiceArea) => {
-        // Placeholder implementation
+    const getAreaStats = () => {
+        // Placeholder implementation until we have real appointment data
         return { todayCount: 0, monthCount: 0, revenue: 0 }
     }
 
@@ -160,7 +152,7 @@ export default function OwnerDashboard() {
         )
     }
 
-    const currentStats = getAreaStats(selectedArea)
+    const currentStats = getAreaStats()
 
     return (
         <div className={styles.container}>

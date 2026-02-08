@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Vaccine, VaccineBatch } from '@/types/database'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
@@ -40,7 +40,7 @@ export default function VaccinesPage() {
         expiration_date: ''
     })
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             const { data: vaccinesData, error: vaccinesError } = await supabase
                 .from('vaccines')
@@ -65,11 +65,11 @@ export default function VaccinesPage() {
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [supabase])
 
     useEffect(() => {
         fetchData()
-    }, [])
+    }, [fetchData])
 
     const handleToggleExpand = (id: string) => {
         setExpandedVaccineId(expandedVaccineId === id ? null : id)

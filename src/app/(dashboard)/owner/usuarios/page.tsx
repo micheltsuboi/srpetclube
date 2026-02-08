@@ -1,63 +1,81 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import styles from './page.module.css'
+import { createClient } from '@/lib/supabase/client'
 
-type UserRole = 'admin' | 'staff'
-type UserStatus = 'active' | 'inactive'
-
-interface User {
+// Use Profile interface or define local type matching DB
+interface Profile {
     id: string
-    name: string
+    full_name: string
     email: string
-    role: UserRole
-    status: UserStatus
+    role: 'superadmin' | 'admin' | 'staff' | 'customer'
+    is_active: boolean
     created_at: string
-    last_login: string | null
+    last_login?: string | null // Not in schema, removing or ignoring
 }
 
-const mockUsers: User[] = [
-    { id: '1', name: 'Tainara Silva', email: 'tainara@srpet.com', role: 'admin', status: 'active', created_at: '2024-01-15', last_login: '2026-02-07' },
-    { id: '2', name: 'Carlos Oliveira', email: 'carlos@srpet.com', role: 'staff', status: 'active', created_at: '2024-03-20', last_login: '2026-02-07' },
-    { id: '3', name: 'Ana Santos', email: 'ana@srpet.com', role: 'staff', status: 'active', created_at: '2024-06-10', last_login: '2026-02-06' },
-    { id: '4', name: 'Pedro Costa', email: 'pedro@srpet.com', role: 'staff', status: 'inactive', created_at: '2024-09-05', last_login: '2025-12-15' },
-]
-
-const roleLabels: Record<UserRole, string> = {
+const roleLabels: Record<string, string> = {
+    superadmin: 'Super Admin',
     admin: 'Administrador',
-    staff: 'Staff'
+    staff: 'Staff',
+    customer: 'Cliente'
 }
 
 export default function UsuariosPage() {
-    const [users, setUsers] = useState<User[]>(mockUsers)
+    const supabase = createClient()
+    const [users, setUsers] = useState<Profile[]>([])
+    const [loading, setLoading] = useState(true)
     const [showModal, setShowModal] = useState(false)
-    const [newUser, setNewUser] = useState({ name: '', email: '', role: 'staff' as UserRole })
 
-    const toggleUserStatus = (userId: string) => {
-        setUsers(users.map(u =>
-            u.id === userId
-                ? { ...u, status: u.status === 'active' ? 'inactive' : 'active' }
-                : u
-        ))
+    const fetchUsers = useCallback(async () => {
+        try {
+            setLoading(true)
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            // Get current user's org
+            const { data: currentUserProfile } = await supabase
+                .from('profiles')
+                .select('org_id')
+                .eq('id', user.id)
+                .single()
+
+            if (!currentUserProfile?.org_id) return
+
+            // Fetch profiles in the same org
+            const { data: profiles, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('org_id', currentUserProfile.org_id)
+                .order('full_name')
+
+            if (error) throw error
+            if (profiles) setUsers(profiles)
+        } catch (error) {
+            console.error('Erro ao buscar usuários:', error)
+        } finally {
+            setLoading(false)
+        }
+    }, [supabase])
+
+    useEffect(() => {
+        fetchUsers()
+    }, [fetchUsers])
+
+    const toggleUserStatus = () => {
+        alert('Funcionalidade de alterar status em desenvolvimento.')
     }
 
-    const handleAddUser = () => {
-        if (!newUser.name || !newUser.email) return
 
-        const user: User = {
-            id: Date.now().toString(),
-            name: newUser.name,
-            email: newUser.email,
-            role: newUser.role,
-            status: 'active',
-            created_at: new Date().toISOString().split('T')[0],
-            last_login: null
-        }
 
-        setUsers([...users, user])
-        setNewUser({ name: '', email: '', role: 'staff' })
-        setShowModal(false)
+    if (loading) {
+        return (
+            <div className={styles.container} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <div style={{ fontSize: '1.2rem', color: '#666' }}>Carregando usuários...</div>
+            </div>
+        )
     }
 
     return (
@@ -99,7 +117,7 @@ export default function UsuariosPage() {
                             <th>Usuário</th>
                             <th>Função</th>
                             <th>Status</th>
-                            <th>Último Acesso</th>
+                            <th>Cadastro</th>
                             <th>Ações</th>
                         </tr>
                     </thead>
@@ -109,38 +127,36 @@ export default function UsuariosPage() {
                                 <td>
                                     <div className={styles.userInfo}>
                                         <div className={styles.avatar}>
-                                            {user.name.charAt(0)}
+                                            {(user.full_name || user.email).charAt(0).toUpperCase()}
                                         </div>
                                         <div>
-                                            <span className={styles.userName}>{user.name}</span>
+                                            <span className={styles.userName}>{user.full_name || 'Sem Nome'}</span>
                                             <span className={styles.userEmail}>{user.email}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td>
                                     <span className={`${styles.roleBadge} ${styles[user.role]}`}>
-                                        {user.role === 'admin' ? '👑' : '🛠️'} {roleLabels[user.role]}
+                                        {user.role.includes('admin') ? '👑' : '🛠️'} {roleLabels[user.role] || user.role}
                                     </span>
                                 </td>
                                 <td>
-                                    <span className={`${styles.statusBadge} ${styles[user.status]}`}>
-                                        {user.status === 'active' ? 'Ativo' : 'Inativo'}
+                                    <span className={`${styles.statusBadge} ${user.is_active ? styles.active : styles.inactive}`}>
+                                        {user.is_active ? 'Ativo' : 'Inativo'}
                                     </span>
                                 </td>
                                 <td>
                                     <span className={styles.lastLogin}>
-                                        {user.last_login
-                                            ? new Date(user.last_login).toLocaleDateString('pt-BR')
-                                            : 'Nunca acessou'}
+                                        {new Date(user.created_at).toLocaleDateString('pt-BR')}
                                     </span>
                                 </td>
                                 <td>
                                     <div className={styles.actions}>
                                         <button
-                                            className={`${styles.actionBtn} ${user.status === 'active' ? styles.deactivate : styles.activate}`}
-                                            onClick={() => toggleUserStatus(user.id)}
+                                            className={`${styles.actionBtn} ${user.is_active ? styles.deactivate : styles.activate}`}
+                                            onClick={() => toggleUserStatus()}
                                         >
-                                            {user.status === 'active' ? 'Desativar' : 'Ativar'}
+                                            {user.is_active ? 'Desativar' : 'Ativar'}
                                         </button>
                                     </div>
                                 </td>
@@ -148,6 +164,9 @@ export default function UsuariosPage() {
                         ))}
                     </tbody>
                 </table>
+                {users.length === 0 && (
+                    <p style={{ textAlign: 'center', padding: '2rem', color: '#666' }}>Nenhum usuário encontrado além de você.</p>
+                )}
             </div>
 
             {/* Add User Modal */}
@@ -155,51 +174,13 @@ export default function UsuariosPage() {
                 <div className={styles.modalOverlay} onClick={() => setShowModal(false)}>
                     <div className={styles.modal} onClick={e => e.stopPropagation()}>
                         <h2>Adicionar Novo Usuário</h2>
-
-                        <div className={styles.formGroup}>
-                            <label>Nome Completo</label>
-                            <input
-                                type="text"
-                                value={newUser.name}
-                                onChange={e => setNewUser({ ...newUser, name: e.target.value })}
-                                placeholder="Ex: João Silva"
-                            />
-                        </div>
-
-                        <div className={styles.formGroup}>
-                            <label>Email</label>
-                            <input
-                                type="email"
-                                value={newUser.email}
-                                onChange={e => setNewUser({ ...newUser, email: e.target.value })}
-                                placeholder="joao@petshop.com"
-                            />
-                        </div>
-
-                        <div className={styles.formGroup}>
-                            <label>Função</label>
-                            <div className={styles.roleSelect}>
-                                <button
-                                    className={`${styles.roleOption} ${newUser.role === 'admin' ? styles.selected : ''}`}
-                                    onClick={() => setNewUser({ ...newUser, role: 'admin' })}
-                                >
-                                    👑 Administrador
-                                </button>
-                                <button
-                                    className={`${styles.roleOption} ${newUser.role === 'staff' ? styles.selected : ''}`}
-                                    onClick={() => setNewUser({ ...newUser, role: 'staff' })}
-                                >
-                                    🛠️ Staff
-                                </button>
-                            </div>
-                        </div>
+                        <p style={{ marginBottom: '1rem', color: '#666' }}>
+                            Esta funcionalidade ainda está em desenvolvimento. Por favor, crie usuários diretamente no painel administrativo por enquanto.
+                        </p>
 
                         <div className={styles.modalActions}>
                             <button className={styles.cancelBtn} onClick={() => setShowModal(false)}>
-                                Cancelar
-                            </button>
-                            <button className={styles.saveBtn} onClick={handleAddUser}>
-                                Adicionar Usuário
+                                Fechar
                             </button>
                         </div>
                     </div>

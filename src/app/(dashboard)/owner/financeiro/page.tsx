@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
@@ -27,7 +27,8 @@ export default function FinanceiroPage() {
     const [categoryRevenue, setCategoryRevenue] = useState<CategoryRevenue[]>([])
     const [loading, setLoading] = useState(true)
 
-    const fetchFinancials = async () => {
+
+    const fetchFinancials = useCallback(async () => {
         try {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
@@ -41,22 +42,26 @@ export default function FinanceiroPage() {
 
             if (!profile?.org_id) return
 
-            // Fetch all transactions for the last 6 months
-            const sixMonthsAgo = new Date()
-            sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
-            sixMonthsAgo.setDate(1)
+            // Dates logic
+            const now = new Date()
+            const startOfPrevMonth = new Date(now.getFullYear(), now.getMonth() - 5, 1).toISOString()
 
+            // Fetch transactions
             const { data: transactions, error } = await supabase
                 .from('financial_transactions')
                 .select('*')
                 .eq('org_id', profile.org_id)
-                .gte('date', sixMonthsAgo.toISOString())
+                .gte('date', startOfPrevMonth)
                 .order('date', { ascending: true })
 
             if (error) throw error
 
             if (transactions) {
-                // Process Monthly Data
+                // Process Monthly Data (original logic, adapted to new fetch)
+                const sixMonthsAgo = new Date()
+                sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
+                sixMonthsAgo.setDate(1)
+
                 const monthMap = new Map<string, MonthlyData>()
 
                 // Initialize last 6 months
@@ -85,7 +90,6 @@ export default function FinanceiroPage() {
                 setMonthlyData(Array.from(monthMap.values()))
 
                 // Process Category Data (Current Month)
-                const now = new Date()
                 const currentMonthFilter = (t: FinancialTransaction) => {
                     const d = new Date(t.date)
                     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
@@ -121,11 +125,11 @@ export default function FinanceiroPage() {
         } finally {
             setLoading(false)
         }
-    }
+    }, [supabase])
 
     useEffect(() => {
         fetchFinancials()
-    }, [])
+    }, [fetchFinancials])
 
     const currentMonth = monthlyData.length > 0 ? monthlyData[monthlyData.length - 1] : { revenue: 0, expenses: 0, profit: 0 }
     const previousMonth = monthlyData.length > 1 ? monthlyData[monthlyData.length - 2] : { revenue: 0, expenses: 0, profit: 0 }

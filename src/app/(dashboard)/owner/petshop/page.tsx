@@ -1,7 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import { useState, useEffect, useCallback } from 'react'
 import { Product, ProductFormData } from '@/types/database'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
@@ -34,7 +33,7 @@ export default function PetshopPage() {
 
     const categories = ['Todas', 'Alimentação', 'Higiene', 'Brinquedos', 'Farmácia', 'Acessórios']
 
-    const fetchProducts = async () => {
+    const fetchProducts = useCallback(async () => {
         try {
             const { data, error } = await supabase
                 .from('products')
@@ -49,11 +48,11 @@ export default function PetshopPage() {
         } finally {
             setIsLoading(false)
         }
-    }
+    }, [supabase])
 
     useEffect(() => {
         fetchProducts()
-    }, [])
+    }, [fetchProducts])
 
     const handleOpenModal = (product?: Product) => {
         if (product) {
