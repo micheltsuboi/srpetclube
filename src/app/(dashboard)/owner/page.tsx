@@ -190,6 +190,9 @@ export default function OwnerDashboard() {
                     <Link href="/owner/tutors" className={styles.headerBtn}>
                         👤 Tutores
                     </Link>
+                    <Link href="/owner/pets" className={styles.headerBtn}>
+                        🐾 Pets
+                    </Link>
                     <Link href="/owner/usuarios" className={styles.headerBtn}>
                         👥 Usuários
                     </Link>
