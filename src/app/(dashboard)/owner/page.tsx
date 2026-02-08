@@ -60,6 +60,12 @@ export default function OwnerDashboard() {
     const [petsToday] = useState<PetToday[]>([])
     const [loading, setLoading] = useState(true)
 
+    const [stats, setStats] = useState({
+        tutors: 0,
+        pets: 0,
+        appointmentsToday: 0
+    })
+
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {
@@ -75,6 +81,7 @@ export default function OwnerDashboard() {
 
                 if (!profile?.org_id) return
 
+                // 1. Fetch Financials
                 // Calculate dates
                 const now = new Date()
                 const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
@@ -116,6 +123,23 @@ export default function OwnerDashboard() {
                         monthlyGrowth: parseFloat(growth.toFixed(1))
                     })
                 }
+
+                // 2. Fetch Operational Stats
+                const { count: tutorsCount } = await supabase
+                    .from('customers')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('org_id', profile.org_id)
+
+                // RLS filters pets by org via customer relationship
+                const { count: petsCount } = await supabase
+                    .from('pets')
+                    .select('*', { count: 'exact', head: true })
+
+                setStats({
+                    tutors: tutorsCount || 0,
+                    pets: petsCount || 0,
+                    appointmentsToday: 0 // Placeholder until Appointments are implemented
+                })
 
             } catch (error) {
                 console.error('Erro ao carregar dashboard:', error)
@@ -163,6 +187,9 @@ export default function OwnerDashboard() {
                     <p className={styles.subtitle}>Painel de Gestão do Pet Shop</p>
                 </div>
                 <div className={styles.headerActions}>
+                    <Link href="/owner/tutors" className={styles.headerBtn}>
+                        👤 Tutores
+                    </Link>
                     <Link href="/owner/usuarios" className={styles.headerBtn}>
                         👥 Usuários
                     </Link>
@@ -175,7 +202,33 @@ export default function OwnerDashboard() {
                 </div>
             </div>
 
+            {/* Operational Stats */}
+            <div className={styles.financialGrid} style={{ marginBottom: '1.5rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                <div className={styles.financialCard}>
+                    <div className={styles.cardIcon}>👤</div>
+                    <div className={styles.cardContent}>
+                        <span className={styles.cardValue}>{stats.tutors}</span>
+                        <span className={styles.cardLabel}>Total de Tutores</span>
+                    </div>
+                </div>
+                <div className={styles.financialCard}>
+                    <div className={styles.cardIcon}>🐾</div>
+                    <div className={styles.cardContent}>
+                        <span className={styles.cardValue}>{stats.pets}</span>
+                        <span className={styles.cardLabel}>Pets Cadastrados</span>
+                    </div>
+                </div>
+                <div className={styles.financialCard}>
+                    <div className={styles.cardIcon}>📅</div>
+                    <div className={styles.cardContent}>
+                        <span className={styles.cardValue}>{stats.appointmentsToday}</span>
+                        <span className={styles.cardLabel}>Agendamentos Hoje</span>
+                    </div>
+                </div>
+            </div>
+
             {/* Financial Summary */}
+            <h2 className={styles.sectionTitle}>💰 Resumo Financeiro</h2>
             <div className={styles.financialGrid}>
                 <div className={styles.financialCard}>
                     <div className={styles.cardIcon}>💰</div>
@@ -199,13 +252,6 @@ export default function OwnerDashboard() {
                     <div className={styles.cardContent}>
                         <span className={`${styles.cardValue} ${styles.profit}`}>{formatCurrency(financials.profit)}</span>
                         <span className={styles.cardLabel}>Lucro Líquido</span>
-                    </div>
-                </div>
-                <div className={styles.financialCard}>
-                    <div className={styles.cardIcon}>⏳</div>
-                    <div className={styles.cardContent}>
-                        <span className={`${styles.cardValue} ${styles.pending}`}>{formatCurrency(financials.pendingPayments)}</span>
-                        <span className={styles.cardLabel}>A Receber</span>
                     </div>
                 </div>
             </div>
