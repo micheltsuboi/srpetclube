@@ -1,61 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Vaccine, VaccineBatch } from '@/types/database'
 import styles from './page.module.css'
-
-// Mock Data
-const mockVaccines: Vaccine[] = [
-    {
-        id: '1',
-        org_id: 'org_1',
-        name: 'V10',
-        manufacturer: 'Zoetis',
-        description: 'Vacina múltipla canina',
-        target_animals: ['Cão'],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-    },
-    {
-        id: '2',
-        org_id: 'org_1',
-        name: 'Raiva (Antirrábica)',
-        manufacturer: 'MSD',
-        description: 'Vacina contra raiva',
-        target_animals: ['Cão', 'Gato'],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-    }
-]
-
-const mockBatches: VaccineBatch[] = [
-    {
-        id: 'b1',
-        vaccine_id: '1',
-        batch_number: 'LOTE123',
-        quantity: 50,
-        cost_price: 25.00,
-        selling_price: 80.00,
-        expiration_date: '2025-12-31',
-        is_active: true,
-        created_at: new Date().toISOString()
-    },
-    {
-        id: 'b2',
-        vaccine_id: '1',
-        batch_number: 'LOTE999',
-        quantity: 10,
-        cost_price: 22.00,
-        selling_price: 80.00,
-        expiration_date: '2024-10-01',
-        is_active: true,
-        created_at: new Date().toISOString()
-    }
-]
+import { createClient } from '@/lib/supabase/client'
 
 export default function VaccinesPage() {
-    const [vaccines, setVaccines] = useState<Vaccine[]>(mockVaccines)
-    const [batches, setBatches] = useState<VaccineBatch[]>(mockBatches)
+    const supabase = createClient()
+    const [vaccines, setVaccines] = useState<Vaccine[]>([])
+    const [batches, setBatches] = useState<VaccineBatch[]>([])
+    const [isLoading, setIsLoading] = useState(true)
 
     const [expandedVaccineId, setExpandedVaccineId] = useState<string | null>(null)
     const [isVaccineModalOpen, setIsVaccineModalOpen] = useState(false)
@@ -86,25 +40,81 @@ export default function VaccinesPage() {
         expiration_date: ''
     })
 
+    const fetchData = async () => {
+        try {
+            const { data: vaccinesData, error: vaccinesError } = await supabase
+                .from('vaccines')
+                .select('*')
+                .order('name')
+
+            if (vaccinesError) throw vaccinesError
+            if (vaccinesData) setVaccines(vaccinesData)
+
+            const { data: batchesData, error: batchesError } = await supabase
+                .from('vaccine_batches')
+                .select('*')
+                .eq('is_active', true)
+                .order('expiration_date')
+
+            if (batchesError) throw batchesError
+            if (batchesData) setBatches(batchesData)
+
+        } catch (error) {
+            console.error('Erro ao buscar dados:', error)
+            alert('Erro ao carregar vacinas. Tente novamente.')
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        fetchData()
+    }, [])
+
     const handleToggleExpand = (id: string) => {
         setExpandedVaccineId(expandedVaccineId === id ? null : id)
     }
 
-    const handleSaveVaccine = (e: React.FormEvent) => {
+    const handleSaveVaccine = async (e: React.FormEvent) => {
         e.preventDefault()
-        const newVaccine: Vaccine = {
-            id: Math.random().toString(36).substr(2, 9),
-            org_id: 'org_1',
-            name: vaccineForm.name,
-            manufacturer: vaccineForm.manufacturer,
-            description: vaccineForm.description,
-            target_animals: [vaccineForm.target_animals],
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            // Get user's organization
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('org_id')
+                .eq('id', user.id)
+                .single()
+
+            if (!profile?.org_id) {
+                alert('Erro: Organização não encontrada.')
+                return
+            }
+
+            const { error } = await supabase
+                .from('vaccines')
+                .insert({
+                    org_id: profile.org_id,
+                    name: vaccineForm.name,
+                    manufacturer: vaccineForm.manufacturer,
+                    description: vaccineForm.description,
+                    target_animals: [vaccineForm.target_animals],
+                    is_active: true
+                })
+
+            if (error) throw error
+
+            await fetchData()
+            setIsVaccineModalOpen(false)
+            setVaccineForm({ name: '', manufacturer: '', description: '', target_animals: 'Cão' })
+
+        } catch (error) {
+            console.error('Erro ao salvar vacina:', error)
+            alert('Erro ao salvar vacina.')
         }
-        setVaccines([...vaccines, newVaccine])
-        setIsVaccineModalOpen(false)
-        setVaccineForm({ name: '', manufacturer: '', description: '', target_animals: 'Cão' })
     }
 
     const handleOpenBatchModal = (vaccine: Vaccine) => {
@@ -119,23 +129,32 @@ export default function VaccinesPage() {
         setIsBatchModalOpen(true)
     }
 
-    const handleSaveBatch = (e: React.FormEvent) => {
+    const handleSaveBatch = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!selectedVaccineForBatch) return
 
-        const newBatch: VaccineBatch = {
-            id: Math.random().toString(36).substr(2, 9),
-            vaccine_id: selectedVaccineForBatch.id,
-            batch_number: batchForm.batch_number,
-            quantity: batchForm.quantity,
-            cost_price: batchForm.cost_price,
-            selling_price: batchForm.selling_price,
-            expiration_date: batchForm.expiration_date,
-            is_active: true,
-            created_at: new Date().toISOString()
+        try {
+            const { error } = await supabase
+                .from('vaccine_batches')
+                .insert({
+                    vaccine_id: selectedVaccineForBatch.id,
+                    batch_number: batchForm.batch_number,
+                    quantity: batchForm.quantity,
+                    cost_price: batchForm.cost_price,
+                    selling_price: batchForm.selling_price,
+                    expiration_date: batchForm.expiration_date,
+                    is_active: true
+                })
+
+            if (error) throw error
+
+            await fetchData()
+            setIsBatchModalOpen(false)
+
+        } catch (error) {
+            console.error('Erro ao salvar lote:', error)
+            alert('Erro ao salvar lote.')
         }
-        setBatches([...batches, newBatch])
-        setIsBatchModalOpen(false)
     }
 
     const getVaccineStock = (vaccineId: string) => {
@@ -157,23 +176,70 @@ export default function VaccinesPage() {
         setIsSaleModalOpen(true)
     }
 
-    const handleConfirmSale = (e: React.FormEvent) => {
+    const handleConfirmSale = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!selectedBatchToSell) return
 
-        const discountAmount = (selectedBatchToSell.selling_price * saleData.quantity) * (saleData.tempDiscountPercent / 100)
-        const finalTotal = (selectedBatchToSell.selling_price * saleData.quantity) - discountAmount
+        try {
+            const discountAmount = (selectedBatchToSell.selling_price * saleData.quantity) * (saleData.tempDiscountPercent / 100)
+            const finalTotal = (selectedBatchToSell.selling_price * saleData.quantity) - discountAmount
 
-        // Update Stock
-        setBatches(batches.map(b => b.id === selectedBatchToSell.id ? {
-            ...b,
-            quantity: b.quantity - saleData.quantity
-        } : b))
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
 
-        alert(`Venda realizada com sucesso!\n\nLote: ${selectedBatchToSell.batch_number}\nTotal: ${formatCurrency(finalTotal)}\nEstoque atualizado.`)
+            // Get user's organization
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('org_id')
+                .eq('id', user.id)
+                .single()
 
-        setIsSaleModalOpen(false)
-        setSelectedBatchToSell(null)
+            if (!profile?.org_id) return
+
+            // 1. Update Vaccine Batch Stock
+            const { error: stockError } = await supabase
+                .from('vaccine_batches')
+                .update({ quantity: selectedBatchToSell.quantity - saleData.quantity })
+                .eq('id', selectedBatchToSell.id)
+
+            if (stockError) throw stockError
+
+            // 2. Create Financial Transaction
+            const { error: transactionError } = await supabase
+                .from('financial_transactions')
+                .insert({
+                    org_id: profile.org_id,
+                    type: 'income',
+                    category: 'Venda Vacina',
+                    amount: finalTotal,
+                    description: `Venda de Vacina (${saleData.quantity}x) - Lote: ${selectedBatchToSell.batch_number}`,
+                    created_by: user.id,
+                    date: new Date().toISOString()
+                })
+
+            if (transactionError) {
+                console.error('Erro ao registrar transação:', transactionError)
+                alert('Venda realizada, mas houve um erro ao registrar no financeiro.')
+            } else {
+                alert(`Venda realizada com sucesso!\n\nLote: ${selectedBatchToSell.batch_number}\nTotal: ${formatCurrency(finalTotal)}\nEstoque atualizado e transação registrada.`)
+            }
+
+            await fetchData()
+            setIsSaleModalOpen(false)
+            setSelectedBatchToSell(null)
+
+        } catch (error) {
+            console.error('Erro ao processar venda:', error)
+            alert('Erro ao processar a venda. Tente novamente.')
+        }
+    }
+
+    if (isLoading) {
+        return (
+            <div className={styles.container} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <div style={{ fontSize: '1.2rem', color: '#666' }}>Carregando vacinas...</div>
+            </div>
+        )
     }
 
     return (

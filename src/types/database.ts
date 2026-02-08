@@ -262,8 +262,8 @@ export interface Product {
     org_id: string
     name: string
     category: string
-    cost_price: number
-    selling_price: number
+    price: number
+    cost_price?: number
     stock_quantity: number
     min_stock_threshold?: number
     expiration_date: string | null
@@ -296,6 +296,22 @@ export interface VaccineBatch {
     expiration_date: string
     is_active: boolean
     created_at: string
+}
+
+// Financial Transaction Interface
+export interface FinancialTransaction {
+    id: string
+    org_id: string
+    type: 'income' | 'expense'
+    category: string
+    amount: number
+    description?: string
+    payment_method?: string
+    date: string
+    created_by?: string
+    reference_id?: string
+    created_at: string
+    updated_at: string
 }
 
 export interface ProductFormData {

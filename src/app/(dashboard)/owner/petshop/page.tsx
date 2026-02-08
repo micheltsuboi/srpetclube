@@ -1,76 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import { Product, ProductFormData } from '@/types/database'
 import styles from './page.module.css'
-
-// Mock Data
-const mockProducts: Product[] = [
-    {
-        id: '1',
-        org_id: 'org_1',
-        name: 'Ração Premium Adulto 15kg',
-        category: 'Alimentação',
-        cost_price: 180.00,
-        selling_price: 249.90,
-        stock_quantity: 45,
-        min_stock_threshold: 10,
-        expiration_date: '2025-12-31',
-        photo_url: null,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-    },
-    {
-        id: '2',
-        org_id: 'org_1',
-        name: 'Shampoo Hipoalergênico 500ml',
-        category: 'Higiene',
-        cost_price: 25.50,
-        selling_price: 49.90,
-        stock_quantity: 12,
-        min_stock_threshold: 5,
-        expiration_date: '2024-10-15',
-        photo_url: null,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-    },
-    {
-        id: '3',
-        org_id: 'org_1',
-        name: 'Brinquedo Mordedor Resistente',
-        category: 'Brinquedos',
-        cost_price: 15.00,
-        selling_price: 39.90,
-        stock_quantity: 8,
-        min_stock_threshold: 15,
-        expiration_date: null,
-        photo_url: null,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-    },
-    {
-        id: '4',
-        org_id: 'org_1',
-        name: 'Antipulgas Pipeta P',
-        category: 'Farmácia',
-        cost_price: 45.00,
-        selling_price: 89.90,
-        stock_quantity: 100,
-        min_stock_threshold: 20,
-        expiration_date: '2024-06-01', // Near expiration example
-        photo_url: null,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-    }
-]
+import { createClient } from '@/lib/supabase/client'
 
 export default function PetshopPage() {
-    const [products, setProducts] = useState<Product[]>(mockProducts)
+    const supabase = createClient()
+    const [products, setProducts] = useState<Product[]>([])
+    const [isLoading, setIsLoading] = useState(true)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedCategory, setSelectedCategory] = useState('Todas')
@@ -95,14 +34,35 @@ export default function PetshopPage() {
 
     const categories = ['Todas', 'Alimentação', 'Higiene', 'Brinquedos', 'Farmácia', 'Acessórios']
 
+    const fetchProducts = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('products')
+                .select('*')
+                .order('name')
+
+            if (error) throw error
+            if (data) setProducts(data)
+        } catch (error) {
+            console.error('Erro ao buscar produtos:', error)
+            alert('Erro ao carregar produtos. Tente novamente.')
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        fetchProducts()
+    }, [])
+
     const handleOpenModal = (product?: Product) => {
         if (product) {
             setEditingProduct(product)
             setFormData({
                 name: product.name,
                 category: product.category,
-                cost_price: product.cost_price,
-                selling_price: product.selling_price,
+                cost_price: product.cost_price || 0,
+                selling_price: product.price,
                 stock_quantity: product.stock_quantity,
                 expiration_date: product.expiration_date || '',
                 description: product.description || ''
@@ -122,31 +82,59 @@ export default function PetshopPage() {
         setIsModalOpen(true)
     }
 
-    const handleSave = (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault()
 
-        if (editingProduct) {
-            // Update existing
-            setProducts(products.map(p => p.id === editingProduct.id ? {
-                ...p,
-                ...formData,
-                updated_at: new Date().toISOString()
-            } : p))
-        } else {
-            // Create new
-            const newProduct: Product = {
-                id: Math.random().toString(36).substr(2, 9),
-                org_id: 'org_1',
-                ...formData,
-                expiration_date: formData.expiration_date || null,
-                photo_url: null,
-                is_active: true,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            // Get user's organization
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('org_id')
+                .eq('id', user.id)
+                .single()
+
+            if (!profile?.org_id) {
+                alert('Erro: Organização não encontrada.')
+                return
             }
-            setProducts([...products, newProduct])
+
+            const productData = {
+                org_id: profile.org_id,
+                name: formData.name,
+                category: formData.category,
+                cost_price: formData.cost_price,
+                price: formData.selling_price,
+                stock_quantity: formData.stock_quantity,
+                min_stock_alert: 5,
+                expiration_date: formData.expiration_date || null,
+                description: formData.description,
+                is_active: true
+            }
+
+            if (editingProduct) {
+                const { error } = await supabase
+                    .from('products')
+                    .update(productData)
+                    .eq('id', editingProduct.id)
+
+                if (error) throw error
+            } else {
+                const { error } = await supabase
+                    .from('products')
+                    .insert(productData)
+
+                if (error) throw error
+            }
+
+            await fetchProducts()
+            setIsModalOpen(false)
+        } catch (error) {
+            console.error('Erro ao salvar produto:', error)
+            alert('Erro ao salvar produto. Verifique os dados e tente novamente.')
         }
-        setIsModalOpen(false)
     }
 
     const handleOpenSaleModal = (product: Product) => {
@@ -155,25 +143,62 @@ export default function PetshopPage() {
         setIsSaleModalOpen(true)
     }
 
-    const handleConfirmSale = (e: React.FormEvent) => {
+    const handleConfirmSale = async (e: React.FormEvent) => {
         e.preventDefault()
         if (!productToSell) return
 
-        const discountAmount = (productToSell.selling_price * saleData.quantity) * (saleData.tempDiscountPercent / 100)
-        const finalTotal = (productToSell.selling_price * saleData.quantity) - discountAmount
+        try {
+            const discountAmount = (productToSell.price * saleData.quantity) * (saleData.tempDiscountPercent / 100)
+            const finalTotal = (productToSell.price * saleData.quantity) - discountAmount
 
-        // Update Stock
-        setProducts(products.map(p => p.id === productToSell.id ? {
-            ...p,
-            stock_quantity: p.stock_quantity - saleData.quantity,
-            updated_at: new Date().toISOString()
-        } : p))
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
 
-        // In a real app, this would also post to a 'transactions' table
-        alert(`Venda realizada com sucesso!\n\nTotal: ${formatCurrency(finalTotal)}\nEstoque atualizado.`)
+            // Get user's organization
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('org_id')
+                .eq('id', user.id)
+                .single()
 
-        setIsSaleModalOpen(false)
-        setProductToSell(null)
+            if (!profile?.org_id) return
+
+            // 1. Update Stock
+            const { error: stockError } = await supabase
+                .from('products')
+                .update({ stock_quantity: productToSell.stock_quantity - saleData.quantity })
+                .eq('id', productToSell.id)
+
+            if (stockError) throw stockError
+
+            // 2. Create Financial Transaction
+            const { error: transactionError } = await supabase
+                .from('financial_transactions')
+                .insert({
+                    org_id: profile.org_id,
+                    type: 'income',
+                    category: 'Venda Produto',
+                    amount: finalTotal,
+                    description: `Venda de ${saleData.quantity}x ${productToSell.name}`,
+                    created_by: user.id,
+                    date: new Date().toISOString()
+                })
+
+            if (transactionError) {
+                console.error('Erro ao registrar transação:', transactionError)
+                alert('Venda realizada, mas houve um erro ao registrar no financeiro.')
+            } else {
+                alert(`Venda realizada com sucesso!\n\nTotal: ${formatCurrency(finalTotal)}\nEstoque atualizado e transação registrada.`)
+            }
+
+            await fetchProducts()
+            setIsSaleModalOpen(false)
+            setProductToSell(null)
+
+        } catch (error) {
+            console.error('Erro ao processar venda:', error)
+            alert('Erro ao processar a venda. Tente novamente.')
+        }
     }
 
     const handleDelete = (id: string) => {
@@ -198,6 +223,14 @@ export default function PetshopPage() {
     const formatDate = (dateString: string | null) => {
         if (!dateString) return 'N/A'
         return new Date(dateString).toLocaleDateString('pt-BR')
+    }
+
+    if (isLoading) {
+        return (
+            <div className={styles.container} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                <div style={{ fontSize: '1.2rem', color: '#666' }}>Carregando produtos...</div>
+            </div>
+        )
     }
 
     return (
@@ -252,9 +285,9 @@ export default function PetshopPage() {
                             </div>
 
                             <div className={styles.productPrice}>
-                                {formatCurrency(product.selling_price)}
+                                {formatCurrency(product.price)}
                                 <div style={{ fontSize: '0.75rem', color: '#666', fontWeight: 'normal' }}>
-                                    Custo: {formatCurrency(product.cost_price)}
+                                    Custo: {formatCurrency(product.cost_price || 0)}
                                 </div>
                             </div>
 
@@ -398,7 +431,7 @@ export default function PetshopPage() {
                             <div className={styles.saleInfo}>
                                 <div className={styles.infoRow}>
                                     <span>Preço Unitário:</span>
-                                    <strong>{formatCurrency(productToSell.selling_price)}</strong>
+                                    <strong>{formatCurrency(productToSell.price)}</strong>
                                 </div>
                                 <div className={styles.infoRow}>
                                     <span>Em Estoque:</span>
@@ -435,20 +468,20 @@ export default function PetshopPage() {
                             <div className={styles.totalSection}>
                                 <div className={styles.totalRow}>
                                     <span>Subtotal:</span>
-                                    <span>{formatCurrency(productToSell.selling_price * saleData.quantity)}</span>
+                                    <span>{formatCurrency(productToSell.price * saleData.quantity)}</span>
                                 </div>
                                 <div className={styles.totalRow}>
                                     <span>Desconto:</span>
                                     <span className={styles.discountValue}>
-                                        - {formatCurrency((productToSell.selling_price * saleData.quantity) * (saleData.tempDiscountPercent / 100))}
+                                        - {formatCurrency((productToSell.price * saleData.quantity) * (saleData.tempDiscountPercent / 100))}
                                     </span>
                                 </div>
                                 <div className={`${styles.totalRow} ${styles.finalTotal}`}>
                                     <span>Total Final:</span>
                                     <span>
                                         {formatCurrency(
-                                            (productToSell.selling_price * saleData.quantity) -
-                                            ((productToSell.selling_price * saleData.quantity) * (saleData.tempDiscountPercent / 100))
+                                            (productToSell.price * saleData.quantity) -
+                                            ((productToSell.price * saleData.quantity) * (saleData.tempDiscountPercent / 100))
                                         )}
                                     </span>
                                 </div>
