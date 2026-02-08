@@ -43,7 +43,6 @@ export default function PetsPage() {
     const [loading, setLoading] = useState(true)
     const [showModal, setShowModal] = useState(false)
     const [selectedPet, setSelectedPet] = useState<Pet | null>(null)
-    const [activeTab, setActiveTab] = useState<'details' | 'packages'>('details')
 
     // Package States
     const [petPackages, setPetPackages] = useState<any[]>([])
@@ -56,6 +55,25 @@ export default function PetsPage() {
     const [updateState, updateAction, isUpdatePending] = useActionState(updatePet, initialState)
 
     const isPending = isCreatePending || isUpdatePending
+
+    const calculateAge = (birthDate: string | null) => {
+        if (!birthDate) return '-'
+        const today = new Date()
+        const birth = new Date(birthDate)
+        let years = today.getFullYear() - birth.getFullYear()
+        let months = today.getMonth() - birth.getMonth()
+        if (months < 0 || (months === 0 && today.getDate() < birth.getDate())) {
+            years--
+            months += 12
+        }
+        if (years === 0) return `${months} meses`
+        if (years === 1) return months > 0 ? `1 ano e ${months} m` : `1 ano`
+        return `${years} anos`
+    }
+
+    // Accordion State
+    const [accordions, setAccordions] = useState({ details: true, packages: false, daycare: false, hotel: false })
+    const toggleAccordion = (key: keyof typeof accordions) => setAccordions(prev => ({ ...prev, [key]: !prev[key] }))
 
     const fetchData = useCallback(async () => {
         try {
@@ -111,9 +129,9 @@ export default function PetsPage() {
         }
     }, [supabase])
 
-    // Buscar pacotes do pet quando a aba muda ou o pet é selecionado
+    // Buscar pacotes do pet quando o accordion muda ou o pet é selecionado
     const fetchPetPackageSummary = useCallback(async () => {
-        if (!selectedPet || activeTab !== 'packages') return
+        if (!selectedPet || !accordions.packages) return
 
         try {
             const data = await getPetPackagesWithUsage(selectedPet.id)
@@ -121,7 +139,7 @@ export default function PetsPage() {
         } catch (error) {
             console.error('Erro:', error)
         }
-    }, [selectedPet, activeTab])
+    }, [selectedPet, accordions.packages])
 
     useEffect(() => {
         fetchData()
@@ -150,7 +168,7 @@ export default function PetsPage() {
             const pet = pets.find(p => p.id === openPetId)
             if (pet) {
                 setSelectedPet(pet)
-                setActiveTab('packages')
+                setAccordions({ details: true, packages: true, daycare: false, hotel: false }) // Open packages when returning from agenda
                 setShowModal(true)
                 // Clean URL
                 const url = new URL(window.location.href)
@@ -173,13 +191,13 @@ export default function PetsPage() {
 
     const handleRowClick = (pet: Pet) => {
         setSelectedPet(pet)
-        setActiveTab('details')
+        setAccordions({ details: true, packages: false, daycare: false, hotel: false })
         setShowModal(true)
     }
 
     const handleNewPet = () => {
         setSelectedPet(null)
-        setActiveTab('details')
+        setAccordions({ details: true, packages: false, daycare: false, hotel: false })
         setShowModal(true)
     }
 
@@ -285,7 +303,7 @@ export default function PetsPage() {
                                 </td>
                                 <td>
                                     <div className={styles.itemSub}>
-                                        {pet.birth_date ? new Date(pet.birth_date).toLocaleDateString('pt-BR') : '-'}
+                                        {calculateAge(pet.birth_date)}
                                     </div>
                                 </td>
                             </tr>
@@ -300,335 +318,233 @@ export default function PetsPage() {
             {showModal && (
                 <div className={styles.modalOverlay} onClick={() => setShowModal(false)}>
                     <div className={styles.modal} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
                             <h2 style={{ margin: 0 }}>
-                                {activeTab === 'details'
-                                    ? (selectedPet ? `Editar ${selectedPet.name}` : 'Cadastrar Novo Pet')
-                                    : `Pacotes de ${selectedPet?.name}`
-                                }
+                                {selectedPet ? `Ficha Pet: ${selectedPet.name}` : 'Novo Pet'}
                             </h2>
-                            {selectedPet && (
-                                <div className={styles.tabButtons}>
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('details')}
-                                        className={`${styles.tabButton} ${activeTab === 'details' ? styles.activeTab : ''}`}
-                                    >
-                                        Dados
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => setActiveTab('packages')}
-                                        className={`${styles.tabButton} ${activeTab === 'packages' ? styles.activeTab : ''}`}
-                                    >
-                                        Pacotes
-                                    </button>
-                                </div>
-                            )}
+                            <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: '2rem', lineHeight: '1rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                                &times;
+                            </button>
                         </div>
 
-                        {activeTab === 'details' ? (
-                            <form action={selectedPet ? updateAction : createAction}>
-                                {selectedPet && <input type="hidden" name="id" value={selectedPet.id} />}
+                        <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 100px)', paddingRight: '0.5rem' }}>
 
-                                <div className={styles.formGrid}>
-                                    <div className={`${styles.formGroup} ${styles.fullWidth}`}>
-                                        <label htmlFor="customerId" className={styles.label}>Tutor *</label>
-                                        <select
-                                            id="customerId" name="customerId" className={styles.select} required
-                                            defaultValue={selectedPet?.customer_id || ''}
-                                        >
-                                            <option value="">Selecione um tutor...</option>
-                                            {customers.map(c => (
-                                                <option key={c.id} value={c.id}>{c.name}</option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div className={`${styles.formGroup} ${styles.fullWidth}`}>
-                                        <label htmlFor="name" className={styles.label}>Nome do Pet *</label>
-                                        <input
-                                            id="name" name="name" type="text" className={styles.input} required
-                                            placeholder="Ex: Rex"
-                                            defaultValue={selectedPet?.name || ''}
-                                        />
-                                    </div>
-
-                                    <div className={styles.formGroup}>
-                                        <label htmlFor="species" className={styles.label}>Espécie *</label>
-                                        <select
-                                            id="species" name="species" className={styles.select} required
-                                            defaultValue={selectedPet?.species || 'dog'}
-                                        >
-                                            <option value="dog">Cão</option>
-                                            <option value="cat">Gato</option>
-                                            <option value="other">Outro</option>
-                                        </select>
-                                    </div>
-
-                                    <div className={styles.formGroup}>
-                                        <label htmlFor="breed" className={styles.label}>Raça</label>
-                                        <input
-                                            id="breed" name="breed" type="text" className={styles.input}
-                                            placeholder="Ex: Labrador"
-                                            defaultValue={selectedPet?.breed || ''}
-                                        />
-                                    </div>
-
-                                    <div className={styles.formGroup}>
-                                        <label htmlFor="gender" className={styles.label}>Sexo *</label>
-                                        <select
-                                            id="gender" name="gender" className={styles.select} required
-                                            defaultValue={selectedPet?.gender || 'male'}
-                                        >
-                                            <option value="male">Macho</option>
-                                            <option value="female">Fêmea</option>
-                                        </select>
-                                    </div>
-
-                                    <div className={styles.formGroup}>
-                                        <label htmlFor="size" className={styles.label}>Porte *</label>
-                                        <select
-                                            id="size" name="size" className={styles.select} required
-                                            defaultValue={selectedPet?.size || 'medium'}
-                                        >
-                                            <option value="small">Pequeno</option>
-                                            <option value="medium">Médio</option>
-                                            <option value="large">Grande</option>
-                                            <option value="giant">Gigante</option>
-                                        </select>
-                                    </div>
-
-                                    <div className={styles.formGroup}>
-                                        <label htmlFor="birthDate" className={styles.label}>Data de Nascimento</label>
-                                        <input
-                                            id="birthDate" name="birthDate" type="date" className={styles.input}
-                                            defaultValue={selectedPet?.birth_date || ''}
-                                        />
-                                    </div>
-
-                                    <div className={styles.formGroup}>
-                                        <label htmlFor="weight" className={styles.label}>Peso (kg)</label>
-                                        <input
-                                            id="weight" name="weight" type="number" step="0.1" className={styles.input}
-                                            placeholder="0.0"
-                                            defaultValue={selectedPet?.weight_kg?.toString() || ''}
-                                        />
-                                    </div>
-                                    <div className={`${styles.formGroup} ${styles.fullWidth}`}>
-                                        <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                            <input
-                                                type="checkbox" name="isNeutered"
-                                                defaultChecked={selectedPet?.is_neutered || false}
-                                            />
-                                            É castrado?
-                                        </label>
-                                    </div>
-
-                                    <div className={styles.formGroup}>
-                                        <label className={styles.label}>
-                                            <input
-                                                type="checkbox"
-                                                name="vaccination_up_to_date"
-                                                defaultChecked={selectedPet?.vaccination_up_to_date}
-                                                style={{ marginRight: '0.5rem' }}
-                                            />
-                                            Vacinação em dia
-                                        </label>
-                                    </div>
-
-                                    <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-                                        <label className={styles.label}>Doença Pré-existente</label>
-                                        <input
-                                            name="existing_conditions"
-                                            className={styles.input}
-                                            defaultValue={selectedPet?.existing_conditions || ''}
-                                            placeholder="Ex: Diabetes, Alergia..."
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className={styles.modalActions} style={{ justifyContent: 'space-between' }}>
-                                    <div>
-                                        {selectedPet && (
-                                            <button
-                                                type="button"
-                                                className={styles.cancelBtn}
-                                                style={{ color: 'red', borderColor: 'red', background: 'rgba(255,0,0,0.05)' }}
-                                                onClick={handleDelete}
-                                            >
-                                                Excluir
-                                            </button>
-                                        )}
-                                    </div>
-                                    <div style={{ display: 'flex', gap: '1rem' }}>
-                                        <button type="button" className={styles.cancelBtn} onClick={() => setShowModal(false)} disabled={isPending}>
-                                            Cancelar
-                                        </button>
-                                        <button type="submit" className={styles.submitButton} disabled={isPending}>
-                                            {isPending ? 'Salvando...' : (selectedPet ? 'Salvar Alterações' : 'Cadastrar Pet')}
-                                        </button>
-                                    </div>
-                                </div>
-                            </form>
-                        ) : (
-                            // PACKAGES TAB
-                            <div className={styles.packagesContainer}>
-                                <div className={styles.addPackageSection}>
-                                    <h3 className={styles.sectionTitle}>Contratar Novo Pacote</h3>
-                                    <div className={styles.packageSelection}>
-                                        <select
-                                            className={styles.select}
-                                            value={selectedPackageId}
-                                            onChange={e => setSelectedPackageId(e.target.value)}
-                                        >
-                                            <option value="">Selecione um pacote...</option>
-                                            {availablePackages.map(pkg => (
-                                                <option key={pkg.id} value={pkg.id}>
-                                                    {pkg.name} - R$ {pkg.total_price.toFixed(2)}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <button
-                                            type="button"
-                                            className={styles.submitButton}
-                                            disabled={!selectedPackageId || isSelling}
-                                            onClick={handleSellPackage}
-                                        >
-                                            {isSelling ? 'Processando...' : 'Contratar'}
-                                        </button>
-                                    </div>
-                                </div>
-
-                                <h3 className={styles.sectionTitle} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                                    Pacotes Ativos & Créditos
-                                </h3>
-
-                                {petPackages.length === 0 ? (
-                                    <div className={styles.emptyState}>
-                                        Nenhum pacote ativo para este pet.
-                                    </div>
-                                ) : (
-                                    <div className={styles.packagesContainer} style={{ marginTop: '0' }}>
-                                        {petPackages.map((pkg, index) => {
-                                            const total = pkg.total_qty || 0
-                                            const used = pkg.used_qty || 0
-                                            const rawAppointments = pkg.appointments || []
-                                            // Ordenar agendamentos por data (antigo -> recente) para preencher os slots sequencialmente
-                                            const appointments = [...rawAppointments].sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
-
-                                            const slots = []
-                                            for (let i = 0; i < total; i++) {
-                                                let status = 'available'
-                                                let appointment = null
-
-                                                if (i < appointments.length) {
-                                                    appointment = appointments[i]
-                                                    if (appointment.status === 'done') {
-                                                        status = 'used'
-                                                    } else {
-                                                        status = 'scheduled'
-                                                    }
-                                                } else if (i < used) {
-                                                    status = 'used'
-                                                }
-                                                slots.push({ index: i + 1, status, appointment })
-                                            }
-
-                                            return (
-                                                <div key={`${pkg.customer_package_id}-${pkg.service_id}-${index}`} className={styles.packageCard}
-                                                    style={{
-                                                        flexDirection: 'column',
-                                                        alignItems: 'stretch',
-                                                        backgroundColor: pkg.is_expired ? 'rgba(255,0,0,0.05)' : 'var(--bg-secondary)',
-                                                        opacity: pkg.is_expired ? 0.7 : 1
-                                                    }}
-                                                >
-                                                    <div className={styles.packageHeader}>
-                                                        <div className={styles.packageInfo}>
-                                                            <h4>{pkg.service_name}</h4>
-                                                            <span className={styles.packageName}>Pacote: {pkg.package_name}</span>
-                                                            <div className={styles.packageDate}>
-                                                                Validade: {pkg.expires_at ? new Date(pkg.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}
-                                                            </div>
-                                                        </div>
-                                                        <div className={styles.creditsInfo} style={{ textAlign: 'right' }}>
-                                                            <div className={styles.creditCount} style={{
-                                                                color: pkg.remaining_qty > 0 ? 'var(--primary)' : 'var(--text-secondary)'
-                                                            }}>
-                                                                {pkg.remaining_qty}
-                                                                <span style={{ fontSize: '0.5em', fontWeight: '400', verticalAlign: 'middle', marginLeft: '2px' }}>
-                                                                    restantes
-                                                                </span>
-                                                            </div>
-                                                            <span className={styles.creditLabel}>
-                                                                Total contratado: {pkg.total_qty}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className={styles.slotsContainer}>
-                                                        {slots.map(slot => (
-                                                            <div key={slot.index} className={`${styles.slotItem} ${slot.status === 'used' ? styles.used : slot.status === 'scheduled' ? styles.scheduled : styles.available}`}
-                                                                style={slot.status === 'scheduled' ? { borderColor: 'var(--primary)', backgroundColor: 'rgba(59, 130, 246, 0.05)' } : {}}
-                                                            >
-                                                                <span className={styles.slotNumber}>#{slot.index}</span>
-
-                                                                {slot.status === 'used' ? (
-                                                                    <>
-                                                                        <div style={{ color: 'var(--success, #00c853)', fontSize: '1.2rem', marginBottom: '0.25rem' }}>✓</div>
-                                                                        <span className={styles.slotStatus} style={{ color: 'var(--success, #00c853)', fontSize: '0.8rem' }}>Realizado</span>
-                                                                        {slot.appointment && (
-                                                                            <span className={styles.usedDate}>
-                                                                                {new Date(slot.appointment.scheduled_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                                                                            </span>
-                                                                        )}
-                                                                    </>
-                                                                ) : slot.status === 'scheduled' ? (
-                                                                    <>
-                                                                        <div style={{ color: 'var(--primary)', fontSize: '1.2rem', marginBottom: '0.25rem' }}>🕒</div>
-                                                                        <span className={styles.slotStatus} style={{ color: 'var(--primary)', fontSize: '0.8rem' }}>Agendado</span>
-                                                                        {slot.appointment && (
-                                                                            <span className={styles.usedDate} style={{ color: 'var(--text-primary)' }}>
-                                                                                {new Date(slot.appointment.scheduled_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                                                                                <br />
-                                                                                {new Date(slot.appointment.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                                                            </span>
-                                                                        )}
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <div style={{ color: 'var(--text-secondary)', fontSize: '1.2rem', marginBottom: '0.25rem', opacity: 0.3 }}>📅</div>
-                                                                        <button
-                                                                            type="button"
-                                                                            className={styles.scheduleBtnSmall}
-                                                                            onClick={() => {
-                                                                                if (selectedPet) {
-                                                                                    const returnUrl = encodeURIComponent(`/owner/pets?openPetId=${selectedPet.id}`)
-                                                                                    router.push(`/owner/agenda?petId=${selectedPet.id}&serviceId=${pkg.service_id}&package=true&returnUrl=${returnUrl}`)
-                                                                                }
-                                                                            }}
-                                                                        >
-                                                                            Agendar
-                                                                        </button>
-                                                                    </>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                            {/* 1. DADOS CADASTRAIS */}
+                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
+                                <button type="button" onClick={() => toggleAccordion('details')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                                    <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>👤 Dados Cadastrais</span>
+                                    <span>{accordions.details ? '−' : '+'}</span>
+                                </button>
+                                {accordions.details && (
+                                    <div style={{ padding: '1rem' }}>
+                                        <form action={selectedPet ? updateAction : createAction}>
+                                            {selectedPet && <input type="hidden" name="id" value={selectedPet.id} />}
+                                            <div className={styles.formGrid}>
+                                                <div className={`${styles.formGroup} ${styles.fullWidth}`}>
+                                                    <label htmlFor="customerId" className={styles.label}>Tutor *</label>
+                                                    <select id="customerId" name="customerId" className={styles.select} required defaultValue={selectedPet?.customer_id || ''}>
+                                                        <option value="">Selecione um tutor...</option>
+                                                        {customers.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
+                                                    </select>
                                                 </div>
-                                            )
-                                        })}
+                                                <div className={`${styles.formGroup} ${styles.fullWidth}`}>
+                                                    <label htmlFor="name" className={styles.label}>Nome do Pet *</label>
+                                                    <input id="name" name="name" type="text" className={styles.input} required placeholder="Ex: Rex" defaultValue={selectedPet?.name || ''} />
+                                                </div>
+
+                                                <div className={styles.formGroup}>
+                                                    <label htmlFor="species" className={styles.label}>Espécie *</label>
+                                                    <select id="species" name="species" className={styles.select} required defaultValue={selectedPet?.species || 'dog'}>
+                                                        <option value="dog">Cão</option>
+                                                        <option value="cat">Gato</option>
+                                                        <option value="other">Outro</option>
+                                                    </select>
+                                                </div>
+                                                <div className={styles.formGroup}>
+                                                    <label htmlFor="breed" className={styles.label}>Raça</label>
+                                                    <input id="breed" name="breed" type="text" className={styles.input} defaultValue={selectedPet?.breed || ''} placeholder="Ex: Labrador" />
+                                                </div>
+                                                <div className={styles.formGroup}>
+                                                    <label htmlFor="gender" className={styles.label}>Sexo *</label>
+                                                    <select id="gender" name="gender" className={styles.select} required defaultValue={selectedPet?.gender || 'male'}>
+                                                        <option value="male">Macho</option>
+                                                        <option value="female">Fêmea</option>
+                                                    </select>
+                                                </div>
+                                                <div className={styles.formGroup}>
+                                                    <label htmlFor="size" className={styles.label}>Porte *</label>
+                                                    <select id="size" name="size" className={styles.select} required defaultValue={selectedPet?.size || 'medium'}>
+                                                        <option value="small">Pequeno</option>
+                                                        <option value="medium">Médio</option>
+                                                        <option value="large">Grande</option>
+                                                        <option value="giant">Gigante</option>
+                                                    </select>
+                                                </div>
+                                                <div className={styles.formGroup}>
+                                                    <label htmlFor="birthDate" className={styles.label}>Data de Nascimento</label>
+                                                    <input id="birthDate" name="birthDate" type="date" className={styles.input} defaultValue={selectedPet?.birth_date || ''} />
+                                                </div>
+                                                <div className={styles.formGroup}>
+                                                    <label htmlFor="weight" className={styles.label}>Peso (kg)</label>
+                                                    <input id="weight" name="weight" type="number" step="0.1" className={styles.input} defaultValue={selectedPet?.weight_kg?.toString() || ''} placeholder="0.0" />
+                                                </div>
+                                                <div className={`${styles.formGroup} ${styles.fullWidth}`}>
+                                                    <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                                        <input type="checkbox" name="isNeutered" defaultChecked={selectedPet?.is_neutered || false} /> É castrado?
+                                                    </label>
+                                                </div>
+                                                <div className={styles.formGroup}>
+                                                    <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                                        <input type="checkbox" name="vaccination_up_to_date" defaultChecked={selectedPet?.vaccination_up_to_date} /> Vacinação em dia
+                                                    </label>
+                                                </div>
+                                                <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+                                                    <label className={styles.label}>Doença Pré-existente</label>
+                                                    <input name="existing_conditions" className={styles.input} defaultValue={selectedPet?.existing_conditions || ''} placeholder="Ex: Diabetes, Alergia..." />
+                                                </div>
+                                            </div>
+                                            <div className={styles.modalActions} style={{ justifyContent: 'space-between', marginTop: '1rem' }}>
+                                                <div>
+                                                    {selectedPet && (
+                                                        <button type="button" className={styles.cancelBtn} style={{ color: 'red', borderColor: 'red', background: 'rgba(255,0,0,0.05)' }} onClick={handleDelete}>Excluir</button>
+                                                    )}
+                                                </div>
+                                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                                    <button type="submit" className={styles.submitButton} disabled={isPending}>
+                                                        {isPending ? 'Salvando...' : (selectedPet ? 'Salvar Alterações' : 'Cadastrar Pet')}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </form>
                                     </div>
                                 )}
-
-                                <div className={styles.modalActions} style={{ marginTop: 'auto' }}>
-                                    <button type="button" className={styles.cancelBtn} onClick={() => setShowModal(false)}>
-                                        Fechar
-                                    </button>
-                                </div>
                             </div>
-                        )}
+
+                            {/* 2. Banho e Tosa */}
+                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
+                                <button type="button" onClick={() => toggleAccordion('packages')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                                    <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🚿 Banho e Tosa / Pacotes</span>
+                                    <span>{accordions.packages ? '−' : '+'}</span>
+                                </button>
+                                {accordions.packages && (
+                                    <div style={{ padding: '1rem' }}>
+                                        {selectedPet ? (
+                                            <>
+                                                <div className={styles.addPackageSection}>
+                                                    <h3 className={styles.sectionTitle}>Contratar Novo Pacote</h3>
+                                                    <div className={styles.packageSelection}>
+                                                        <select className={styles.select} value={selectedPackageId} onChange={e => setSelectedPackageId(e.target.value)}>
+                                                            <option value="">Selecione um pacote...</option>
+                                                            {availablePackages.map(pkg => (<option key={pkg.id} value={pkg.id}>{pkg.name} - R$ {pkg.total_price.toFixed(2)}</option>))}
+                                                        </select>
+                                                        <button type="button" className={styles.submitButton} disabled={!selectedPackageId || isSelling} onClick={handleSellPackage}>
+                                                            {isSelling ? 'Processando...' : 'Contratar'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <h3 className={styles.sectionTitle} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Pacotes Ativos & Créditos</h3>
+
+                                                {petPackages.length === 0 ? (
+                                                    <div className={styles.emptyState}>Nenhum pacote ativo para este pet.</div>
+                                                ) : (
+                                                    <div className={styles.packagesContainer} style={{ marginTop: '0' }}>
+                                                        {petPackages.map((pkg, index) => {
+                                                            const total = pkg.total_qty || 0
+                                                            const used = pkg.used_qty || 0
+                                                            const rawAppointments = pkg.appointments || []
+                                                            const appointments = [...rawAppointments].sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+                                                            const slots = []
+                                                            for (let i = 0; i < total; i++) {
+                                                                let status = 'available'
+                                                                let appointment = null
+                                                                if (i < appointments.length) { appointment = appointments[i]; status = appointment.status === 'done' ? 'used' : 'scheduled' }
+                                                                else if (i < used) { status = 'used' }
+                                                                slots.push({ index: i + 1, status, appointment })
+                                                            }
+                                                            return (
+                                                                <div key={`${pkg.customer_package_id}-${pkg.service_id}-${index}`} className={styles.packageCard} style={{ flexDirection: 'column', alignItems: 'stretch', backgroundColor: pkg.is_expired ? 'rgba(255,0,0,0.05)' : 'var(--bg-secondary)', opacity: pkg.is_expired ? 0.7 : 1 }}>
+                                                                    <div className={styles.packageHeader}>
+                                                                        <div className={styles.packageInfo}>
+                                                                            <h4>{pkg.service_name}</h4>
+                                                                            <span className={styles.packageName}>Pacote: {pkg.package_name}</span>
+                                                                            <div className={styles.packageDate}>Validade: {pkg.expires_at ? new Date(pkg.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}</div>
+                                                                        </div>
+                                                                        <div className={styles.creditsInfo} style={{ textAlign: 'right' }}>
+                                                                            <div className={styles.creditCount} style={{ color: pkg.remaining_qty > 0 ? 'var(--primary)' : 'var(--text-secondary)' }}>{pkg.remaining_qty}<span style={{ fontSize: '0.5em', fontWeight: '400', verticalAlign: 'middle', marginLeft: '2px' }}>restantes</span></div>
+                                                                            <span className={styles.creditLabel}>Total contratado: {pkg.total_qty}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className={styles.slotsContainer}>
+                                                                        {slots.map(slot => (
+                                                                            <div key={slot.index} className={`${styles.slotItem} ${slot.status === 'used' ? styles.used : slot.status === 'scheduled' ? styles.scheduled : styles.available}`} style={slot.status === 'scheduled' ? { borderColor: 'var(--primary)', backgroundColor: 'rgba(59, 130, 246, 0.05)' } : {}}>
+                                                                                <span className={styles.slotNumber}>#{slot.index}</span>
+                                                                                {slot.status === 'used' ? (
+                                                                                    <>
+                                                                                        <div style={{ color: 'var(--success, #00c853)', fontSize: '1.2rem', marginBottom: '0.25rem' }}>✓</div>
+                                                                                        <span className={styles.slotStatus} style={{ color: 'var(--success, #00c853)', fontSize: '0.8rem' }}>Realizado</span>
+                                                                                        {slot.appointment && <span className={styles.usedDate}>{new Date(slot.appointment.scheduled_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>}
+                                                                                    </>
+                                                                                ) : slot.status === 'scheduled' ? (
+                                                                                    <>
+                                                                                        <div style={{ color: 'var(--primary)', fontSize: '1.2rem', marginBottom: '0.25rem' }}>🕒</div>
+                                                                                        <span className={styles.slotStatus} style={{ color: 'var(--primary)', fontSize: '0.8rem' }}>Agendado</span>
+                                                                                        {slot.appointment && <span className={styles.usedDate} style={{ color: 'var(--text-primary)' }}>{new Date(slot.appointment.scheduled_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}<br />{new Date(slot.appointment.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>}
+                                                                                    </>
+                                                                                ) : (
+                                                                                    <>
+                                                                                        <div style={{ color: 'var(--text-secondary)', fontSize: '1.2rem', marginBottom: '0.25rem', opacity: 0.3 }}>📅</div>
+                                                                                        <button type="button" className={styles.scheduleBtnSmall} onClick={() => { if (selectedPet) { const returnUrl = encodeURIComponent(`/owner/pets?openPetId=${selectedPet.id}`); router.push(`/owner/agenda?petId=${selectedPet.id}&serviceId=${pkg.service_id}&package=true&returnUrl=${returnUrl}`) } }}>Agendar</button>
+                                                                                    </>
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Salve o pet primeiro para gerenciar pacotes.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 3. Creche */}
+                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
+                                <button type="button" onClick={() => toggleAccordion('daycare')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                                    <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🎾 Creche</span>
+                                    <span>{accordions.daycare ? '−' : '+'}</span>
+                                </button>
+                                {accordions.daycare && (
+                                    <div style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
+                                        <p>Em breve: Acompanhamento de Creche, Check-in/Check-out e Diário.</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 4. Hospedagem */}
+                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
+                                <button type="button" onClick={() => toggleAccordion('hotel')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                                    <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🏨 Hospedagem</span>
+                                    <span>{accordions.hotel ? '−' : '+'}</span>
+                                </button>
+                                {accordions.hotel && (
+                                    <div style={{ padding: '1rem', color: 'var(--text-secondary)' }}>
+                                        <p>Em breve: Gestão de Reservas de Hotelzinho.</p>
+                                    </div>
+                                )}
+                            </div>
+
+                        </div>
+
+                        <div className={styles.modalActions} style={{ marginTop: 'auto', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                            <button type="button" className={styles.cancelBtn} onClick={() => setShowModal(false)}>
+                                Fechar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
