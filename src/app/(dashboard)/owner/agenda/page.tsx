@@ -13,6 +13,7 @@ import {
     deleteAppointment,
     updatePetPreferences
 } from '@/app/actions/appointment'
+import { createScheduleBlock, deleteScheduleBlock, getScheduleBlocks } from '@/app/actions/schedule'
 
 interface Appointment {
     id: string
@@ -32,6 +33,13 @@ interface Appointment {
         customers?: { name: string }
     }
     services: { name: string, duration: number }
+}
+
+interface ScheduleBlock {
+    id: string
+    start_at: string
+    end_at: string
+    reason: string
 }
 
 interface Pet { id: string, name: string }
@@ -72,6 +80,12 @@ export default function AgendaPage() {
     // Checklist State
     const [currentChecklist, setCurrentChecklist] = useState<{ label: string, checked: boolean }[]>([])
 
+    // View & Blocks State
+    const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day')
+    const [blocks, setBlocks] = useState<ScheduleBlock[]>([])
+    const [showBlockModal, setShowBlockModal] = useState(false)
+    const [selectedHourSlot, setSelectedHourSlot] = useState<string | null>(null)
+
     // Actions
     const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
     const [updateState, updateAction, isUpdatePending] = useActionState(updateAppointment, initialState)
@@ -93,8 +107,6 @@ export default function AgendaPage() {
     // ... resto do código inalterado ...
 
     const fetchData = useCallback(async () => {
-        // ... (resto do corpo da função fetchData)
-
         try {
             setLoading(true)
             const { data: { user } } = await supabase.auth.getUser()
@@ -111,11 +123,41 @@ export default function AgendaPage() {
                 if (s) setServices(s)
             }
 
-            // Load Appointments
-            // Query logic assumes matching date portion string or range
-            // For robust range:
-            // const startOfDay = ...
+            // Date Range Calculation
+            let startDateStr, endDateStr
+            const localDate = new Date(selectedDate + 'T00:00:00') // Force local midnight
 
+            if (viewMode === 'day') {
+                startDateStr = `${selectedDate}T00:00:00`
+                endDateStr = `${selectedDate}T23:59:59`
+            } else if (viewMode === 'week') {
+                const start = new Date(localDate)
+                start.setDate(localDate.getDate() - localDate.getDay()) // Domingo
+
+                const end = new Date(start)
+                end.setDate(start.getDate() + 6)
+                end.setHours(23, 59, 59, 999)
+
+                startDateStr = start.toISOString()
+                endDateStr = end.toISOString()
+            } else { // month
+                const start = new Date(localDate.getFullYear(), localDate.getMonth(), 1)
+                const end = new Date(localDate.getFullYear(), localDate.getMonth() + 1, 0)
+                end.setHours(23, 59, 59, 999)
+
+                startDateStr = start.toISOString()
+                endDateStr = end.toISOString()
+            }
+
+            // Fetch Blocks
+            try {
+                const blks = await getScheduleBlocks(startDateStr, endDateStr)
+                setBlocks(blks as unknown as ScheduleBlock[])
+            } catch (e) {
+                console.error('Error fetching blocks', e)
+            }
+
+            // Fetch Appointments
             const { data: appts } = await supabase
                 .from('appointments')
                 .select(`
@@ -128,20 +170,12 @@ export default function AgendaPage() {
                     services ( name, duration_minutes )
                 `)
                 .eq('org_id', profile.org_id)
+                .gte('scheduled_at', startDateStr)
+                .lte('scheduled_at', endDateStr)
                 .order('scheduled_at')
 
             if (appts) {
-                // Client side filtering for date precision
-                const filtered = appts.filter(a => {
-                    // Convert UTC scheduled_at to YYYY-MM-DD in -03:00
-                    const dateObj = new Date(a.scheduled_at)
-                    // Adjust to BRT manually for comparison
-                    // getTime() returns UTC ms. -3h = -10800000ms
-                    // Actually simpler:
-                    const localISO = new Date(dateObj.getTime() - 3 * 3600 * 1000).toISOString()
-                    return localISO.startsWith(selectedDate)
-                })
-                setAppointments(filtered as unknown as Appointment[])
+                setAppointments(appts as unknown as Appointment[])
             }
 
         } catch (error) {
@@ -149,7 +183,7 @@ export default function AgendaPage() {
         } finally {
             setLoading(false)
         }
-    }, [supabase, selectedDate, pets.length])
+    }, [supabase, selectedDate, viewMode, pets.length])
 
     useEffect(() => {
         fetchData()
@@ -278,6 +312,121 @@ export default function AgendaPage() {
         return map[status] || status
     }
 
+    const handleCreateBlock = async (formData: FormData) => {
+        const reason = formData.get('reason') as string
+        if (!selectedHourSlot) return
+
+        const d = new Date(`${selectedDate}T${selectedHourSlot}:00:00`)
+        const e = new Date(d)
+        e.setHours(d.getHours() + 1)
+
+        setLoading(true)
+        const res = await createScheduleBlock({
+            start_at: d.toISOString(),
+            end_at: e.toISOString(),
+            reason
+        })
+        setLoading(false)
+        if (res.success) {
+            setShowBlockModal(false)
+            fetchData()
+        } else {
+            alert(res.message)
+        }
+    }
+
+    const handleBlockDelete = async (id: string, e: React.MouseEvent) => {
+        e.stopPropagation()
+        if (!confirm('Remover bloqueio?')) return
+        setLoading(true)
+        const res = await deleteScheduleBlock(id)
+        setLoading(false)
+        if (res.success) fetchData()
+        else alert(res.message)
+    }
+
+    const renderAppointmentCard = (appt: Appointment) => (
+        <div key={appt.id} className={styles.appointmentCard} onClick={(e) => { e.stopPropagation(); handleOpenDetail(appt) }} style={{ minWidth: '300px' }}>
+            <div className={styles.timeDisplay}>{formatTime(appt.scheduled_at)}</div>
+            <div className={styles.cardTop}>
+                <div className={styles.petInfoMain}>
+                    <div className={styles.petAvatar}>{appt.pets?.species === 'cat' ? '🐱' : '🐶'}</div>
+                    <div className={styles.petDetails}>
+                        <div className={styles.petName}>
+                            {appt.pets?.name}
+                            <span className={styles.statusBadge}>{getStatusLabel(appt.status)}</span>
+                        </div>
+                        <span className={styles.petBreed}>{appt.pets?.breed}</span>
+                        <span className={styles.tutorName}>👤 {appt.pets?.customers?.name}</span>
+                    </div>
+                </div>
+                {(appt.status === 'pending' || appt.status === 'confirmed') && (
+                    <button className={styles.startButton} onClick={(e) => handleStartService(e, appt)}>▶ Iniciar</button>
+                )}
+                {appt.status === 'in_progress' && (
+                    <div style={{ color: '#fbbf24', fontWeight: 600, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>⏳ Em andamento...</div>
+                )}
+            </div>
+            <div className={styles.serviceLine}>{appt.services?.name}</div>
+        </div>
+    )
+
+    const renderDayView = () => {
+        const hours = Array.from({ length: 10 }, (_, i) => i + 8)
+        return (
+            <div className={styles.dayGrid}>
+                {hours.map(h => {
+                    const timeStr = `${h.toString().padStart(2, '0')}:00`
+                    const slotAppts = appointments.filter(a => {
+                        const d = new Date(a.scheduled_at)
+                        return d.getHours() === h
+                    })
+                    const slotBlocks = blocks.filter(b => {
+                        const start = new Date(b.start_at)
+                        const end = new Date(b.end_at)
+                        return h >= start.getHours() && h < end.getHours()
+                    })
+
+                    return (
+                        <div key={h} className={styles.hourRow}>
+                            <div className={styles.hourLabel}>{timeStr}</div>
+                            <div className={styles.hourContent}>
+                                {slotBlocks.map(b => (
+                                    <div key={b.id} className={styles.blockedCard}>
+                                        <span>🚫 {b.reason || 'Bloqueado'}</span>
+                                        <button onClick={(e) => handleBlockDelete(b.id, e)}>×</button>
+                                    </div>
+                                ))}
+                                {slotAppts.map(renderAppointmentCard)}
+                                {slotBlocks.length === 0 && slotAppts.length === 0 && (
+                                    <>
+                                        <div className={styles.addSlotBtn} onClick={() => setShowNewModal(true)}>+</div>
+                                        <button className={styles.addSlotBtn} style={{ maxWidth: '50px', borderLeft: '1px dashed #334155' }} onClick={() => {
+                                            setSelectedHourSlot(h.toString().padStart(2, '0'))
+                                            setShowBlockModal(true)
+                                        }}>🔒</button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
+        )
+    }
+
+    const renderWeekView = () => (
+        <div style={{ padding: '2rem', color: '#cbd5e1', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '12px' }}>
+            Visualização semanal em desenvolvimento.
+        </div>
+    )
+
+    const renderMonthView = () => (
+        <div style={{ padding: '2rem', color: '#cbd5e1', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '12px' }}>
+            Visualização mensal em desenvolvimento.
+        </div>
+    )
+
     return (
         <div className={styles.container}>
             {/* Header */}
@@ -286,14 +435,19 @@ export default function AgendaPage() {
                     <Link href="/owner" style={{ color: 'var(--primary)', marginBottom: '0.5rem', fontSize: '0.9rem', textDecoration: 'none' }}>← Voltar</Link>
                     <h1 className={styles.title}>🛁 Banho e Tosa</h1>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <div className={styles.viewSelector} style={{ margin: 0 }}>
+                        <button className={`${styles.viewBtn} ${viewMode === 'day' ? styles.active : ''}`} onClick={() => setViewMode('day')}>Dia</button>
+                        <button className={`${styles.viewBtn} ${viewMode === 'week' ? styles.active : ''}`} onClick={() => setViewMode('week')}>Semana</button>
+                        <button className={`${styles.viewBtn} ${viewMode === 'month' ? styles.active : ''}`} onClick={() => setViewMode('month')}>Mês</button>
+                    </div>
                     {!loading && services.length === 0 && (
                         <button onClick={handleSeed} style={{ background: '#f59e0b', color: 'white', border: 'none', padding: '0.75rem 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
                             ⚠️ Inicializar Serviços
                         </button>
                     )}
                     <button className={styles.actionButton} onClick={() => setShowNewModal(true)}>
-                        + Novo Agendamento
+                        + Novo
                     </button>
                 </div>
             </div>
@@ -307,71 +461,9 @@ export default function AgendaPage() {
                 <button className={styles.dateBtn} onClick={() => handleDateChange(1)}>▶</button>
             </div>
 
-            {/* Grid */}
-            <div className={styles.agendaGrid}>
-                {appointments.map(appt => (
-                    <div key={appt.id} className={styles.appointmentCard} onClick={() => handleOpenDetail(appt)}>
-                        <div className={styles.timeDisplay}>{formatTime(appt.scheduled_at)}</div>
-
-                        <div className={styles.cardTop}>
-                            <div className={styles.petInfoMain}>
-                                <div className={styles.petAvatar}>
-                                    {appt.pets?.species === 'cat' ? '🐱' : '🐶'}
-                                </div>
-                                <div className={styles.petDetails}>
-                                    <div className={styles.petName}>
-                                        {appt.pets?.name || 'Pet'}
-                                        <span className={styles.statusBadge}>{getStatusLabel(appt.status)}</span>
-                                    </div>
-                                    <span className={styles.petBreed}>{appt.pets?.breed || 'Sem raça'}</span>
-                                    <span className={styles.tutorName}>👤 {appt.pets?.customers?.name || 'Tutor não identificado'}</span>
-                                </div>
-                            </div>
-
-                            {/* Actions on Card */}
-                            {(appt.status === 'pending' || appt.status === 'confirmed') && (
-                                <button className={styles.startButton} onClick={(e) => handleStartService(e, appt)}>
-                                    ▶ Iniciar
-                                </button>
-                            )}
-                            {appt.status === 'in_progress' && (
-                                <div style={{ color: '#fbbf24', fontWeight: 600, fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                    ⏳ Em andamento...
-                                </div>
-                            )}
-                        </div>
-
-                        <div className={styles.serviceLine}>
-                            ✂️ {appt.services?.name}
-                        </div>
-
-                        {/* Notes Box */}
-                        {(appt.notes || appt.pets?.special_care) && (
-                            <div className={styles.notesBox}>
-                                📝 {appt.notes || ''} {appt.pets?.special_care ? `(Cuidado: ${appt.pets.special_care})` : ''}
-                            </div>
-                        )}
-
-                        {/* Tags */}
-                        <div className={styles.prefContainer}>
-                            {appt.pets?.perfume_allowed && (
-                                <span className={styles.prefTag}>🌸 Perfume OK</span>
-                            )}
-                            {appt.pets?.accessories_allowed && (
-                                <span className={styles.prefTag}>🎀 Acessórios OK</span>
-                            )}
-                            {!appt.pets?.perfume_allowed && (
-                                <span className={styles.prefTag} style={{ filter: 'grayscale(1)', opacity: 0.7 }}>🚫 Sem Perfume</span>
-                            )}
-                        </div>
-                    </div>
-                ))}
-                {!loading && appointments.length === 0 && (
-                    <p style={{ gridColumn: '1/-1', textAlign: 'center', color: '#666', padding: '3rem' }}>
-                        Nenhum agendamento para este dia.
-                    </p>
-                )}
-            </div>
+            {viewMode === 'day' && renderDayView()}
+            {viewMode === 'week' && renderWeekView()}
+            {viewMode === 'month' && renderMonthView()}
 
             {/* Create Modal */}
             {showNewModal && (
@@ -400,7 +492,12 @@ export default function AgendaPage() {
                                 </div>
                                 <div className={styles.formGroup}>
                                     <label className={styles.label}>Horário *</label>
-                                    <input name="time" type="time" className={styles.input} required />
+                                    <select name="time" className={styles.select} required defaultValue={selectedHourSlot ? `${selectedHourSlot}:00` : ""}>
+                                        <option value="" disabled>Selecione...</option>
+                                        {Array.from({ length: 10 }, (_, i) => i + 8).map(h => (
+                                            <option key={h} value={`${h.toString().padStart(2, '0')}:00`}>{h}:00</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
                             <div className={styles.formGroup}>
@@ -452,7 +549,11 @@ export default function AgendaPage() {
                                     </div>
                                     <div className={styles.formGroup}>
                                         <label className={styles.label}>Horário</label>
-                                        <input name="time" type="time" className={styles.input} defaultValue={new Date(selectedAppointment.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} />
+                                        <select name="time" className={styles.select} defaultValue={new Date(selectedAppointment.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }).slice(0, 5)}>
+                                            {Array.from({ length: 10 }, (_, i) => i + 8).map(h => (
+                                                <option key={h} value={`${h.toString().padStart(2, '0')}:00`}>{h}:00</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
                                 <div className={styles.formGroup}>
@@ -541,6 +642,23 @@ export default function AgendaPage() {
                                 </div>
                             </>
                         )}
+                    </div>
+                </div>
+            )}
+
+            {/* Block Modal */}
+            {showBlockModal && (
+                <div className={styles.modalOverlay} onClick={() => setShowBlockModal(false)}>
+                    <div className={styles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <h2 className={styles.modalTitle}>Bloquear Horário</h2>
+                        <p style={{ marginBottom: '1rem', color: '#cbd5e1' }}>Bloquear agenda às {selectedHourSlot}:00?</p>
+                        <form action={handleCreateBlock}>
+                            <input name="reason" placeholder="Motivo (opcional)" className={styles.input} style={{ marginBottom: '1rem' }} />
+                            <div className={styles.modalActions}>
+                                <button type="button" className={styles.cancelBtn} onClick={() => setShowBlockModal(false)}>Cancelar</button>
+                                <button type="submit" className={styles.submitBtn}>Confirmar Bloqueio</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
