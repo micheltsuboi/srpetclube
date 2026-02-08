@@ -65,6 +65,10 @@ export default function AgendaPage() {
     const [services, setServices] = useState<Service[]>([])
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
 
+    // Pre-selection from URL
+    const [preSelectedPetId, setPreSelectedPetId] = useState('')
+    const [preSelectedServiceId, setPreSelectedServiceId] = useState('')
+
     // Checklist State
     const [currentChecklist, setCurrentChecklist] = useState<{ label: string, checked: boolean }[]>([])
 
@@ -72,7 +76,25 @@ export default function AgendaPage() {
     const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
     const [updateState, updateAction, isUpdatePending] = useActionState(updateAppointment, initialState)
 
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search)
+            const petId = params.get('petId')
+            const serviceId = params.get('serviceId')
+
+            if (petId || serviceId) {
+                if (petId) setPreSelectedPetId(petId)
+                if (serviceId) setPreSelectedServiceId(serviceId)
+                setShowNewModal(true)
+            }
+        }
+    }, [])
+
+    // ... resto do código inalterado ...
+
     const fetchData = useCallback(async () => {
+        // ... (resto do corpo da função fetchData)
+
         try {
             setLoading(true)
             const { data: { user } } = await supabase.auth.getUser()
@@ -360,14 +382,14 @@ export default function AgendaPage() {
                             <div className={styles.formGrid}>
                                 <div className={styles.formGroup}>
                                     <label className={styles.label}>Pet *</label>
-                                    <select name="petId" className={styles.select} required defaultValue="">
+                                    <select name="petId" className={styles.select} required defaultValue={preSelectedPetId || ""} key={preSelectedPetId}>
                                         <option value="" disabled>Selecione...</option>
                                         {pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                     </select>
                                 </div>
                                 <div className={styles.formGroup}>
                                     <label className={styles.label}>Serviço *</label>
-                                    <select name="serviceId" className={styles.select} required defaultValue="">
+                                    <select name="serviceId" className={styles.select} required defaultValue={preSelectedServiceId || ""} key={preSelectedServiceId}>
                                         <option value="" disabled>Selecione...</option>
                                         {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                     </select>

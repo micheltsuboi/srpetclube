@@ -426,3 +426,50 @@ export async function cancelCustomerPackage(id: string): Promise<ActionState> {
     revalidatePath('/staff')
     return { message: 'Pacote cancelado.', success: true }
 }
+
+export async function getPetPackagesWithUsage(petId: string) {
+    const supabase = await createClient()
+
+    // 1. Buscar resumo dos pacotes (usando a função RPC existente para facilitar)
+    const { data: summary, error } = await supabase.rpc('get_pet_package_summary', {
+        p_pet_id: petId
+    })
+
+    if (error) {
+        console.error('Erro ao buscar resumo de pacotes:', error)
+        return []
+    }
+
+    if (!summary || summary.length === 0) return []
+
+    // 2. Buscar detalhes de uso (agendamentos) para cada item
+    const packagesWithUsage = await Promise.all(summary.map(async (item: any) => {
+        // Primeiro, precisamos encontrar o crédito exato
+        // A RPC não retorna o ID do crédito, então precisamos buscar
+        const { data: credit } = await supabase
+            .from('package_credits')
+            .select('id')
+            .eq('customer_package_id', item.customer_package_id)
+            .eq('service_id', item.service_id)
+            .single()
+
+        let appointments: any[] = []
+        if (credit) {
+            const { data: apps } = await supabase
+                .from('appointments')
+                .select('id, scheduled_at, status')
+                .eq('package_credit_id', credit.id)
+                .order('scheduled_at', { ascending: false })
+
+            if (apps) appointments = apps
+        }
+
+        return {
+            ...item,
+            credit_id: credit?.id,
+            appointments
+        }
+    }))
+
+    return packagesWithUsage
+}

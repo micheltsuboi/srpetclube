@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useCallback, useActionState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
 import { createPet, updatePet, deletePet } from '@/app/actions/pet'
-import { sellPackageToPet } from '@/app/actions/package'
+import { sellPackageToPet, getPetPackagesWithUsage } from '@/app/actions/package'
 
 // Interfaces
 interface Pet {
@@ -35,6 +36,7 @@ const initialState = {
 }
 
 export default function PetsPage() {
+    const router = useRouter()
     const supabase = createClient()
     const [pets, setPets] = useState<Pet[]>([])
     const [customers, setCustomers] = useState<Customer[]>([])
@@ -114,20 +116,12 @@ export default function PetsPage() {
         if (!selectedPet || activeTab !== 'packages') return
 
         try {
-            const { data, error } = await supabase.rpc('get_pet_package_summary', {
-                p_pet_id: selectedPet.id
-            })
-
-            if (error) {
-                console.error('Erro ao buscar pacotes do pet:', error)
-                return
-            }
-
+            const data = await getPetPackagesWithUsage(selectedPet.id)
             setPetPackages(data || [])
         } catch (error) {
             console.error('Erro:', error)
         }
-    }, [selectedPet, activeTab, supabase])
+    }, [selectedPet, activeTab])
 
     useEffect(() => {
         fetchData()
@@ -498,32 +492,96 @@ export default function PetsPage() {
                                     </div>
                                 ) : (
                                     <div className={styles.packagesContainer} style={{ marginTop: '0' }}>
-                                        {petPackages.map((pkg, index) => (
-                                            <div key={`${pkg.customer_package_id}-${pkg.service_id}-${index}`} className={styles.packageCard}
-                                                style={{
-                                                    backgroundColor: pkg.is_expired ? 'rgba(255,0,0,0.05)' : 'var(--bg-secondary)',
-                                                    opacity: pkg.is_expired ? 0.7 : 1
-                                                }}
-                                            >
-                                                <div className={styles.packageInfo}>
-                                                    <h4>{pkg.service_name}</h4>
-                                                    <span className={styles.packageName}>Pacote: {pkg.package_name}</span>
-                                                    <div className={styles.packageDate}>
-                                                        Validade: {pkg.expires_at ? new Date(pkg.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}
+                                        {petPackages.map((pkg, index) => {
+                                            const total = pkg.total_qty || 0
+                                            const used = pkg.used_qty || 0
+                                            const rawAppointments = pkg.appointments || []
+                                            // Ordenar agendamentos por data (antigo -> recente) para preencher os slots sequencialmente
+                                            const appointments = [...rawAppointments].sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+
+                                            const slots = []
+                                            for (let i = 0; i < total; i++) {
+                                                let status = 'available'
+                                                let appointment = null
+
+                                                if (i < used) {
+                                                    status = 'used'
+                                                    if (i < appointments.length) {
+                                                        appointment = appointments[i]
+                                                    }
+                                                }
+                                                slots.push({ index: i + 1, status, appointment })
+                                            }
+
+                                            return (
+                                                <div key={`${pkg.customer_package_id}-${pkg.service_id}-${index}`} className={styles.packageCard}
+                                                    style={{
+                                                        flexDirection: 'column',
+                                                        alignItems: 'stretch',
+                                                        backgroundColor: pkg.is_expired ? 'rgba(255,0,0,0.05)' : 'var(--bg-secondary)',
+                                                        opacity: pkg.is_expired ? 0.7 : 1
+                                                    }}
+                                                >
+                                                    <div className={styles.packageHeader}>
+                                                        <div className={styles.packageInfo}>
+                                                            <h4>{pkg.service_name}</h4>
+                                                            <span className={styles.packageName}>Pacote: {pkg.package_name}</span>
+                                                            <div className={styles.packageDate}>
+                                                                Validade: {pkg.expires_at ? new Date(pkg.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}
+                                                            </div>
+                                                        </div>
+                                                        <div className={styles.creditsInfo} style={{ textAlign: 'right' }}>
+                                                            <div className={styles.creditCount} style={{
+                                                                color: pkg.remaining_qty > 0 ? 'var(--primary)' : 'var(--text-secondary)'
+                                                            }}>
+                                                                {pkg.remaining_qty}
+                                                                <span style={{ fontSize: '0.5em', fontWeight: '400', verticalAlign: 'middle', marginLeft: '2px' }}>
+                                                                    restantes
+                                                                </span>
+                                                            </div>
+                                                            <span className={styles.creditLabel}>
+                                                                Total contratado: {pkg.total_qty}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className={styles.slotsContainer}>
+                                                        {slots.map(slot => (
+                                                            <div key={slot.index} className={`${styles.slotItem} ${slot.status === 'used' ? styles.used : styles.available}`}>
+                                                                <span className={styles.slotNumber}>#{slot.index}</span>
+
+                                                                {slot.status === 'used' ? (
+                                                                    <>
+                                                                        <div style={{ color: 'var(--success, #00c853)', fontSize: '1.2rem', marginBottom: '0.25rem' }}>✓</div>
+                                                                        <span className={styles.slotStatus} style={{ color: 'var(--success, #00c853)', fontSize: '0.8rem' }}>Realizado</span>
+                                                                        {slot.appointment && (
+                                                                            <span className={styles.usedDate}>
+                                                                                {new Date(slot.appointment.scheduled_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                                                                            </span>
+                                                                        )}
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <div style={{ color: 'var(--text-secondary)', fontSize: '1.2rem', marginBottom: '0.25rem', opacity: 0.3 }}>📅</div>
+                                                                        <button
+                                                                            type="button"
+                                                                            className={styles.scheduleBtnSmall}
+                                                                            onClick={() => {
+                                                                                if (selectedPet) {
+                                                                                    router.push(`/owner/calendar?petId=${selectedPet.id}&serviceId=${pkg.service_id}&package=true`)
+                                                                                }
+                                                                            }}
+                                                                        >
+                                                                            Agendar
+                                                                        </button>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        ))}
                                                     </div>
                                                 </div>
-                                                <div className={styles.creditsInfo}>
-                                                    <div className={styles.creditCount} style={{
-                                                        color: pkg.remaining_qty > 0 ? 'var(--primary)' : 'var(--text-secondary)'
-                                                    }}>
-                                                        {pkg.remaining_qty} <span style={{ fontSize: '0.5em', fontWeight: '400', verticalAlign: 'middle' }}>restantes</span>
-                                                    </div>
-                                                    <span className={styles.creditLabel}>
-                                                        Total contratado: {pkg.total_qty}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            )
+                                        })}
                                     </div>
                                 )}
 
