@@ -12,12 +12,30 @@ export default function DashboardLayout({
 }) {
     const pathname = usePathname()
 
-    const navigation = [
+    const isOwner = pathname?.startsWith('/owner')
+    const isMasterAdmin = pathname?.startsWith('/master-admin')
+
+    const staffNavigation = [
         { name: 'Pets do Dia', href: '/staff', icon: '🐾' },
         { name: 'Agendamentos', href: '/staff/appointments', icon: '📅' },
         { name: 'Clientes', href: '/staff/customers', icon: '👥' },
         { name: 'Ponto', href: '/staff/timesheet', icon: '⏰' },
     ]
+
+    const ownerNavigation = [
+        { name: 'Dashboard', href: '/owner', icon: '📊' },
+        { name: 'Usuários', href: '/owner/usuarios', icon: '👥' },
+        { name: 'Financeiro', href: '/owner/financeiro', icon: '💰' },
+        { name: 'Petshop', href: '/owner/petshop', icon: '🛍️' },
+        { name: 'Vacinas', href: '/owner/vaccines', icon: '💉' },
+    ]
+
+    const masterAdminNavigation = [
+        { name: 'Dashboard', href: '/master-admin', icon: '⚡' },
+        { name: 'Tenants', href: '/master-admin/tenants', icon: '🏢' },
+    ]
+
+    const navigation = isMasterAdmin ? masterAdminNavigation : (isOwner ? ownerNavigation : staffNavigation)
 
     return (
         <div className={styles.container}>

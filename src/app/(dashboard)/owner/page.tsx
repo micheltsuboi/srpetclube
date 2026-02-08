@@ -137,6 +137,9 @@ export default function OwnerDashboard() {
                     <Link href="/owner/financeiro" className={styles.headerBtn}>
                         💰 Financeiro
                     </Link>
+                    <Link href="/owner/petshop" className={styles.headerBtn}>
+                        🛍️ Petshop
+                    </Link>
                 </div>
             </div>
 

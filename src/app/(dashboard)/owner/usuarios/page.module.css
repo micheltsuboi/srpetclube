@@ -238,21 +238,23 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(0, 0, 0, 0.75);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
     padding: 1rem;
+    backdrop-filter: blur(8px);
 }
 
 .modal {
-    background: var(--navy);
-    border: 1px solid rgba(255, 255, 255, 0.15);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
     border-radius: 16px;
     padding: 1.5rem;
     width: 100%;
     max-width: 450px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
 .modal h2 {

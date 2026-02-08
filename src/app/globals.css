@@ -27,6 +27,11 @@
   --color-secondary-hover: var(--color-sky-dark);
   --color-accent: var(--color-navy);
 
+  /* Borders */
+  --border: rgba(140, 180, 201, 0.3);
+  --bg-input: rgba(13, 27, 42, 0.6);
+  --bg-hover: rgba(140, 180, 201, 0.1);
+
   /* Backgrounds - Tema dark baseado no navy */
   --bg-primary: #0D1B2A;
   --bg-secondary: #1B2D42;

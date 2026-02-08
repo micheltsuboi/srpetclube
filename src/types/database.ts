@@ -256,3 +256,56 @@ export interface AppointmentFormData {
     staff_id?: string
     notes?: string
 }
+
+export interface Product {
+    id: string
+    org_id: string
+    name: string
+    category: string
+    cost_price: number
+    selling_price: number
+    stock_quantity: number
+    min_stock_threshold?: number
+    expiration_date: string | null
+    photo_url: string | null
+    barcode?: string
+    description?: string
+    is_active: boolean
+    created_at: string
+    updated_at: string
+}
+
+export interface Vaccine {
+    id: string
+    org_id: string
+    name: string
+    manufacturer: string
+    description?: string
+    target_animals: string[] // e.g. ['Cão', 'Gato']
+    created_at: string
+    updated_at: string
+}
+
+export interface VaccineBatch {
+    id: string
+    vaccine_id: string
+    batch_number: string
+    quantity: number
+    cost_price: number
+    selling_price: number
+    expiration_date: string
+    is_active: boolean
+    created_at: string
+}
+
+export interface ProductFormData {
+    name: string
+    category: string
+    cost_price: number
+    selling_price: number
+    stock_quantity: number
+    expiration_date?: string
+    photo_url?: string
+    barcode?: string
+    description?: string
+}

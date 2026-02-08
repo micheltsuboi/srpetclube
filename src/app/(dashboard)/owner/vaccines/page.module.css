@@ -1,0 +1,392 @@
+.container {
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+.header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.title {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.5rem;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 1rem;
+}
+
+.addButton {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.addButton:hover {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
+}
+
+.vaccineList {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.vaccineCard {
+    background: var(--card-bg);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+}
+
+.vaccineHeader {
+    padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(43, 75, 111, 0.1);
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.vaccineHeader:hover {
+    background: rgba(43, 75, 111, 0.2);
+}
+
+.vaccineTitle h3 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.25rem;
+    color: var(--text-primary);
+}
+
+.vaccineMeta {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.vaccineStats {
+    display: flex;
+    gap: 2rem;
+}
+
+.statItem {
+    text-align: right;
+}
+
+.statLabel {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.statValue {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.statValue.stock {
+    color: var(--primary);
+}
+
+.expandIcon {
+    margin-left: 1rem;
+    font-size: 1.25rem;
+    color: var(--text-secondary);
+    transition: transform 0.2s;
+}
+
+.expanded .expandIcon {
+    transform: rotate(180deg);
+}
+
+.batchesSection {
+    padding: 1.5rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+}
+
+.batchHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.batchTitle {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.addBatchButton {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid var(--primary);
+    color: var(--primary);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.addBatchButton:hover {
+    background: rgba(43, 75, 111, 0.1);
+}
+
+.batchTable {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--card-bg);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+.batchTable th,
+.batchTable td {
+    padding: 1rem;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+
+.batchTable th {
+    background: rgba(43, 75, 111, 0.05);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+.batchTable tr:last-child td {
+    border-bottom: none;
+}
+
+.statusBadge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.statusActive {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10B981;
+}
+
+.statusExpired {
+    background: rgba(239, 68, 68, 0.2);
+    color: #EF4444;
+}
+
+/* Modal Styles */
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(8px);
+    padding: 1rem;
+}
+
+.modalContent {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    padding: 2rem;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 500px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.closeButton {
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: var(--text-secondary);
+}
+
+.closeButton:hover {
+    color: var(--text-primary);
+}
+
+.formGroup {
+    margin-bottom: 1.5rem;
+}
+
+.label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.input,
+.select,
+.textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    transition: all 0.2s;
+}
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.row {
+    display: flex;
+    gap: 1rem;
+}
+
+.submitButton {
+    width: 100%;
+    padding: 1rem;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 1rem;
+    cursor: pointer;
+    margin-top: 1rem;
+    transition: background 0.2s;
+}
+
+.submitButton:hover {
+    background: var(--primary-dark);
+}
+
+.saleButton {
+    background: #10B981;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.saleButton:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+.saleForm {
+    margin-top: 1.5rem;
+}
+
+.saleInfo {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem;
+    border-radius: 8px;
+    margin-bottom: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+}
+
+.infoRow {
+    display: flex;
+    flex-direction: column;
+}
+
+.infoRow span {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.infoRow strong {
+    font-size: 1.1rem;
+    color: var(--text-primary);
+}
+
+.totalSection {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+}
+
+.totalRow {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 0.5rem;
+    color: var(--text-secondary);
+}
+
+.discountValue {
+    color: #EF4444;
+}
+
+.finalTotal {
+    color: #10B981;
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin-top: 0.5rem;
+}
+
+.confirmSaleButton {
+    background: #10B981;
+}
+
+.confirmSaleButton:hover {
+    background: #059669;
+}
+
+.modalIcon {
+    display: inline-block;
+    color: #FFD700;
+    font-size: 1.8rem;
+    font-weight: 800;
+    margin-right: 0.5rem;
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    vertical-align: middle;
+}

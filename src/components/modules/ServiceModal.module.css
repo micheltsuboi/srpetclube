@@ -4,8 +4,8 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: blur(4px);
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -25,7 +25,7 @@
 }
 
 .modal {
-    background: linear-gradient(135deg, var(--surface) 0%, var(--surface-secondary) 100%);
+    background: var(--bg-tertiary);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 20px;
     width: 100%;
