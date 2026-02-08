@@ -187,6 +187,9 @@ export default function OwnerDashboard() {
                     <p className={styles.subtitle}>Painel de Gestão do Pet Shop</p>
                 </div>
                 <div className={styles.headerActions}>
+                    <Link href="/owner/agenda" className={styles.headerBtn}>
+                        📅 Agenda
+                    </Link>
                     <Link href="/owner/tutors" className={styles.headerBtn}>
                         👤 Tutores
                     </Link>
