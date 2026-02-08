@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useActionState } from 'react'
 import Link from 'next/link'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
+import { createUser } from '@/app/actions/user'
 
 // Use Profile interface or define local type matching DB
 interface Profile {
@@ -13,7 +14,6 @@ interface Profile {
     role: 'superadmin' | 'admin' | 'staff' | 'customer'
     is_active: boolean
     created_at: string
-    last_login?: string | null // Not in schema, removing or ignoring
 }
 
 const roleLabels: Record<string, string> = {
@@ -23,11 +23,19 @@ const roleLabels: Record<string, string> = {
     customer: 'Cliente'
 }
 
+const initialState = {
+    message: '',
+    success: false
+}
+
 export default function UsuariosPage() {
     const supabase = createClient()
     const [users, setUsers] = useState<Profile[]>([])
     const [loading, setLoading] = useState(true)
     const [showModal, setShowModal] = useState(false)
+
+    // Server Action State
+    const [state, formAction, isPending] = useActionState(createUser, initialState)
 
     const fetchUsers = useCallback(async () => {
         try {
@@ -64,11 +72,21 @@ export default function UsuariosPage() {
         fetchUsers()
     }, [fetchUsers])
 
+    useEffect(() => {
+        if (state.success) {
+            setShowModal(false)
+            fetchUsers()
+            // Reset state? wrapper component or just alert
+            alert(state.message) // Simple feedback
+        } else if (state.message) {
+            // Error case
+            // Alert is fine for now, or display in form
+        }
+    }, [state, fetchUsers])
+
     const toggleUserStatus = () => {
         alert('Funcionalidade de alterar status em desenvolvimento.')
     }
-
-
 
     if (loading) {
         return (
@@ -174,15 +192,72 @@ export default function UsuariosPage() {
                 <div className={styles.modalOverlay} onClick={() => setShowModal(false)}>
                     <div className={styles.modal} onClick={e => e.stopPropagation()}>
                         <h2>Adicionar Novo Usuário</h2>
-                        <p style={{ marginBottom: '1rem', color: '#666' }}>
-                            Esta funcionalidade ainda está em desenvolvimento. Por favor, crie usuários diretamente no painel administrativo por enquanto.
+                        <p style={{ marginBottom: '1.5rem', color: '#666' }}>
+                            Preencha os dados abaixo para cadastrar um novo usuário no sistema.
                         </p>
 
-                        <div className={styles.modalActions}>
-                            <button className={styles.cancelBtn} onClick={() => setShowModal(false)}>
-                                Fechar
-                            </button>
-                        </div>
+                        <form action={formAction} className={styles.form}>
+                            <div className={styles.formGroup}>
+                                <label htmlFor="fullName" className={styles.label}>Nome Completo</label>
+                                <input
+                                    id="fullName"
+                                    name="fullName"
+                                    type="text"
+                                    className={styles.input}
+                                    placeholder="Ex: João da Silva"
+                                    required
+                                />
+                            </div>
+
+                            <div className={styles.formGroup}>
+                                <label htmlFor="email" className={styles.label}>Email</label>
+                                <input
+                                    id="email"
+                                    name="email"
+                                    type="email"
+                                    className={styles.input}
+                                    placeholder="exemplo@email.com"
+                                    required
+                                />
+                            </div>
+
+                            <div className={styles.row}>
+                                <div className={styles.formGroup} style={{ flex: 1 }}>
+                                    <label htmlFor="password" className={styles.label}>Senha</label>
+                                    <input
+                                        id="password"
+                                        name="password"
+                                        type="password"
+                                        className={styles.input}
+                                        placeholder="******"
+                                        minLength={6}
+                                        required
+                                    />
+                                </div>
+                                <div className={styles.formGroup} style={{ flex: 1 }}>
+                                    <label htmlFor="role" className={styles.label}>Nível de Acesso</label>
+                                    <select id="role" name="role" className={styles.select} required defaultValue="staff">
+                                        <option value="staff">Staff (Operacional)</option>
+                                        <option value="admin">Administrador</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {state.message && !state.success && (
+                                <p className={styles.errorMessage} style={{ color: 'red', marginBottom: '1rem' }}>
+                                    {state.message}
+                                </p>
+                            )}
+
+                            <div className={styles.modalActions}>
+                                <button type="button" className={styles.cancelBtn} onClick={() => setShowModal(false)} disabled={isPending}>
+                                    Cancelar
+                                </button>
+                                <button type="submit" className={styles.submitButton} disabled={isPending}>
+                                    {isPending ? 'Criando...' : 'Criar Usuário'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

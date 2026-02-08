@@ -1,9 +1,11 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import styles from './layout.module.css'
+import { createClient } from '@/lib/supabase/client'
 
 export default function DashboardLayout({
     children,
@@ -35,7 +37,40 @@ export default function DashboardLayout({
         { name: 'Tenants', href: '/master-admin/tenants', icon: '🏢' },
     ]
 
-    const navigation = isMasterAdmin ? masterAdminNavigation : (isOwner ? ownerNavigation : staffNavigation)
+
+
+    const [user, setUser] = useState<{ name: string; role: string } | null>(null)
+    const supabase = createClient()
+    const router = useRouter()
+
+    useEffect(() => {
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (user) {
+                // Fetch profile
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('full_name, role')
+                    .eq('id', user.id)
+                    .single()
+
+                if (profile) {
+                    setUser({
+                        name: profile.full_name || user.email?.split('@')[0] || 'Usuário',
+                        role: profile.role === 'superadmin' ? 'Super Admin' :
+                            profile.role === 'admin' ? 'Administrador' :
+                                profile.role === 'staff' ? 'Staff' : 'Usuário'
+                    })
+                }
+            }
+        }
+        getUser()
+    }, [supabase])
+
+    const handleSignOut = async () => {
+        await supabase.auth.signOut()
+        router.push('/login')
+    }
 
     return (
         <div className={styles.container}>
@@ -53,7 +88,7 @@ export default function DashboardLayout({
                 </div>
 
                 <nav className={styles.nav}>
-                    {navigation.map((item) => (
+                    {(isMasterAdmin ? masterAdminNavigation : (isOwner ? ownerNavigation : staffNavigation)).map((item) => (
                         <Link
                             key={item.href}
                             href={item.href}
@@ -66,16 +101,15 @@ export default function DashboardLayout({
                 </nav>
 
                 <div className={styles.sidebarFooter}>
-                    <button className={styles.clockButton}>
-                        <span>⏰</span>
-                        <span>Bater Ponto</span>
+                    <button className={styles.clockButton} onClick={handleSignOut}>
+                        <span>🚪</span>
+                        <span>Sair</span>
                     </button>
                 </div>
             </aside>
 
             {/* Main Content */}
             <main className={styles.main}>
-                {/* Header */}
                 <header className={styles.header}>
                     <div className={styles.headerLeft}>
                         <h1 className={styles.pageTitle}>Dashboard</h1>
@@ -89,14 +123,15 @@ export default function DashboardLayout({
                     </div>
                     <div className={styles.headerRight}>
                         <div className={styles.userInfo}>
-                            <span className={styles.userName}>Tainara</span>
-                            <span className={styles.userRole}>Staff</span>
+                            <span className={styles.userName}>{user?.name || 'Carregando...'}</span>
+                            <span className={styles.userRole}>{user?.role || '...'}</span>
                         </div>
-                        <div className={styles.avatar}>T</div>
+                        <div className={styles.avatar}>
+                            {user?.name?.charAt(0).toUpperCase() || '?'}
+                        </div>
                     </div>
                 </header>
 
-                {/* Content */}
                 <div className={styles.content}>
                     {children}
                 </div>
