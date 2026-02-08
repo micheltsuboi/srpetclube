@@ -26,6 +26,7 @@ export default function DashboardLayout({
 
     const ownerNavigation = [
         { name: 'Dashboard', href: '/owner', icon: '📊' },
+        { name: 'Tutores', href: '/owner/tutors', icon: '👤' },
         { name: 'Usuários', href: '/owner/usuarios', icon: '👥' },
         { name: 'Financeiro', href: '/owner/financeiro', icon: '💰' },
         { name: 'Petshop', href: '/owner/petshop', icon: '🛍️' },

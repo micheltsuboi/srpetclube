@@ -1,0 +1,112 @@
+'use server'
+
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { revalidatePath } from 'next/cache'
+
+interface CreateTutorState {
+    message: string
+    success: boolean
+}
+
+export async function createTutor(prevState: CreateTutorState, formData: FormData) {
+    const supabase = await createClient()
+
+    // 1. Verify Authentication & Authorization
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+        return { message: 'Não autorizado. Faça login primeiro.', success: false }
+    }
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('role, org_id')
+        .eq('id', user.id)
+        .single()
+
+    if (!profile || !['superadmin', 'admin', 'staff'].includes(profile.role)) {
+        return { message: 'Permissão negada. Apenas staff e administradores podem cadastrar tutores.', success: false }
+    }
+
+    // 2. Extract Data
+    const name = formData.get('name') as string
+    const email = formData.get('email') as string
+    const password = formData.get('password') as string
+    const phone = formData.get('phone') as string
+    const birthDate = formData.get('birthDate') as string
+    const address = formData.get('address') as string
+    const neighborhood = formData.get('neighborhood') as string
+    const city = formData.get('city') as string
+    const instagram = formData.get('instagram') as string
+
+    if (!name || !email || !password || !phone) {
+        return { message: 'Nome, Email, Senha e Telefone são obrigatórios.', success: false }
+    }
+
+    // 3. Create User with Admin Client
+    const supabaseAdmin = createAdminClient()
+
+    // Create Auth User
+    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true, // Auto confirm email for immediate login
+        user_metadata: { full_name: name, phone: phone }
+    })
+
+    if (createError) {
+        return { message: `Erro ao criar usuário: ${createError.message}`, success: false }
+    }
+
+    if (!newUser.user) {
+        return { message: 'Erro inesperado ao criar usuário via Admin API.', success: false }
+    }
+
+    // 4. Update Profile (created by trigger)
+    // We update role to 'customer' explicitly and add phone
+    const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .update({
+            role: 'customer',
+            phone: phone,
+            full_name: name
+        })
+        .eq('id', newUser.user.id)
+
+    if (profileError) {
+        // Rollback user creation
+        await supabaseAdmin.auth.admin.deleteUser(newUser.user.id)
+        return { message: `Erro ao atualizar perfil do tutor: ${profileError.message}`, success: false }
+    }
+
+    // 5. Create Customer Record
+    // 5. Create Customer Record
+    const customerData: Record<string, string | null> = {
+        user_id: newUser.user.id,
+        org_id: profile.org_id,
+        name: name,
+        email: email,
+        phone_1: phone,
+        address: address || null,
+        neighborhood: neighborhood || null,
+        city: city || 'São Paulo',
+        instagram: instagram || null,
+    }
+
+    if (birthDate) {
+        customerData.birth_date = birthDate
+    }
+
+    const { error: customerError } = await supabaseAdmin
+        .from('customers')
+        .insert(customerData)
+
+    if (customerError) {
+        // Rollback user creation (and profile update implicitly if rolled back user)
+        await supabaseAdmin.auth.admin.deleteUser(newUser.user.id)
+        return { message: `Erro ao criar ficha do tutor: ${customerError.message}`, success: false }
+    }
+
+    revalidatePath('/owner/tutors')
+    return { message: 'Tutor cadastrado com sucesso!', success: true }
+}
