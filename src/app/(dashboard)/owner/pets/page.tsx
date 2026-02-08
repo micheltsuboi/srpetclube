@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useActionState } from 'react'
+import { useState, useEffect, useCallback, useActionState, Suspense } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import styles from './page.module.css'
@@ -35,7 +35,7 @@ const initialState = {
     success: false
 }
 
-export default function PetsPage() {
+function PetsContent() {
     const router = useRouter()
     const supabase = createClient()
     const [pets, setPets] = useState<Pet[]>([])
@@ -549,5 +549,13 @@ export default function PetsPage() {
                 </div>
             )}
         </div>
+    )
+}
+
+export default function PetsPage() {
+    return (
+        <Suspense fallback={<div>Carregando...</div>}>
+            <PetsContent />
+        </Suspense>
     )
 }
