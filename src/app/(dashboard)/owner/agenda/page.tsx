@@ -533,11 +533,19 @@ export default function AgendaPage() {
                                 }}>
                                     {isBlocked && <div className={styles.blockedOverlay} title="Bloqueado" />}
                                     <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        {cellAppts.map(a => (
-                                            <div key={a.id} className={styles.weekEventPill} title={`${a.pets?.name} - ${a.services.name}`}>
-                                                {a.pets?.name}
-                                            </div>
-                                        ))}
+                                        {cellAppts.map(a => {
+                                            const color = a.services?.service_categories?.color || '#2563EB'
+                                            return (
+                                                <div
+                                                    key={a.id}
+                                                    className={styles.weekEventPill}
+                                                    title={`${a.pets?.name} - ${a.services.name}`}
+                                                    style={{ backgroundColor: color, color: 'white' }}
+                                                >
+                                                    {a.pets?.name}
+                                                </div>
+                                            )
+                                        })}
                                     </div>
                                 </div>
                             )
@@ -584,11 +592,19 @@ export default function AgendaPage() {
                         }}>
                             <span className={styles.monthDate}>{day}</span>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
-                                {dayAppts.slice(0, 3).map(a => (
-                                    <div key={a.id} className={styles.monthEventDot} title={a.services.name}>
-                                        {a.pets?.name}
-                                    </div>
-                                ))}
+                                {dayAppts.slice(0, 3).map(a => {
+                                    const color = a.services?.service_categories?.color || '#2563EB'
+                                    return (
+                                        <div
+                                            key={a.id}
+                                            className={styles.monthEventDot}
+                                            title={a.services.name}
+                                            style={{ backgroundColor: color, color: 'white' }}
+                                        >
+                                            {a.pets?.name}
+                                        </div>
+                                    )
+                                })}
                                 {dayAppts.length > 3 && (
                                     <div style={{ fontSize: '0.7rem', color: '#94a3b8', paddingLeft: '4px' }}>
                                         +{dayAppts.length - 3} mais
