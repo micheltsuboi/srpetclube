@@ -148,8 +148,10 @@ export async function getPetAssessment(petId: string) {
             .eq('pet_id', petId)
             .single()
 
-        if (error && error.code !== 'PGRST116') { // PGRST116 = not found
-            console.error('Error fetching assessment:', error)
+        if (error) {
+            if (error.code !== 'PGRST116') { // PGRST116 = not found
+                console.error('Error fetching assessment:', error)
+            }
             return null
         }
 

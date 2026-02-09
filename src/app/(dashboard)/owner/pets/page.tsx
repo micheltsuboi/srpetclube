@@ -154,6 +154,7 @@ function PetsContent() {
     // Buscar assessment do pet quando o accordion assessment abre
     // Buscar assessment do pet quando o accordion assessment, creche ou hotel abre
     const fetchPetAssessment = useCallback(async () => {
+        // If NO accordion that needs assessment is open, don't fetch
         if (!selectedPet || (!accordions.assessment && !accordions.creche && !accordions.hotel)) return
 
         try {
@@ -230,12 +231,14 @@ function PetsContent() {
 
     const handleRowClick = (pet: Pet) => {
         setSelectedPet(pet)
+        setPetAssessment(null) // Clear previous assessment state
         setAccordions({ details: true, packages: false, creche: false, hotel: false, assessment: false })
         setShowModal(true)
     }
 
     const handleNewPet = () => {
         setSelectedPet(null)
+        setPetAssessment(null) // Clear previous assessment state
         setAccordions({ details: true, packages: false, creche: false, hotel: false, assessment: false })
         setShowModal(true)
     }
@@ -706,7 +709,11 @@ function PetsContent() {
                                                         <PetAssessmentForm
                                                             petId={selectedPet.id}
                                                             existingData={petAssessment}
-                                                            onSuccess={fetchPetAssessment}
+                                                            onSuccess={async () => {
+                                                                // Force update parent state immediately
+                                                                const data = await getPetAssessment(selectedPet.id)
+                                                                setPetAssessment(data)
+                                                            }}
                                                         />
                                                     </>
                                                 )}

@@ -79,7 +79,8 @@ export default function HospedagemPage() {
                     if (checkIn && checkOut) {
                         return today >= checkIn && today <= checkOut
                     }
-                    // Fallback to scheduled date
+
+                    // Fallback to scheduled date (Active if scheduled_at date is today)
                     return schedDate === today
                 })
                 setAppointments(active as unknown as Appointment[])
