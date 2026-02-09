@@ -231,16 +231,27 @@ function PetsContent() {
         }
     }, [updateState, fetchData])
 
-    const handleRowClick = (pet: Pet) => {
+    const handleRowClick = async (pet: Pet) => {
         setSelectedPet(pet)
-        setPetAssessment(null) // Clear previous assessment state
         setAccordions({ details: true, packages: false, creche: false, hotel: false, assessment: false })
+
+        // Eagerly fetch assessment BEFORE showing modal
+        try {
+            console.log('[DEBUG] Eagerly fetching assessment for pet:', pet.id)
+            const assessmentData = await getPetAssessment(pet.id)
+            console.log('[DEBUG] Assessment data received:', assessmentData)
+            setPetAssessment(assessmentData)
+        } catch (error) {
+            console.error('Error fetching assessment:', error)
+            setPetAssessment(null)
+        }
+
         setShowModal(true)
     }
 
     const handleNewPet = () => {
         setSelectedPet(null)
-        setPetAssessment(null) // Clear previous assessment state
+        setPetAssessment(null)
         setAccordions({ details: true, packages: false, creche: false, hotel: false, assessment: false })
         setShowModal(true)
     }
