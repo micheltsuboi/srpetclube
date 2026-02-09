@@ -23,7 +23,17 @@ export async function createService(prevState: CreateServiceState, formData: For
     // For now, let's allow the frontend to send a fallback string or just use 'other'.
     // Better: let's try to pass the category name if possible, or just ignore if DB allows null.
     // Assuming DB 'category' column might be NOT NULL, let's keep sending a value.
-    const categoryName = formData.get('category_name') as string || 'custom'
+    // Legacy category mapping
+    const rawCategoryName = (formData.get('category_name') as string || '').toLowerCase()
+    let legacyCategory = 'outro'
+
+    if (rawCategoryName.includes('banho') && rawCategoryName.includes('tosa')) legacyCategory = 'banho_tosa'
+    else if (rawCategoryName.includes('banho')) legacyCategory = 'banho'
+    else if (rawCategoryName.includes('tosa')) legacyCategory = 'tosa'
+    else if (rawCategoryName.includes('creche')) legacyCategory = 'creche'
+    else if (rawCategoryName.includes('hospedagem') || rawCategoryName.includes('hotel')) legacyCategory = 'hotel'
+    else if (rawCategoryName.includes('veterinario') || rawCategoryName.includes('consulta')) legacyCategory = 'veterinario'
+
     const category_id = formData.get('category_id') as string
 
     // Duration Logic
@@ -43,7 +53,7 @@ export async function createService(prevState: CreateServiceState, formData: For
         name,
         description,
         base_price,
-        category: categoryName, // Legacy support
+        category: legacyCategory, // Legacy support
         category_id,
         duration_minutes
     })
@@ -62,7 +72,18 @@ export async function updateService(prevState: CreateServiceState, formData: For
     const name = formData.get('name') as string
     const description = formData.get('description') as string
     const base_price = parseFloat(formData.get('base_price') as string)
-    const categoryName = formData.get('category_name') as string || 'custom'
+
+    // Legacy mapping
+    const rawCategoryName = (formData.get('category_name') as string || '').toLowerCase()
+    let legacyCategory = 'outro'
+
+    if (rawCategoryName.includes('banho') && rawCategoryName.includes('tosa')) legacyCategory = 'banho_tosa'
+    else if (rawCategoryName.includes('banho')) legacyCategory = 'banho'
+    else if (rawCategoryName.includes('tosa')) legacyCategory = 'tosa'
+    else if (rawCategoryName.includes('creche')) legacyCategory = 'creche'
+    else if (rawCategoryName.includes('hospedagem') || rawCategoryName.includes('hotel')) legacyCategory = 'hotel'
+    else if (rawCategoryName.includes('veterinario') || rawCategoryName.includes('consulta')) legacyCategory = 'veterinario'
+
     const category_id = formData.get('category_id') as string
 
     // Duration Logic
@@ -81,7 +102,7 @@ export async function updateService(prevState: CreateServiceState, formData: For
         name,
         description,
         base_price,
-        category: categoryName,
+        category: legacyCategory,
         category_id,
         duration_minutes
     }).eq('id', id)
