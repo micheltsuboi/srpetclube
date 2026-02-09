@@ -24,12 +24,21 @@ interface PricingRule {
     fixed_price: number
 }
 
+interface ServiceCategory {
+    id: string
+    name: string
+    color: string
+    icon: string
+}
+
 interface Service {
     id: string
     name: string
     description: string | null
     base_price: number
     category: string
+    category_id?: string
+    service_categories?: ServiceCategory
     duration_minutes: number
     pricing_matrix: PricingRule[]
 }
@@ -39,6 +48,7 @@ const initialState = { message: '', success: false }
 export default function ServicesPage() {
     const supabase = createClient()
     const [services, setServices] = useState<Service[]>([])
+    const [categories, setCategories] = useState<ServiceCategory[]>([])
 
     // Modal State
     const [showModal, setShowModal] = useState(false)
@@ -60,10 +70,15 @@ export default function ServicesPage() {
             const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
             if (!profile?.org_id) return
 
+            // Load Categories
+            const { data: cats } = await supabase.from('service_categories').select('*').order('name')
+            if (cats) setCategories(cats)
+
             const { data } = await supabase
                 .from('services')
                 .select(`
                     *,
+                    service_categories ( * ),
                     pricing_matrix ( * )
                 `)
                 .eq('org_id', profile.org_id)
@@ -190,7 +205,11 @@ export default function ServicesPage() {
                             </div>
                         </div>
                         <div className={styles.cardMeta}>
-                            {service.category.toUpperCase()} • {service.duration_minutes} min
+                            {service.service_categories ? (
+                                <span style={{ color: service.service_categories.color, fontWeight: 'bold' }}>
+                                    {service.service_categories.icon} {service.service_categories.name}
+                                </span>
+                            ) : service.category.toUpperCase()} • {service.duration_minutes} min
                         </div>
                         <div style={{ fontSize: '0.8rem', color: '#666' }}>
                             {service.pricing_matrix?.length ? `${service.pricing_matrix.length} regras de preço` : 'Preço fixo'}
@@ -215,12 +234,30 @@ export default function ServicesPage() {
                                 </div>
                                 <div className={styles.inputGroup}>
                                     <label className={styles.label}>Categoria</label>
-                                    <select name="category" className={styles.select} defaultValue={selectedService?.category || 'banho'}>
-                                        <option value="banho">Banho</option>
-                                        <option value="tosa">Tosa</option>
-                                        <option value="banho_tosa">Banho e Tosa</option>
-                                        <option value="outro">Outro</option>
+                                    <select
+                                        name="category_id"
+                                        className={styles.select}
+                                        defaultValue={selectedService?.category_id || categories.find(c => c.name === 'Banho e Tosa')?.id || ''}
+                                        required
+                                        onChange={(e) => {
+                                            const cat = categories.find(c => c.id === e.target.value)
+                                            const input = document.getElementById('category_name_input') as HTMLInputElement
+                                            if (input && cat) input.value = cat.name
+                                        }}
+                                    >
+                                        <option value="" disabled>Selecione...</option>
+                                        {categories.map(cat => (
+                                            <option key={cat.id} value={cat.id}>
+                                                {cat.icon} {cat.name}
+                                            </option>
+                                        ))}
                                     </select>
+                                    <input
+                                        type="hidden"
+                                        name="category_name"
+                                        id="category_name_input"
+                                        defaultValue={selectedService?.service_categories?.name || 'Banho e Tosa'}
+                                    />
                                 </div>
                                 <div className={styles.inputGroup}>
                                     <label className={styles.label}>Preço Base (R$)</label>

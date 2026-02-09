@@ -49,7 +49,16 @@ interface ScheduleBlock {
 }
 
 interface Pet { id: string, name: string }
-interface Service { id: string, name: string }
+interface Service {
+    id: string
+    name: string
+    service_categories?: {
+        id: string
+        name: string
+        color: string
+        icon: string
+    }
+}
 
 const initialState = { message: '', success: false }
 
@@ -73,6 +82,7 @@ export default function AgendaPage() {
 
     // Modal States
     const [showNewModal, setShowNewModal] = useState(false)
+    const [selectedServiceId, setSelectedServiceId] = useState<string>('')
     const [showDetailModal, setShowDetailModal] = useState(false)
     const [isEditing, setIsEditing] = useState(false)
 
@@ -110,7 +120,10 @@ export default function AgendaPage() {
 
             if (petId || serviceId) {
                 if (petId) setPreSelectedPetId(petId)
-                if (serviceId) setPreSelectedServiceId(serviceId)
+                if (serviceId) {
+                    setPreSelectedServiceId(serviceId)
+                    setSelectedServiceId(serviceId)
+                }
                 setShowNewModal(true)
             }
         }
@@ -131,8 +144,16 @@ export default function AgendaPage() {
             if (pets.length === 0) {
                 const { data: p } = await supabase.from('pets').select('id, name').order('name')
                 if (p) setPets(p)
-                const { data: s } = await supabase.from('services').select('id, name').eq('org_id', profile.org_id).order('name')
-                if (s) setServices(s)
+
+                const { data: s } = await supabase
+                    .from('services')
+                    .select('id, name, service_categories (id, name, color, icon)')
+                    .eq('org_id', profile.org_id)
+                    .order('name')
+
+                // Force cast as the relationship query returns array or object depending on relationship type (one-to-many vs many-to-one)
+                // Here it's many-to-one so it returns object.
+                if (s) setServices(s as unknown as Service[])
             }
 
             // Date Range Calculation
@@ -223,7 +244,6 @@ export default function AgendaPage() {
             setSelectedAppointment(null)
             fetchData()
             alert(updateState.message)
-        } else if (updateState.message) {
             alert(updateState.message)
         }
     }, [updateState, fetchData])
@@ -232,6 +252,14 @@ export default function AgendaPage() {
         const d = new Date(selectedDate)
         d.setDate(d.getDate() + offset)
         setSelectedDate(d.toISOString().split('T')[0])
+    }
+
+    const handleNewAppointment = (date?: string, hour?: number, petId?: string, serviceId?: string) => {
+        setSelectedDate(date || new Date().toISOString().split('T')[0])
+        if (hour) setSelectedHourSlot(hour.toString().padStart(2, '0'))
+        if (petId) setPreSelectedPetId(petId)
+        setSelectedServiceId(serviceId || preSelectedServiceId || '') // Use passed serviceId, then preSelectedServiceId, then empty
+        setShowNewModal(true)
     }
 
     const handleOpenDetail = (appt: Appointment) => {
@@ -372,7 +400,7 @@ export default function AgendaPage() {
                 onClick={(e) => { e.stopPropagation(); handleOpenDetail(appt) }}
                 style={{
                     minWidth: '300px',
-                    borderLeft: `4px solid ${categoryColor}`,
+                    borderLeft: `4px solid ${categoryColor} `,
                     backgroundColor: appt.status === 'done' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
                     opacity: appt.status === 'done' ? 0.7 : 1
                 }}
@@ -452,7 +480,7 @@ export default function AgendaPage() {
                                             setShowNewModal(true)
                                         }}>+</div>
                                         <button
-                                            className={`${styles.addSlotBtn} ${styles.blockBtn}`}
+                                            className={`${styles.addSlotBtn} ${styles.blockBtn} `}
                                             style={{ maxWidth: '50px', borderLeft: '1px dashed #334155' }}
                                             title="Bloquear Horário"
                                             onClick={() => {
@@ -497,7 +525,7 @@ export default function AgendaPage() {
                     return (
                         <div
                             key={dateStr}
-                            className={`${styles.weekHeaderCell} ${isSelected ? styles.activeDay : ''}`}
+                            className={`${styles.weekHeaderCell} ${isSelected ? styles.activeDay : ''} `}
                             style={{ cursor: 'pointer' }}
                             onClick={() => { setSelectedDate(dateStr); setViewMode('day'); }}
                         >
@@ -527,7 +555,7 @@ export default function AgendaPage() {
                             })
 
                             return (
-                                <div key={`${dateStr}-${h}`} className={styles.weekCell} onClick={() => {
+                                <div key={`${dateStr} -${h} `} className={styles.weekCell} onClick={() => {
                                     setSelectedDate(dateStr)
                                     setViewMode('day')
                                 }}>
@@ -539,7 +567,7 @@ export default function AgendaPage() {
                                                 <div
                                                     key={a.id}
                                                     className={styles.weekEventPill}
-                                                    title={`${a.pets?.name} - ${a.services.name}`}
+                                                    title={`${a.pets?.name} - ${a.services.name} `}
                                                     style={{ backgroundColor: color, color: 'white' }}
                                                 >
                                                     {a.pets?.name}
@@ -574,9 +602,9 @@ export default function AgendaPage() {
                 ))}
 
                 {days.map((day, idx) => {
-                    if (!day) return <div key={`empty-${idx}`} className={styles.monthCell} style={{ background: 'var(--bg-tertiary)' }} />
+                    if (!day) return <div key={`empty - ${idx} `} className={styles.monthCell} style={{ background: 'var(--bg-tertiary)' }} />
 
-                    const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+                    const dateStr = `${year} -${(month + 1).toString().padStart(2, '0')} -${day.toString().padStart(2, '0')} `
                     const isToday = dateStr === selectedDate
                     const dayAppts = appointments.filter(a => {
                         const ad = new Date(new Date(a.scheduled_at).getTime() - 3 * 3600 * 1000)
@@ -586,7 +614,7 @@ export default function AgendaPage() {
                     })
 
                     return (
-                        <div key={day} className={`${styles.monthCell} ${isToday ? styles.today : ''}`} onClick={() => {
+                        <div key={day} className={`${styles.monthCell} ${isToday ? styles.today : ''} `} onClick={() => {
                             setSelectedDate(dateStr)
                             setViewMode('day')
                         }}>
@@ -633,9 +661,9 @@ export default function AgendaPage() {
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
                     <div className={styles.viewSelector} style={{ margin: 0 }}>
-                        <button className={`${styles.viewBtn} ${viewMode === 'day' ? styles.active : ''}`} onClick={() => setViewMode('day')}>Dia</button>
-                        <button className={`${styles.viewBtn} ${viewMode === 'week' ? styles.active : ''}`} onClick={() => setViewMode('week')}>Semana</button>
-                        <button className={`${styles.viewBtn} ${viewMode === 'month' ? styles.active : ''}`} onClick={() => setViewMode('month')}>Mês</button>
+                        <button className={`${styles.viewBtn} ${viewMode === 'day' ? styles.active : ''} `} onClick={() => setViewMode('day')}>Dia</button>
+                        <button className={`${styles.viewBtn} ${viewMode === 'week' ? styles.active : ''} `} onClick={() => setViewMode('week')}>Semana</button>
+                        <button className={`${styles.viewBtn} ${viewMode === 'month' ? styles.active : ''} `} onClick={() => setViewMode('month')}>Mês</button>
                     </div>
 
                     <select
@@ -700,24 +728,55 @@ export default function AgendaPage() {
                                 </div>
                                 <div className={styles.formGroup}>
                                     <label className={styles.label}>Serviço *</label>
-                                    <select name="serviceId" className={styles.select} required defaultValue={preSelectedServiceId || ""} key={preSelectedServiceId}>
+                                    <select
+                                        name="serviceId"
+                                        className={styles.select}
+                                        required
+                                        defaultValue={preSelectedServiceId || ""}
+                                        key={preSelectedServiceId}
+                                        onChange={(e) => setSelectedServiceId(e.target.value)}
+                                    >
                                         <option value="" disabled>Selecione...</option>
                                         {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                     </select>
                                 </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Data *</label>
-                                    <input name="date" type="date" className={styles.input} required defaultValue={selectedDate} />
-                                </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Horário *</label>
-                                    <select name="time" className={styles.select} required defaultValue={selectedHourSlot ? `${selectedHourSlot}:00` : ""}>
-                                        <option value="" disabled>Selecione...</option>
-                                        {Array.from({ length: 10 }, (_, i) => i + 8).map(h => (
-                                            <option key={h} value={`${h.toString().padStart(2, '0')}:00`}>{h}:00</option>
-                                        ))}
-                                    </select>
-                                </div>
+                                {(() => {
+                                    const selectedSvc = services.find(s => s.id === selectedServiceId)
+                                    const isHospedagem = selectedSvc?.service_categories?.name === 'Hospedagem'
+
+                                    if (isHospedagem) {
+                                        return (
+                                            <>
+                                                <div className={styles.formGroup}>
+                                                    <label className={styles.label}>Check-in *</label>
+                                                    <input name="checkInDate" type="date" className={styles.input} required defaultValue={selectedDate} />
+                                                </div>
+                                                <div className={styles.formGroup}>
+                                                    <label className={styles.label}>Check-out *</label>
+                                                    <input name="checkOutDate" type="date" className={styles.input} required />
+                                                </div>
+                                            </>
+                                        )
+                                    }
+
+                                    return (
+                                        <>
+                                            <div className={styles.formGroup}>
+                                                <label className={styles.label}>Data *</label>
+                                                <input name="date" type="date" className={styles.input} required defaultValue={selectedDate} />
+                                            </div>
+                                            <div className={styles.formGroup}>
+                                                <label className={styles.label}>Horário *</label>
+                                                <select name="time" className={styles.select} required defaultValue={selectedHourSlot ? `${selectedHourSlot}:00` : ""}>
+                                                    <option value="" disabled>Selecione...</option>
+                                                    {Array.from({ length: 10 }, (_, i) => i + 8).map(h => (
+                                                        <option key={h} value={`${h.toString().padStart(2, '0')}:00`}>{h}:00</option>
+                                                    ))}
+                                                </select>
+                                            </div>
+                                        </>
+                                    )
+                                })()}
                             </div>
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Observações</label>
@@ -797,7 +856,7 @@ export default function AgendaPage() {
                                         <button onClick={saveChecklist} style={{ background: 'var(--success)', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', color: 'white', cursor: 'pointer', fontSize: '0.8rem' }}>Salvar</button>
                                     </div>
                                     <div className={styles.progressBar}>
-                                        <div className={styles.progressValue} style={{ width: `${(currentChecklist.filter(i => i.checked).length / currentChecklist.length) * 100}%` }} />
+                                        <div className={styles.progressValue} style={{ width: `${(currentChecklist.filter(i => i.checked).length / currentChecklist.length) * 100}% ` }} />
                                     </div>
                                     <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
                                         {currentChecklist.map((item, idx) => (

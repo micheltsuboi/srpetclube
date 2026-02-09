@@ -31,43 +31,89 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     const notes = formData.get('notes') as string
     const staffId = formData.get('staffId') as string // Optional
 
-    if (!petId || !serviceId || !date || !time) {
+    // Hospedagem Specifics
+    const checkInDate = formData.get('checkInDate') as string
+    const checkOutDate = formData.get('checkOutDate') as string
+
+    if (!petId || !serviceId) {
         return { message: 'Preencha todos os campos obrigatórios.', success: false }
     }
 
-    // specific service checklist logic could be applied here if we want default checklist
-    // For now, default is empty array []
-
-    // Hardcoded Brazil Offset for MVP efficiency
-    // Converting to UTC ISO string to ensure Postgres compatibility
-    let scheduledAt: string
-    try {
-        scheduledAt = new Date(`${date}T${time}:00-03:00`).toISOString()
-    } catch (_) { // unused e
-        return { message: 'Data ou hora inválida.', success: false }
+    // validate date/time only if NOT Hospedagem or if single day
+    if ((!date || !time) && (!checkInDate || !checkOutDate)) {
+        return { message: 'Selecione a data ou período.', success: false }
     }
 
-    // Check Conflicts with Blocks
-    const { data: sData } = await supabase
+    // Get Service & Category
+    const { data: serviceData } = await supabase
         .from('services')
-        .select('duration_minutes')
+        .select(`
+            id, 
+            duration_minutes, 
+            category_id, 
+            service_categories (id, name)
+        `)
         .eq('id', serviceId)
-        .maybeSingle()
+        .single()
 
-    const duration = sData?.duration_minutes || 60
-    const startDt = new Date(scheduledAt)
-    const endDt = new Date(startDt.getTime() + duration * 60000)
-    const endAt = endDt.toISOString()
+    if (!serviceData) return { message: 'Serviço não encontrado.', success: false }
 
-    const { data: conflictBlocks } = await supabase
-        .from('schedule_blocks')
-        .select('id')
-        .eq('org_id', profile.org_id)
-        .lt('start_at', endAt)
-        .gt('end_at', scheduledAt)
+    // Force cast to any to avoid complex typing for joined relation for now
+    const serviceAny = serviceData as any
+    const categoryName = serviceAny.service_categories?.name
+    const isCreche = categoryName === 'Creche'
+    const isHospedagem = categoryName === 'Hospedagem'
 
-    if (conflictBlocks && conflictBlocks.length > 0) {
-        return { message: 'Este horário está bloqueado na agenda.', success: false }
+    // Validate Assessment for Creche/Hospedagem
+    if (isCreche || isHospedagem) {
+        const { data: assessment } = await supabase
+            .from('pet_assessments')
+            .select('status')
+            .eq('pet_id', petId)
+            .single()
+
+        if (!assessment || assessment.status !== 'approved') {
+            return { message: `Este pet precisa de uma avaliação aprovada para ${categoryName}.`, success: false }
+        }
+    }
+
+    // Prepare Date Range / Scheduled At
+    let scheduledAt: string
+    let checkIn: string | null = null
+    let checkOut: string | null = null
+
+    if (isHospedagem && checkInDate && checkOutDate) {
+        // Hospedagem Logic
+        checkIn = checkInDate
+        checkOut = checkOutDate
+        // Scheduled at mostly for sorting, set to Check-in at 12:00
+        scheduledAt = new Date(`${checkInDate}T12:00:00-03:00`).toISOString()
+    } else {
+        // Standard / Creche Logic
+        try {
+            scheduledAt = new Date(`${date}T${time}:00-03:00`).toISOString()
+        } catch (_) { // unused e
+            return { message: 'Data ou hora inválida.', success: false }
+        }
+    }
+
+    // Check Conflicts (Skip for Hospedagem for now, or implement room logic later)
+    if (!isHospedagem) {
+        const duration = serviceData.duration_minutes || 60
+        const startDt = new Date(scheduledAt)
+        const endDt = new Date(startDt.getTime() + duration * 60000)
+        const endAt = endDt.toISOString()
+
+        const { data: conflictBlocks } = await supabase
+            .from('schedule_blocks')
+            .select('id')
+            .eq('org_id', profile.org_id)
+            .lt('start_at', endAt)
+            .gt('end_at', scheduledAt)
+
+        if (conflictBlocks && conflictBlocks.length > 0) {
+            return { message: 'Este horário está bloqueado na agenda.', success: false }
+        }
     }
 
     // Get customer_id from the Pet
@@ -81,7 +127,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
         return { message: 'Pet não encontrado ou erro ao buscar dados do tutor.', success: false }
     }
 
-    // **NOVO**: Verificar se há créditos de pacote disponíveis para este serviço
+    // Verify Credits
     let packageCreditId: string | null = null
     const { data: creditData } = await supabase.rpc('use_package_credit_for_pet', {
         p_pet_id: petId,
@@ -99,13 +145,15 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             org_id: profile.org_id,
             pet_id: petId,
             service_id: serviceId,
-            customer_id: petData.customer_id, // Important relation!
+            customer_id: petData.customer_id,
             staff_id: staffId || null,
             scheduled_at: scheduledAt,
             notes: notes || null,
             status: 'pending',
-            package_credit_id: packageCreditId, // Vincula ao crédito do pacote se usado
-            checklist: [] // Initialize empty
+            package_credit_id: packageCreditId,
+            checklist: [],
+            check_in_date: checkIn,
+            check_out_date: checkOut
         })
 
     if (error) {
@@ -114,6 +162,8 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
 
     revalidatePath('/owner/agenda')
     revalidatePath('/owner/pets')
+    revalidatePath('/owner/creche') // Revalidate new dashboards
+    revalidatePath('/owner/hospedagem')
     return { message: 'Agendamento criado com sucesso!', success: true }
 }
 

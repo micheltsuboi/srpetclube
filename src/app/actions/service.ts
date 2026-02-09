@@ -19,7 +19,12 @@ export async function createService(prevState: CreateServiceState, formData: For
     const name = formData.get('name') as string
     const description = formData.get('description') as string
     const base_price = parseFloat(formData.get('base_price') as string)
-    const category = formData.get('category') as string
+    // Legacy category field - we can set a default or try to get name from ID if needed. 
+    // For now, let's allow the frontend to send a fallback string or just use 'other'.
+    // Better: let's try to pass the category name if possible, or just ignore if DB allows null.
+    // Assuming DB 'category' column might be NOT NULL, let's keep sending a value.
+    const categoryName = formData.get('category_name') as string || 'custom'
+    const category_id = formData.get('category_id') as string
     const duration_minutes = parseInt(formData.get('duration_minutes') as string)
 
     const { error } = await supabase.from('services').insert({
@@ -27,7 +32,8 @@ export async function createService(prevState: CreateServiceState, formData: For
         name,
         description,
         base_price,
-        category,
+        category: categoryName, // Legacy support
+        category_id,
         duration_minutes
     })
 
@@ -45,11 +51,17 @@ export async function updateService(prevState: CreateServiceState, formData: For
     const name = formData.get('name') as string
     const description = formData.get('description') as string
     const base_price = parseFloat(formData.get('base_price') as string)
-    const category = formData.get('category') as string
+    const categoryName = formData.get('category_name') as string || 'custom'
+    const category_id = formData.get('category_id') as string
     const duration_minutes = parseInt(formData.get('duration_minutes') as string)
 
     const { error } = await supabase.from('services').update({
-        name, description, base_price, category, duration_minutes
+        name,
+        description,
+        base_price,
+        category: categoryName,
+        category_id,
+        duration_minutes
     }).eq('id', id)
 
     if (error) return { message: error.message, success: false }
