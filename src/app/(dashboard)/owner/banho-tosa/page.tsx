@@ -143,7 +143,7 @@ export default function BanhoTosaPage() {
                     Nenhum pet agendado para banho e tosa no período selecionado.
                 </div>
             ) : (
-                <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+                <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
                     {appointments.map(appt => (
                         <div
                             key={appt.id}
@@ -155,8 +155,35 @@ export default function BanhoTosaPage() {
                                 opacity: 1,
                                 cursor: 'pointer'
                             }}>
-                            <div className={styles.cardTop}>
-                                <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem', zIndex: 10 }}>
+                            <div className={styles.cardTop} style={{ justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                <div className={styles.petInfoMain} style={{ flex: 1, overflow: 'hidden' }}>
+                                    <div className={styles.petAvatar}>{appt.pets?.species === 'cat' ? '🐱' : '🐶'}</div>
+                                    <div className={styles.petDetails} style={{ minWidth: 0 }}>
+                                        <div className={styles.petName} style={{ flexWrap: 'wrap' }}>
+                                            {appt.pets?.name || 'Pet'}
+                                            <span className={styles.statusBadge} style={{ fontSize: '0.75rem', padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                                                {appt.actual_check_in && !appt.actual_check_out ? '🟢 Em Atendimento' :
+                                                    appt.actual_check_out ? '✅ Concluído' :
+                                                        '⏳ Aguardando'}
+                                            </span>
+                                        </div>
+                                        <span className={styles.tutorName}>👤 {appt.pets?.customers?.name || 'Cliente'}</span>
+                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                            {appt.services?.name || 'Serviço'}
+                                        </span>
+                                        {appt.actual_check_in && (
+                                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                Início: {new Date(appt.actual_check_in).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        )}
+                                        {appt.actual_check_out && (
+                                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                                Término: {new Date(appt.actual_check_out).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, marginLeft: '0.5rem' }}>
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation()
@@ -199,33 +226,6 @@ export default function BanhoTosaPage() {
                                     >
                                         🗑️
                                     </button>
-                                </div>
-                                <div className={styles.petInfoMain}>
-                                    <div className={styles.petAvatar}>{appt.pets?.species === 'cat' ? '🐱' : '🐶'}</div>
-                                    <div className={styles.petDetails}>
-                                        <div className={styles.petName}>
-                                            {appt.pets?.name || 'Pet'}
-                                            <span className={styles.statusBadge} style={{ fontSize: '0.75rem', padding: '2px 6px' }}>
-                                                {appt.actual_check_in && !appt.actual_check_out ? '🟢 Em Atendimento' :
-                                                    appt.actual_check_out ? '✅ Concluído' :
-                                                        '⏳ Aguardando'}
-                                            </span>
-                                        </div>
-                                        <span className={styles.tutorName}>👤 {appt.pets?.customers?.name || 'Cliente'}</span>
-                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                            {appt.services?.name || 'Serviço'}
-                                        </span>
-                                        {appt.actual_check_in && (
-                                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                                Início: {new Date(appt.actual_check_in).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
-                                        )}
-                                        {appt.actual_check_out && (
-                                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                                Término: {new Date(appt.actual_check_out).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                                            </span>
-                                        )}
-                                    </div>
                                 </div>
                             </div>
 
