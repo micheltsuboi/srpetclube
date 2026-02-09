@@ -33,6 +33,7 @@ export default function UsuariosPage() {
     const [users, setUsers] = useState<Profile[]>([])
     const [loading, setLoading] = useState(true)
     const [showModal, setShowModal] = useState(false)
+    const [searchTerm, setSearchTerm] = useState('')
 
     // Server Action State
     const [state, formAction, isPending] = useActionState(createUser, initialState)
@@ -109,22 +110,20 @@ export default function UsuariosPage() {
                 </button>
             </div>
 
+            <div style={{ marginBottom: '1rem' }}>
+                <input
+                    type="text"
+                    placeholder="🔍 Buscar usuário por nome ou email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={styles.input}
+                    style={{ maxWidth: '400px' }}
+                />
+            </div>
+
             {/* User Roles Info */}
             <div className={styles.rolesInfo}>
-                <div className={styles.roleCard}>
-                    <span className={styles.roleIcon}>👑</span>
-                    <div>
-                        <strong>Administrador</strong>
-                        <p>Acesso total: financeiro, usuários, relatórios e todas as operações</p>
-                    </div>
-                </div>
-                <div className={styles.roleCard}>
-                    <span className={styles.roleIcon}>🛠️</span>
-                    <div>
-                        <strong>Staff</strong>
-                        <p>Acesso operacional: check-in/out, timeline, fichas de atendimento</p>
-                    </div>
-                </div>
+                {/* ... */}
             </div>
 
             {/* Users Table */}
@@ -140,46 +139,52 @@ export default function UsuariosPage() {
                         </tr>
                     </thead>
                     <tbody>
-                        {users.map(user => (
-                            <tr key={user.id}>
-                                <td>
-                                    <div className={styles.userInfo}>
-                                        <div className={styles.avatar}>
-                                            {(user.full_name || user.email).charAt(0).toUpperCase()}
+                        {users
+                            .filter(user =>
+                                !searchTerm ||
+                                user.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                user.email.toLowerCase().includes(searchTerm.toLowerCase())
+                            )
+                            .map(user => (
+                                <tr key={user.id}>
+                                    <td>
+                                        <div className={styles.userInfo}>
+                                            <div className={styles.avatar}>
+                                                {(user.full_name || user.email).charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <span className={styles.userName}>{user.full_name || 'Sem Nome'}</span>
+                                                <span className={styles.userEmail}>{user.email}</span>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <span className={styles.userName}>{user.full_name || 'Sem Nome'}</span>
-                                            <span className={styles.userEmail}>{user.email}</span>
+                                    </td>
+                                    <td>
+                                        <span className={`${styles.roleBadge} ${styles[user.role]}`}>
+                                            {user.role.includes('admin') ? '👑' : '🛠️'} {roleLabels[user.role] || user.role}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span className={`${styles.statusBadge} ${user.is_active ? styles.active : styles.inactive}`}>
+                                            {user.is_active ? 'Ativo' : 'Inativo'}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span className={styles.lastLogin}>
+                                            {new Date(user.created_at).toLocaleDateString('pt-BR')}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div className={styles.actions}>
+                                            <button
+                                                className={`${styles.actionBtn} ${user.is_active ? styles.deactivate : styles.activate}`}
+                                                onClick={() => toggleUserStatus()}
+                                            >
+                                                {user.is_active ? 'Desativar' : 'Ativar'}
+                                            </button>
                                         </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span className={`${styles.roleBadge} ${styles[user.role]}`}>
-                                        {user.role.includes('admin') ? '👑' : '🛠️'} {roleLabels[user.role] || user.role}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className={`${styles.statusBadge} ${user.is_active ? styles.active : styles.inactive}`}>
-                                        {user.is_active ? 'Ativo' : 'Inativo'}
-                                    </span>
-                                </td>
-                                <td>
-                                    <span className={styles.lastLogin}>
-                                        {new Date(user.created_at).toLocaleDateString('pt-BR')}
-                                    </span>
-                                </td>
-                                <td>
-                                    <div className={styles.actions}>
-                                        <button
-                                            className={`${styles.actionBtn} ${user.is_active ? styles.deactivate : styles.activate}`}
-                                            onClick={() => toggleUserStatus()}
-                                        >
-                                            {user.is_active ? 'Desativar' : 'Ativar'}
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        ))}
+                                    </td>
+                                </tr>
+                            ))}
                     </tbody>
                 </table>
                 {users.length === 0 && (
@@ -188,79 +193,81 @@ export default function UsuariosPage() {
             </div>
 
             {/* Add User Modal */}
-            {showModal && (
-                <div className={styles.modalOverlay} onClick={() => setShowModal(false)}>
-                    <div className={styles.modal} onClick={e => e.stopPropagation()}>
-                        <h2>Adicionar Novo Usuário</h2>
-                        <p style={{ marginBottom: '1.5rem', color: '#666' }}>
-                            Preencha os dados abaixo para cadastrar um novo usuário no sistema.
-                        </p>
+            {
+                showModal && (
+                    <div className={styles.modalOverlay} onClick={() => setShowModal(false)}>
+                        <div className={styles.modal} onClick={e => e.stopPropagation()}>
+                            <h2>Adicionar Novo Usuário</h2>
+                            <p style={{ marginBottom: '1.5rem', color: '#666' }}>
+                                Preencha os dados abaixo para cadastrar um novo usuário no sistema.
+                            </p>
 
-                        <form action={formAction} className={styles.form}>
-                            <div className={styles.formGroup}>
-                                <label htmlFor="fullName" className={styles.label}>Nome Completo</label>
-                                <input
-                                    id="fullName"
-                                    name="fullName"
-                                    type="text"
-                                    className={styles.input}
-                                    placeholder="Ex: João da Silva"
-                                    required
-                                />
-                            </div>
-
-                            <div className={styles.formGroup}>
-                                <label htmlFor="email" className={styles.label}>Email</label>
-                                <input
-                                    id="email"
-                                    name="email"
-                                    type="email"
-                                    className={styles.input}
-                                    placeholder="exemplo@email.com"
-                                    required
-                                />
-                            </div>
-
-                            <div className={styles.row}>
-                                <div className={styles.formGroup} style={{ flex: 1 }}>
-                                    <label htmlFor="password" className={styles.label}>Senha</label>
+                            <form action={formAction} className={styles.form}>
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="fullName" className={styles.label}>Nome Completo</label>
                                     <input
-                                        id="password"
-                                        name="password"
-                                        type="password"
+                                        id="fullName"
+                                        name="fullName"
+                                        type="text"
                                         className={styles.input}
-                                        placeholder="******"
-                                        minLength={6}
+                                        placeholder="Ex: João da Silva"
                                         required
                                     />
                                 </div>
-                                <div className={styles.formGroup} style={{ flex: 1 }}>
-                                    <label htmlFor="role" className={styles.label}>Nível de Acesso</label>
-                                    <select id="role" name="role" className={styles.select} required defaultValue="staff">
-                                        <option value="staff">Staff (Operacional)</option>
-                                        <option value="admin">Administrador</option>
-                                    </select>
+
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="email" className={styles.label}>Email</label>
+                                    <input
+                                        id="email"
+                                        name="email"
+                                        type="email"
+                                        className={styles.input}
+                                        placeholder="exemplo@email.com"
+                                        required
+                                    />
                                 </div>
-                            </div>
 
-                            {state.message && !state.success && (
-                                <p className={styles.errorMessage} style={{ color: 'red', marginBottom: '1rem' }}>
-                                    {state.message}
-                                </p>
-                            )}
+                                <div className={styles.row}>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label htmlFor="password" className={styles.label}>Senha</label>
+                                        <input
+                                            id="password"
+                                            name="password"
+                                            type="password"
+                                            className={styles.input}
+                                            placeholder="******"
+                                            minLength={6}
+                                            required
+                                        />
+                                    </div>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label htmlFor="role" className={styles.label}>Nível de Acesso</label>
+                                        <select id="role" name="role" className={styles.select} required defaultValue="staff">
+                                            <option value="staff">Staff (Operacional)</option>
+                                            <option value="admin">Administrador</option>
+                                        </select>
+                                    </div>
+                                </div>
 
-                            <div className={styles.modalActions}>
-                                <button type="button" className={styles.cancelBtn} onClick={() => setShowModal(false)} disabled={isPending}>
-                                    Cancelar
-                                </button>
-                                <button type="submit" className={styles.submitButton} disabled={isPending}>
-                                    {isPending ? 'Criando...' : 'Criar Usuário'}
-                                </button>
-                            </div>
-                        </form>
+                                {state.message && !state.success && (
+                                    <p className={styles.errorMessage} style={{ color: 'red', marginBottom: '1rem' }}>
+                                        {state.message}
+                                    </p>
+                                )}
+
+                                <div className={styles.modalActions}>
+                                    <button type="button" className={styles.cancelBtn} onClick={() => setShowModal(false)} disabled={isPending}>
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" className={styles.submitButton} disabled={isPending}>
+                                        {isPending ? 'Criando...' : 'Criar Usuário'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     )
 }

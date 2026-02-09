@@ -15,7 +15,7 @@ interface ScheduleBlock {
     reason: string
 }
 
-export async function createScheduleBlock(data: ScheduleBlock): Promise<ActionState> {
+export async function createScheduleBlock(prevState: any, formData: FormData): Promise<ActionState> {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -24,11 +24,19 @@ export async function createScheduleBlock(data: ScheduleBlock): Promise<ActionSt
     const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
     if (!profile?.org_id) return { message: 'Erro de organização.', success: false }
 
+    const reason = formData.get('reason') as string
+    const start_at = formData.get('start_at') as string
+    const end_at = formData.get('end_at') as string
+
+    if (!reason || !start_at || !end_at) {
+        return { message: 'Preencha todos os campos.', success: false }
+    }
+
     const { error } = await supabase.from('schedule_blocks').insert({
         org_id: profile.org_id,
-        start_at: data.start_at, // ISO String (ex: 2024-05-10T08:00:00)
-        end_at: data.end_at,     // ISO String (ex: 2024-05-10T09:00:00)
-        reason: data.reason,
+        start_at,
+        end_at,
+        reason,
         created_by: user.id
     })
 

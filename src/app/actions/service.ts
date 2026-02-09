@@ -48,6 +48,17 @@ export async function createService(prevState: CreateServiceState, formData: For
         duration_minutes = (h * 60) + m
     }
 
+    // Parse scheduling rules
+    const schedulingRulesRaw = formData.get('scheduling_rules') as string
+    let scheduling_rules = []
+    try {
+        if (schedulingRulesRaw) {
+            scheduling_rules = JSON.parse(schedulingRulesRaw)
+        }
+    } catch (e) {
+        console.error('Error parsing scheduling rules', e)
+    }
+
     const { error } = await supabase.from('services').insert({
         org_id: profile.org_id,
         name,
@@ -55,7 +66,8 @@ export async function createService(prevState: CreateServiceState, formData: For
         base_price,
         category: legacyCategory, // Legacy support
         category_id,
-        duration_minutes
+        duration_minutes,
+        scheduling_rules
     })
 
     if (error) return { message: error.message, success: false }
@@ -98,13 +110,25 @@ export async function updateService(prevState: CreateServiceState, formData: For
         duration_minutes = (h * 60) + m
     }
 
+    // Parse scheduling rules
+    const schedulingRulesRaw = formData.get('scheduling_rules') as string
+    let scheduling_rules = []
+    try {
+        if (schedulingRulesRaw) {
+            scheduling_rules = JSON.parse(schedulingRulesRaw)
+        }
+    } catch (e) {
+        console.error('Error parsing scheduling rules', e)
+    }
+
     const { error } = await supabase.from('services').update({
         name,
         description,
         base_price,
         category: legacyCategory,
         category_id,
-        duration_minutes
+        duration_minutes,
+        scheduling_rules
     }).eq('id', id)
 
     if (error) return { message: error.message, success: false }

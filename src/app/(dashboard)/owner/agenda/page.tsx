@@ -1,48 +1,70 @@
 'use client'
+/* eslint-disable react-hooks/exhaustive-deps */
 
 import { useState, useEffect, useCallback, useActionState } from 'react'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
 import {
     createAppointment,
-    updateChecklist,
-    updateAppointmentStatus,
-    seedServices,
     updateAppointment,
     deleteAppointment,
+    checkInAppointment,
+    checkOutAppointment,
+    updateChecklist,
+    updateAppointmentStatus,
     updatePetPreferences
 } from '@/app/actions/appointment'
-import { createScheduleBlock, deleteScheduleBlock, getScheduleBlocks } from '@/app/actions/schedule'
-import { checkInAppointment, checkOutAppointment } from '@/app/actions/checkInOut'
-import DailyReportModal from '@/components/DailyReportModal'
+import {
+    createScheduleBlock,
+    deleteScheduleBlock
+} from '@/app/actions/schedule'
+import { format } from 'date-fns'
+
+interface Customer {
+    name: string
+}
+
+interface Pet {
+    id: string
+    name: string
+    species: string
+    breed: string | null
+    customers: Customer | null
+    perfume_allowed: boolean
+    accessories_allowed: boolean
+    special_care: string | null
+}
+
+interface ServiceCategory {
+    id: string
+    name: string
+    color: string
+    icon: string
+}
+
+interface Service {
+    id: string
+    name: string
+    duration_minutes?: number
+    base_price: number
+    category_id: string
+    service_categories?: ServiceCategory
+    scheduling_rules?: { day: number, species: string[] }[]
+}
 
 interface Appointment {
     id: string
     pet_id: string
     service_id: string
     scheduled_at: string
+    status: 'pending' | 'confirmed' | 'in_progress' | 'done' | 'cancelled'
+    checklist: any
+    notes: string | null
     actual_check_in: string | null
     actual_check_out: string | null
-    status: 'pending' | 'confirmed' | 'in_progress' | 'done' | 'canceled' | 'no_show'
-    checklist: { label: string, checked: boolean }[]
-    notes: string | null
-    pets: {
-        name: string
-        species: string
-        breed: string | null
-        perfume_allowed: boolean
-        accessories_allowed: boolean
-        special_care: string | null
-        customers?: { name: string }
-    }
-    services: {
-        name: string,
-        duration: number,
-        category_id?: string,
-        service_categories?: { name: string, color: string, icon: string }
-    }
+    pets: Pet | null
+    services: Service | null
 }
 
 interface ScheduleBlock {
@@ -52,116 +74,56 @@ interface ScheduleBlock {
     reason: string
 }
 
-interface Pet { id: string, name: string }
-interface Service {
-    id: string
-    name: string
-    duration_minutes?: number
-    base_price: number
-    category?: string
-    service_categories?: {
-        id: string
-        name: string
-        color: string
-        icon: string
-    }
-}
+const DEFAULT_CHECKLIST_ITEMS = [
+    { item: 'Corte de Unha', done: false },
+    { item: 'Limpeza de Ouvido', done: false },
+    { item: 'Escovação de Dentes', done: false },
+    { item: 'Tosa Higiênica', done: false }
+]
 
 const initialState = { message: '', success: false }
 
-const DEFAULT_CHECKLIST_ITEMS = [
-    { label: 'Corte de Unhas', checked: false },
-    { label: 'Limpeza de Ouvidos', checked: false },
-    { label: 'Escovação de Dentes', checked: false },
-    { label: 'Banho', checked: false },
-    { label: 'Tosa Higiênica', checked: false },
-    { label: 'Secagem', checked: false },
-    { label: 'Perfume / Finalização', checked: false },
-]
-
 export default function AgendaPage() {
-    const router = useRouter()
     const supabase = createClient()
+    const router = useRouter()
+
+    // Data State
     const [appointments, setAppointments] = useState<Appointment[]>([])
-    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+    const [blocks, setBlocks] = useState<ScheduleBlock[]>([])
+    const [pets, setPets] = useState<Pet[]>([])
+    const [services, setServices] = useState<Service[]>([])
+
+    // UI State
+    const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
+    const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day')
     const [loading, setLoading] = useState(true)
     const [categoryFilter, setCategoryFilter] = useState<string>('')
 
-    // Modal States
+    // Modal State
     const [showNewModal, setShowNewModal] = useState(false)
-    const [selectedServiceId, setSelectedServiceId] = useState<string>('')
     const [showDetailModal, setShowDetailModal] = useState(false)
+    const [showBlockModal, setShowBlockModal] = useState(false)
+
+    // Selection State
+    const [selectedHourSlot, setSelectedHourSlot] = useState<string | null>(null)
+    const [preSelectedPetId, setPreSelectedPetId] = useState<string | null>(null)
+    const [preSelectedServiceId, setPreSelectedServiceId] = useState<string | null>(null)
+    const [selectedServiceId, setSelectedServiceId] = useState<string>('')
+    const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
     const [isEditing, setIsEditing] = useState(false)
 
-    // Data Loading for Forms
-    const [pets, setPets] = useState<Pet[]>([])
-    const [services, setServices] = useState<Service[]>([])
-    const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
-
-    // Pre-selection from URL
-    const [preSelectedPetId, setPreSelectedPetId] = useState('')
-    const [preSelectedServiceId, setPreSelectedServiceId] = useState('')
-    const [returnUrl, setReturnUrl] = useState<string | null>(null)
-
     // Checklist State
-    const [currentChecklist, setCurrentChecklist] = useState<{ label: string, checked: boolean }[]>([])
+    const [currentChecklist, setCurrentChecklist] = useState<any[]>(DEFAULT_CHECKLIST_ITEMS)
 
-    // View & Blocks State
-    const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day')
-    const [blocks, setBlocks] = useState<ScheduleBlock[]>([])
-    const [showBlockModal, setShowBlockModal] = useState(false)
-    const [selectedHourSlot, setSelectedHourSlot] = useState<string | null>(null)
+    // Validation State
+    const [bookingError, setBookingError] = useState<string | null>(null)
 
     // Actions
     const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
     const [updateState, updateAction, isUpdatePending] = useActionState(updateAppointment, initialState)
 
-    const [preSelectedCategory, setPreSelectedCategory] = useState<string | null>(null)
-
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const params = new URLSearchParams(window.location.search)
-            const petId = params.get('petId')
-            const serviceId = params.get('serviceId')
-            const categoryParam = params.get('category')
-            const modeParam = params.get('mode')
-            const retUrl = params.get('returnUrl')
-
-            if (retUrl) setReturnUrl(retUrl)
-
-            if (petId) setPreSelectedPetId(petId)
-
-            // If serviceId is passed directly
-            if (serviceId) {
-                setPreSelectedServiceId(serviceId)
-                setSelectedServiceId(serviceId)
-                setShowNewModal(true)
-            }
-            // If category + mode=new is passed (e.g. from Creche dashboard)
-            else if (modeParam === 'new' && categoryParam) {
-                // We'll filter services in the modal based on this
-                // For now, let's just open the modal. The user keeps having to select the service manually 
-                // but we can try to pre-filter or pre-select the first one.
-                setShowNewModal(true)
-                setPreSelectedCategory(categoryParam.toLowerCase())
-
-                // Store category param in a state or ref if needed to filter the dropdown
-                // For simplicity, let's just iterate services once they are loaded and pick the first one matching category
-                // (This logic needs to happen after services are loaded, so moving it to fetchData or a separate effect might be better.
-                // But for now, let's just set a flag).
-            }
-
-            if (petId || serviceId || (modeParam === 'new')) {
-                setShowNewModal(true)
-            }
-        }
-    }, [])
-
-    // ... resto do código inalterado ...
-
     const fetchData = useCallback(async () => {
         try {
-            setLoading(true)
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
@@ -170,56 +132,51 @@ export default function AgendaPage() {
 
             // Load Metadata
             if (pets.length === 0) {
-                const { data: p } = await supabase.from('pets').select('id, name').order('name')
-                if (p) setPets(p)
+                const { data: p } = await supabase.from('pets').select('id, name, species, breed, customers(name), perfume_allowed, accessories_allowed, special_care').order('name')
+                if (p) setPets(p as any)
 
                 const { data: s } = await supabase
                     .from('services')
-                    .select('id, name, duration_minutes, base_price, category, service_categories (id, name, color, icon)')
+                    .select('id, name, duration_minutes, base_price, category_id, scheduling_rules, service_categories (id, name, color, icon)')
                     .eq('org_id', profile.org_id)
                     .order('name')
 
-                // Force cast as the relationship query returns array or object depending on relationship type (one-to-many vs many-to-one)
-                // Here it's many-to-one so it returns object.
                 if (s) setServices(s as unknown as Service[])
             }
 
-            // Date Range Calculation
-            let startDateStr, endDateStr
-            const localDate = new Date(selectedDate + 'T00:00:00') // Force local midnight
+            // Calculate Date Range based on viewMode
+            let start = new Date(selectedDate)
+            let end = new Date(selectedDate)
 
             if (viewMode === 'day') {
-                startDateStr = `${selectedDate}T00:00:00`
-                endDateStr = `${selectedDate}T23:59:59`
+                end.setHours(23, 59, 59)
             } else if (viewMode === 'week') {
-                const start = new Date(localDate)
-                start.setDate(localDate.getDate() - localDate.getDay()) // Domingo
-
-                const end = new Date(start)
+                const day = start.getDay()
+                const diff = start.getDate() - day + (day === 0 ? -6 : 1) // adjust when day is sunday
+                start.setDate(diff)
+                end = new Date(start)
                 end.setDate(start.getDate() + 6)
-                end.setHours(23, 59, 59, 999)
-
-                startDateStr = start.toISOString()
-                endDateStr = end.toISOString()
-            } else { // month
-                const start = new Date(localDate.getFullYear(), localDate.getMonth(), 1)
-                const end = new Date(localDate.getFullYear(), localDate.getMonth() + 1, 0)
-                end.setHours(23, 59, 59, 999)
-
-                startDateStr = start.toISOString()
-                endDateStr = end.toISOString()
+                end.setHours(23, 59, 59)
+            } else {
+                start.setDate(1)
+                end = new Date(start.getFullYear(), start.getMonth() + 1, 0)
+                end.setHours(23, 59, 59)
             }
+
+            const startDateStr = start.toISOString()
+            const endDateStr = end.toISOString()
 
             // Fetch Blocks
-            try {
-                const blks = await getScheduleBlocks(startDateStr, endDateStr)
-                setBlocks(blks as unknown as ScheduleBlock[])
-            } catch (e) {
-                console.error('Error fetching blocks', e)
-            }
+            const { data: blks } = await supabase
+                .from('schedule_blocks')
+                .select('*')
+                .eq('org_id', profile.org_id)
+                .or(`start_at.gte.${startDateStr},end_at.lte.${endDateStr}`)
+
+            if (blks) setBlocks(blks)
 
             // Fetch Appointments
-            const { data: appts } = await supabase
+            const { data: appts, error } = await supabase
                 .from('appointments')
                 .select(`
                     id, pet_id, service_id, scheduled_at, status, checklist, notes,
@@ -230,64 +187,84 @@ export default function AgendaPage() {
                         customers ( name )
                     ),
                     services ( 
-                        name, duration_minutes, category_id,
+                        name, duration_minutes, base_price, category_id,
                         service_categories ( name, color, icon )
                     )
                 `)
                 .eq('org_id', profile.org_id)
                 .gte('scheduled_at', startDateStr)
                 .lte('scheduled_at', endDateStr)
-                .order('scheduled_at')
+                .neq('status', 'cancelled')
 
-            if (appts) {
-                setAppointments(appts as unknown as Appointment[])
-            }
+            if (error) console.error(error)
+            if (appts) setAppointments(appts as unknown as Appointment[])
 
         } catch (error) {
-            console.error(error)
+            console.error('Error fetching data:', error)
         } finally {
             setLoading(false)
         }
-    }, [supabase, selectedDate, viewMode, pets.length])
+    }, [selectedDate, viewMode, supabase]) // Simplified deps
 
     useEffect(() => {
         fetchData()
     }, [fetchData])
 
-    // Handle Success Effects
     useEffect(() => {
         if (createState.success) {
             setShowNewModal(false)
             fetchData()
-            alert(createState.message)
-            if (returnUrl) router.push(returnUrl)
-        } else if (createState.message) {
-            alert(createState.message)
+            // Reset selection
+            setSelectedServiceId('')
+            setPreSelectedPetId(null)
+            setBookingError(null)
         }
-    }, [createState, fetchData, returnUrl, router])
+    }, [createState, fetchData])
 
-    useEffect(() => {
-        if (updateState.success) {
-            setShowDetailModal(false)
-            setIsEditing(false)
-            setSelectedAppointment(null)
-            fetchData()
-            alert(updateState.message)
-            alert(updateState.message)
+    const validateScheduling = (dateStr: string, svcId: string, pId: string) => {
+        if (!dateStr || !svcId || !pId) return true
+
+        const svc = services.find(s => s.id === svcId)
+        const pet = pets.find(p => p.id === pId)
+
+        if (!svc || !pet || !svc.scheduling_rules || svc.scheduling_rules.length === 0) {
+            setBookingError(null)
+            return true
         }
-    }, [updateState, fetchData])
 
-    const handleDateChange = (offset: number) => {
-        const d = new Date(selectedDate)
-        d.setDate(d.getDate() + offset)
-        setSelectedDate(d.toISOString().split('T')[0])
+        const [y, m, d] = dateStr.split('-').map(Number)
+        // Note: New Date(y, m-1, d) creates a local date. getDay() returns 0-6 (Sun-Sat)
+        const dayOfWeek = new Date(y, m - 1, d).getDay()
+
+        const rule = svc.scheduling_rules.find(r => r.day === dayOfWeek)
+
+        if (rule) {
+            const petSpecies = pet.species.toLowerCase() === 'cão' || pet.species.toLowerCase() === 'dog' ? 'dog' : 'cat'
+
+            if (!rule.species.includes(petSpecies)) {
+                const allowed = rule.species.map(s => s === 'dog' ? 'Cães' : 'Gatos').join(' ou ')
+                const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+                setBookingError(`Este serviço só é permitido para ${allowed} às ${days[dayOfWeek]}s.`)
+                return false
+            }
+        }
+
+        setBookingError(null)
+        return true
     }
 
     const handleNewAppointment = (date?: string, hour?: number, petId?: string, serviceId?: string) => {
-        setSelectedDate(date || new Date().toISOString().split('T')[0])
+        let finalDate = date || selectedDate
+        let finalSvcId = serviceId || ''
+        let finalPetId = petId || ''
+
+        setSelectedDate(finalDate)
         if (hour) setSelectedHourSlot(hour.toString().padStart(2, '0'))
         if (petId) setPreSelectedPetId(petId)
-        setSelectedServiceId(serviceId || preSelectedServiceId || '') // Use passed serviceId, then preSelectedServiceId, then empty
+        if (serviceId) setSelectedServiceId(serviceId)
+        else setSelectedServiceId('')
+
+        validateScheduling(finalDate, finalSvcId, finalPetId)
         setShowNewModal(true)
     }
 
@@ -302,104 +279,49 @@ export default function AgendaPage() {
         setShowDetailModal(true)
     }
 
-    const handleStartService = async (e: React.MouseEvent, appt: Appointment) => {
-        e.stopPropagation()
-        if (confirm(`Iniciar serviço para ${appt.pets?.name}?`)) {
-            const res = await updateAppointmentStatus(appt.id, 'in_progress')
-            if (res.success) {
-                fetchData() // Refresh status
-            }
-        }
-    }
-
     const handleDelete = async () => {
         if (!selectedAppointment) return
-        if (confirm('Tem certeza que deseja excluir este agendamento?')) {
+        if (confirm('Tem certeza que deseja cancelar este agendamento?')) {
             const res = await deleteAppointment(selectedAppointment.id)
             if (res.success) {
                 setShowDetailModal(false)
-                setSelectedAppointment(null)
                 fetchData()
-                alert(res.message)
             } else {
                 alert(res.message)
             }
         }
     }
 
-    const handleSeed = async () => {
-        if (!confirm('Deseja cadastrar os serviços padrão?')) return
-        setLoading(true)
-        const res = await seedServices()
-        alert(res.message)
-        window.location.reload()
-    }
+    const handleSmartAction = async (appt: Appointment, action: 'checkin' | 'checkout' | 'start') => {
+        let res
+        if (action === 'checkin') res = await checkInAppointment(appt.id)
+        else if (action === 'checkout') res = await checkOutAppointment(appt.id)
+        else if (action === 'start') res = await updateAppointmentStatus(appt.id, 'in_progress')
 
-    const saveChecklist = async () => {
-        if (!selectedAppointment) return
-        const res = await updateChecklist(selectedAppointment.id, currentChecklist)
-        if (res.success) {
-            setAppointments(prev => prev.map(a =>
-                a.id === selectedAppointment.id ? { ...a, checklist: currentChecklist } : a
-            ))
-            alert('Checklist salvo!')
-        }
-    }
-
-    const handlePrefToggle = async (type: 'perfume' | 'accessories', value: boolean) => {
-        if (!selectedAppointment) return
-        const field = type === 'perfume' ? 'perfume_allowed' : 'accessories_allowed'
-
-        // Optimistic Update
-        const updatedAppt = {
-            ...selectedAppointment,
-            pets: { ...selectedAppointment.pets, [field]: value }
-        }
-        setSelectedAppointment(updatedAppt)
-
-        // Update all cards for this pet
-        setAppointments(prev => prev.map(a =>
-            a.pet_id === selectedAppointment.pet_id ? { ...a, pets: { ...a.pets, [field]: value } } : a
-        ))
-
-        await updatePetPreferences(selectedAppointment.pet_id, { [field]: value })
-    }
-
-    const formatTime = (isoString: string) => {
-        // Adjust display to BRT if needed, but browser locale usually handles it if system is BRT.
-        // If system is UTC, we want to force BRT display.
-        // Hack: parse as UTC, subtract 3h if we want specifically "Server Time"
-        // But let's trust toLocaleTimeString first.
-        return new Date(isoString).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        if (res?.success) fetchData()
+        else alert(res?.message || 'Erro ao atualizar status')
     }
 
     const getStatusLabel = (status: string) => {
-        const map: Record<string, string> = {
-            pending: 'Pendente',
-            confirmed: 'Confirmado',
-            in_progress: 'Em Andamento',
-            done: 'Finalizado',
-            canceled: 'Cancelado',
-            no_show: 'Não Compareceu'
+        switch (status) {
+            case 'pending': return '⏳ Pendente'
+            case 'confirmed': return '✅ Confirmado'
+            case 'in_progress': return '🔥 Em Andamento'
+            case 'done': return '🏁 Finalizado'
+            case 'cancelled': return '❌ Cancelado'
+            default: return status
         }
-        return map[status] || status
+    }
+
+    const handleBlockDelete = async (id: string) => {
+        if (confirm('Remover bloqueio?')) {
+            await deleteScheduleBlock(id)
+            fetchData()
+        }
     }
 
     const handleCreateBlock = async (formData: FormData) => {
-        const reason = formData.get('reason') as string
-        if (!selectedHourSlot) return
-
-        const d = new Date(`${selectedDate}T${selectedHourSlot}:00:00`)
-        const e = new Date(d)
-        e.setHours(d.getHours() + 1)
-
-        setLoading(true)
-        const res = await createScheduleBlock({
-            start_at: d.toISOString(),
-            end_at: e.toISOString(),
-            reason
-        })
-        setLoading(false)
+        const res = await createScheduleBlock(null, formData)
         if (res.success) {
             setShowBlockModal(false)
             fetchData()
@@ -408,42 +330,11 @@ export default function AgendaPage() {
         }
     }
 
-    const handleBlockDelete = async (id: string, e: React.MouseEvent) => {
-        e.stopPropagation()
-        if (!confirm('Remover bloqueio?')) return
-        setLoading(true)
-        const res = await deleteScheduleBlock(id)
-        setLoading(false)
-        if (res.success) fetchData()
-        else alert(res.message)
-    }
-
-    const handleSmartAction = async (e: React.MouseEvent, appt: Appointment, action: 'start' | 'check-in' | 'check-out') => {
-        e.stopPropagation()
-
-        if (action === 'check-in') {
-            const res = await checkInAppointment(appt.id)
-            if (res.success) {
-                alert(res.message)
-                fetchData()
-            } else {
-                alert(res.message)
-            }
-        } else if (action === 'check-out') {
-            const res = await checkOutAppointment(appt.id)
-            if (res.success) {
-                alert(res.message)
-                fetchData()
-            } else {
-                alert(res.message)
-            }
-        } else {
-            // Default Start
-            if (confirm(`Iniciar serviço para ${appt.pets?.name}?`)) {
-                const res = await updateAppointmentStatus(appt.id, 'in_progress')
-                if (res.success) fetchData()
-            }
-        }
+    const formatTime = (isoString: string) => {
+        const date = new Date(isoString)
+        // Adjust for timezone offset manually if needed, or rely on browser
+        // Simple formatter:
+        return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     }
 
     const renderAppointmentCard = (appt: Appointment) => {
@@ -485,57 +376,46 @@ export default function AgendaPage() {
                 <div className={styles.serviceLine}>
                     <span style={{ marginRight: '0.5rem' }}>{categoryIcon}</span>
                     {appt.services?.name}
-                </div>
-
-                {/* Smart Actions */}
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                    {isCrecheOrBanho ? (
-                        <>
-                            {!appt.actual_check_in && (
-                                <button
-                                    className={`${styles.startButton}`}
-                                    style={{ background: '#10B981', flex: 1, justifyContent: 'center' }}
-                                    onClick={(e) => handleSmartAction(e, appt, 'check-in')}>
-                                    📥 Check-in
-                                </button>
-                            )}
-                            {appt.actual_check_in && !appt.actual_check_out && (
-                                <button
-                                    className={`${styles.startButton}`}
-                                    style={{ background: '#F97316', flex: 1, justifyContent: 'center' }}
-                                    onClick={(e) => handleSmartAction(e, appt, 'check-out')}>
-                                    📤 Check-out
-                                </button>
-                            )}
-                        </>
-                    ) : (
-                        (appt.status === 'pending' || appt.status === 'confirmed') && (
-                            <button className={styles.startButton} onClick={(e) => handleSmartAction(e, appt, 'start')}>▶ Iniciar</button>
-                        )
+                    {/* Price Display */}
+                    {(appt.services as any).base_price && (
+                        <span style={{ marginLeft: 'auto', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            R$ {(appt.services as any).base_price.toFixed(2)}
+                        </span>
                     )}
                 </div>
+
+                {isCrecheOrBanho && (
+                    <div className={styles.quickActions}>
+                        {!appt.actual_check_in && (
+                            <button className={styles.actionBtn} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'checkin') }}>Entrada ➡️</button>
+                        )}
+                        {appt.actual_check_in && !appt.actual_check_out && (
+                            <button className={styles.actionBtn} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'checkout') }}>Saída ⬅️</button>
+                        )}
+                        <button className={styles.detailBtn} onClick={(e) => { e.stopPropagation(); handleOpenDetail(appt) }}>Detalhes</button>
+                    </div>
+                )}
             </div>
         )
     }
 
     const renderDayView = () => {
-        const hours = Array.from({ length: 10 }, (_, i) => i + 8)
+        const hours = Array.from({ length: 13 }, (_, i) => i + 7) // 7h to 19h
         return (
             <div className={styles.dayGrid}>
                 {hours.map(h => {
                     const timeStr = `${h.toString().padStart(2, '0')}:00`
                     const slotAppts = appointments.filter(a => {
                         const d = new Date(a.scheduled_at)
-                        // Consistent local hour check
-                        const localH = new Date(d.getTime() - 3 * 3600 * 1000).getUTCHours()
+                        const localH = d.getHours()
                         const matchesHour = localH === h
                         const matchesCategory = !categoryFilter || a.services?.service_categories?.name === categoryFilter
                         return matchesHour && matchesCategory
                     })
+
                     const slotBlocks = blocks.filter(b => {
-                        const start = new Date(new Date(b.start_at).getTime() - 3 * 3600 * 1000)
-                        const end = new Date(new Date(b.end_at).getTime() - 3 * 3600 * 1000)
-                        return h >= start.getUTCHours() && h < end.getUTCHours()
+                        const start = new Date(b.start_at).getHours()
+                        return start === h
                     })
 
                     return (
@@ -543,42 +423,15 @@ export default function AgendaPage() {
                             <div className={styles.hourLabel}>{timeStr}</div>
                             <div className={styles.hourContent}>
                                 {slotBlocks.map(b => (
-                                    <div key={b.id} className={styles.blockedCard} title={b.reason}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflow: 'hidden' }}>
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="16" height="16" style={{ flexShrink: 0 }}>
-                                                <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3c0-2.9-2.35-5.25-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clipRule="evenodd" />
-                                            </svg>
-                                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{b.reason || 'Bloqueado'}</span>
-                                        </div>
-                                        <button onClick={(e) => handleBlockDelete(b.id, e)} style={{ marginLeft: 'auto' }}>
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                        </button>
+                                    <div key={b.id} className={styles.blockItem}>
+                                        🔒 {b.reason}
+                                        <button onClick={() => handleBlockDelete(b.id)} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}>×</button>
                                     </div>
                                 ))}
                                 {slotAppts.map(renderAppointmentCard)}
-                                {slotBlocks.length === 0 && slotAppts.length === 0 && (
-                                    <>
-                                        <div className={styles.addSlotBtn} onClick={() => {
-                                            setSelectedHourSlot(h.toString().padStart(2, '0'))
-                                            setShowNewModal(true)
-                                        }}>+</div>
-                                        <button
-                                            className={`${styles.addSlotBtn} ${styles.blockBtn} `}
-                                            style={{ maxWidth: '50px', borderLeft: '1px dashed #334155' }}
-                                            title="Bloquear Horário"
-                                            onClick={() => {
-                                                setSelectedHourSlot(h.toString().padStart(2, '0'))
-                                                setShowBlockModal(true)
-                                            }}
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" width="20" height="20" className={styles.lockIcon}>
-                                                <path fillRule="evenodd" d="M12 1.5a5.25 5.25 0 00-5.25 5.25v3a3 3 0 00-3 3v6.75a3 3 0 003 3h10.5a3 3 0 003-3v-6.75a3 3 0 00-3-3v-3c0-2.9-2.35-5.25-5.25-5.25zm3.75 8.25v-3a3.75 3.75 0 10-7.5 0v3h7.5z" clipRule="evenodd" />
-                                            </svg>
-                                        </button>
-                                    </>
-                                )}
+                                <button className={styles.addSlotBtn} onClick={() => handleNewAppointment(selectedDate, h)}>
+                                    +
+                                </button>
                             </div>
                         </div>
                     )
@@ -588,78 +441,43 @@ export default function AgendaPage() {
     }
 
     const renderWeekView = () => {
-        const d = new Date(selectedDate + 'T12:00:00')
-        const dayOfWeek = d.getDay()
-        const startOfWeek = new Date(d)
-        startOfWeek.setDate(d.getDate() - dayOfWeek)
-
         const weekDays = Array.from({ length: 7 }, (_, i) => {
-            const date = new Date(startOfWeek)
-            date.setDate(startOfWeek.getDate() + i)
-            return date
+            const d = new Date(selectedDate)
+            const day = d.getDay()
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1) + i
+            d.setDate(diff)
+            return d
         })
-
-        const hours = Array.from({ length: 10 }, (_, i) => i + 8)
+        const hours = Array.from({ length: 13 }, (_, i) => i + 7)
 
         return (
             <div className={styles.weekGrid}>
-                <div className={styles.weekHeaderCell}></div>
-                {weekDays.map(day => {
-                    const dateStr = day.toISOString().split('T')[0]
-                    const isSelected = dateStr === selectedDate
-                    return (
-                        <div
-                            key={dateStr}
-                            className={`${styles.weekHeaderCell} ${isSelected ? styles.activeDay : ''} `}
-                            style={{ cursor: 'pointer' }}
-                            onClick={() => { setSelectedDate(dateStr); setViewMode('day'); }}
-                        >
-                            {day.toLocaleDateString('pt-BR', { weekday: 'short', day: 'numeric' })}
-                        </div>
-                    )
-                })}
+                <div className={styles.weekHeaderCell}>Hora</div>
+                {weekDays.map(d => (
+                    <div key={d.toISOString()} className={styles.weekHeaderCell} style={{ fontWeight: d.toISOString().split('T')[0] === selectedDate ? 'bold' : 'normal', color: d.toISOString().split('T')[0] === selectedDate ? 'var(--primary)' : 'inherit' }}>
+                        <div>{d.toLocaleDateString('pt-BR', { weekday: 'short' })}</div>
+                        <div>{d.getDate()}</div>
+                    </div>
+                ))}
 
                 {hours.map(h => (
                     <div key={h} style={{ display: 'contents' }}>
                         <div className={styles.weekTimeCell}>{h}:00</div>
-                        {weekDays.map(day => {
-                            const dateStr = day.toISOString().split('T')[0]
-                            const cellAppts = appointments.filter(a => {
+                        {weekDays.map(d => {
+                            const dateStr = d.toISOString().split('T')[0]
+                            const slotAppts = appointments.filter(a => {
                                 const ad = new Date(a.scheduled_at)
-                                const localH = new Date(ad.getTime() - 3 * 3600 * 1000).getUTCHours()
-                                const localD = new Date(ad.getTime() - 3 * 3600 * 1000).toISOString().split('T')[0]
-                                const matchesTime = localH === h && localD === dateStr
-                                const matchesCategory = !categoryFilter || a.services?.service_categories?.name === categoryFilter
-                                return matchesTime && matchesCategory
+                                return ad.toISOString().split('T')[0] === dateStr && ad.getHours() === h
                             })
-                            const isBlocked = blocks.some(b => {
-                                const start = new Date(new Date(b.start_at).getTime() - 3 * 3600 * 1000)
-                                const end = new Date(new Date(b.end_at).getTime() - 3 * 3600 * 1000)
-                                const localD = start.toISOString().split('T')[0]
-                                return localD === dateStr && h >= start.getUTCHours() && h < end.getUTCHours()
-                            })
-
                             return (
-                                <div key={`${dateStr} -${h} `} className={styles.weekCell} onClick={() => {
-                                    setSelectedDate(dateStr)
-                                    setViewMode('day')
-                                }}>
-                                    {isBlocked && <div className={styles.blockedOverlay} title="Bloqueado" />}
-                                    <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                                        {cellAppts.map(a => {
-                                            const color = a.services?.service_categories?.color || '#2563EB'
-                                            return (
-                                                <div
-                                                    key={a.id}
-                                                    className={styles.weekEventPill}
-                                                    title={`${a.pets?.name} - ${a.services.name} `}
-                                                    style={{ backgroundColor: color, color: 'white' }}
-                                                >
-                                                    {a.pets?.name}
-                                                </div>
-                                            )
-                                        })}
-                                    </div>
+                                <div key={`${dateStr}-${h}`} className={styles.weekCell} onClick={() => { setSelectedDate(dateStr); setViewMode('day') }}>
+                                    {slotAppts.length > 0 ? (
+                                        <div className={styles.weekPill} style={{ backgroundColor: slotAppts[0].services?.service_categories?.color || '#ccc' }}>
+                                            {slotAppts.length} agend.
+                                        </div>
+                                    ) : (
+                                        <span className={styles.emptySlot}>-</span>
+                                    )}
                                 </div>
                             )
                         })}
@@ -670,60 +488,25 @@ export default function AgendaPage() {
     }
 
     const renderMonthView = () => {
-        const d = new Date(selectedDate + 'T12:00:00')
-        const year = d.getFullYear()
-        const month = d.getMonth()
-        const firstDay = new Date(year, month, 1).getDay()
+        // Simple month view implementation
+        const year = new Date(selectedDate).getFullYear()
+        const month = new Date(selectedDate).getMonth()
+        const firstDay = new Date(year, month, 1)
         const daysInMonth = new Date(year, month + 1, 0).getDate()
 
-        const days = []
-        for (let i = 0; i < firstDay; i++) days.push(null)
-        for (let i = 1; i <= daysInMonth; i++) days.push(i)
+        const days = Array.from({ length: daysInMonth }, (_, i) => i + 1)
 
         return (
             <div className={styles.monthGrid}>
-                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
-                    <div key={day} className={styles.monthHeader}>{day}</div>
-                ))}
-
-                {days.map((day, idx) => {
-                    if (!day) return <div key={`empty - ${idx} `} className={styles.monthCell} style={{ background: 'var(--bg-tertiary)' }} />
-
-                    const dateStr = `${year} -${(month + 1).toString().padStart(2, '0')} -${day.toString().padStart(2, '0')} `
-                    const isToday = dateStr === selectedDate
-                    const dayAppts = appointments.filter(a => {
-                        const ad = new Date(new Date(a.scheduled_at).getTime() - 3 * 3600 * 1000)
-                        const matchesDate = ad.toISOString().split('T')[0] === dateStr
-                        const matchesCategory = !categoryFilter || a.services?.service_categories?.name === categoryFilter
-                        return matchesDate && matchesCategory
-                    })
-
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => <div key={d} className={styles.monthHeader}>{d}</div>)}
+                {Array.from({ length: firstDay.getDay() }).map((_, i) => <div key={`empty-${i}`} />)}
+                {days.map(day => {
+                    const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
+                    const count = appointments.filter(a => a.scheduled_at.startsWith(dateStr)).length
                     return (
-                        <div key={day} className={`${styles.monthCell} ${isToday ? styles.today : ''} `} onClick={() => {
-                            setSelectedDate(dateStr)
-                            setViewMode('day')
-                        }}>
-                            <span className={styles.monthDate}>{day}</span>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }}>
-                                {dayAppts.slice(0, 3).map(a => {
-                                    const color = a.services?.service_categories?.color || '#2563EB'
-                                    return (
-                                        <div
-                                            key={a.id}
-                                            className={styles.monthEventDot}
-                                            title={a.services.name}
-                                            style={{ backgroundColor: color, color: 'white' }}
-                                        >
-                                            {a.pets?.name}
-                                        </div>
-                                    )
-                                })}
-                                {dayAppts.length > 3 && (
-                                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', paddingLeft: '4px' }}>
-                                        +{dayAppts.length - 3} mais
-                                    </div>
-                                )}
-                            </div>
+                        <div key={day} className={styles.monthCell} onClick={() => { setSelectedDate(dateStr); setViewMode('day') }}>
+                            <div className={styles.monthDate}>{day}</div>
+                            {count > 0 && <div className={styles.monthBadge}>{count}</div>}
                         </div>
                     )
                 })}
@@ -733,307 +516,250 @@ export default function AgendaPage() {
 
     return (
         <div className={styles.container}>
-            {/* Header */}
             <div className={styles.header}>
-                <div className={styles.headerLeft}>
-                    <button
-                        onClick={() => router.push(returnUrl || '/owner')}
-                        style={{ background: 'none', border: 'none', color: 'var(--primary)', marginBottom: '0.5rem', fontSize: '0.9rem', cursor: 'pointer', textAlign: 'left', padding: 0 }}
-                    >
-                        ← Voltar
-                    </button>
-                    <h1 className={styles.title}>📅 Agenda</h1>
-                </div>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div className={styles.viewSelector} style={{ margin: 0 }}>
-                        <button className={`${styles.viewBtn} ${viewMode === 'day' ? styles.active : ''} `} onClick={() => setViewMode('day')}>Dia</button>
-                        <button className={`${styles.viewBtn} ${viewMode === 'week' ? styles.active : ''} `} onClick={() => setViewMode('week')}>Semana</button>
-                        <button className={`${styles.viewBtn} ${viewMode === 'month' ? styles.active : ''} `} onClick={() => setViewMode('month')}>Mês</button>
-                    </div>
-
-                    <select
-                        value={categoryFilter}
-                        onChange={(e) => setCategoryFilter(e.target.value)}
-                        style={{
-                            padding: '0.5rem 1rem',
-                            borderRadius: '8px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--bg-secondary)',
-                            color: 'var(--text-primary)',
-                            cursor: 'pointer',
-                            fontSize: '0.9rem'
-                        }}
-                    >
-                        <option value="">Todos Serviços</option>
-                        <option value="Banho e Tosa">🚿 Banho e Tosa</option>
-                        <option value="Creche">🎾 Creche</option>
-                        <option value="Hospedagem">🏨 Hospedagem</option>
+                <h1 className={styles.title}>Agenda</h1>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <select className={styles.select} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} style={{ width: '150px' }}>
+                        <option value="">Filtro...</option>
+                        {Array.from(new Set(services.flatMap(s => s.service_categories ? [s.service_categories.name] : []))).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-
-                    {!loading && services.length === 0 && (
-                        <button onClick={handleSeed} style={{ background: '#f59e0b', color: 'white', border: 'none', padding: '0.75rem 1rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 600 }}>
-                            ⚠️ Inicializar Serviços
-                        </button>
-                    )}
-                    <button className={styles.actionButton} onClick={() => {
-                        setSelectedHourSlot(null)
-                        setShowNewModal(true)
-                    }}>
-                        + Novo
-                    </button>
+                    <button className={styles.actionButton} onClick={() => handleNewAppointment()}>+ Agendar</button>
+                    <button className={styles.secondaryButton} onClick={() => setShowBlockModal(true)}>Bloquear</button>
                 </div>
             </div>
 
-            {/* Date Filter */}
-            <div className={styles.dateFilter}>
-                <button className={styles.dateBtn} onClick={() => handleDateChange(-1)}>◀</button>
-                <span className={styles.currentDate}>
-                    {new Date(selectedDate + 'T12:00:00').toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}
-                </span>
-                <button className={styles.dateBtn} onClick={() => handleDateChange(1)}>▶</button>
+            <div className={styles.toolbar}>
+                <div className={styles.viewToggle}>
+                    <button className={viewMode === 'day' ? styles.activeView : ''} onClick={() => setViewMode('day')}>Dia</button>
+                    <button className={viewMode === 'week' ? styles.activeView : ''} onClick={() => setViewMode('week')}>Semana</button>
+                    <button className={viewMode === 'month' ? styles.activeView : ''} onClick={() => setViewMode('month')}>Mês</button>
+                </div>
+                <div className={styles.dateNav}>
+                    <button onClick={() => {
+                        const d = new Date(selectedDate)
+                        d.setDate(d.getDate() - 1)
+                        setSelectedDate(d.toISOString().split('T')[0])
+                    }}>◀</button>
+                    <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className={styles.dateInput} />
+                    <button onClick={() => {
+                        const d = new Date(selectedDate)
+                        d.setDate(d.getDate() + 1)
+                        setSelectedDate(d.toISOString().split('T')[0])
+                    }}>▶</button>
+                </div>
             </div>
 
-            {viewMode === 'day' && renderDayView()}
-            {viewMode === 'week' && renderWeekView()}
-            {viewMode === 'month' && renderMonthView()}
+            {loading ? <div className={styles.loading}>Carregando agenda...</div> : (
+                <>
+                    {viewMode === 'day' && renderDayView()}
+                    {viewMode === 'week' && renderWeekView()}
+                    {viewMode === 'month' && renderMonthView()}
+                </>
+            )}
 
-            {viewMode === 'month' && renderMonthView()}
-
-            {/* Daily Report Modal (for Creche/Banho) or Standard Detail Modal */}
-            {selectedAppointment && (selectedAppointment.services?.service_categories?.name === 'Creche' || selectedAppointment.services?.service_categories?.name === 'Banho e Tosa') ? (
-                <DailyReportModal
-                    appointmentId={selectedAppointment.id}
-                    petName={selectedAppointment.pets?.name || 'Pet'}
-                    serviceName={selectedAppointment.services?.name || 'Serviço'}
-                    onClose={() => setSelectedAppointment(null)}
-                    onSave={() => {
-                        fetchData()
-                        setSelectedAppointment(null)
-                    }}
-                />
-            ) : null}
-
-            {/* Create Modal */}
+            {/* New Appointment Modal */}
             {showNewModal && (
                 <div className={styles.modalOverlay} onClick={() => setShowNewModal(false)}>
                     <div className={styles.modal} onClick={e => e.stopPropagation()}>
                         <h2 className={styles.modalTitle}>Novo Agendamento</h2>
                         <form action={createAction}>
-                            <div className={styles.formGrid}>
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Pet *</label>
+                                <select
+                                    name="petId"
+                                    className={styles.select}
+                                    required
+                                    defaultValue={preSelectedPetId || ""}
+                                    key={preSelectedPetId}
+                                    onChange={(e) => {
+                                        setPreSelectedPetId(e.target.value)
+                                        validateScheduling(selectedDate, selectedServiceId, e.target.value)
+                                    }}
+                                >
+                                    <option value="" disabled>Selecione...</option>
+                                    {pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                </select>
+                            </div>
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Serviço *</label>
+                                <select
+                                    name="serviceId"
+                                    className={styles.select}
+                                    required
+                                    value={selectedServiceId}
+                                    onChange={(e) => {
+                                        setSelectedServiceId(e.target.value)
+                                        validateScheduling(selectedDate, e.target.value, preSelectedPetId || "")
+                                    }}
+                                >
+                                    <option value="" disabled>Selecione...</option>
+                                    {services.map(s => <option key={s.id} value={s.id}>{s.name} (R$ {s.base_price.toFixed(2)})</option>)}
+                                </select>
+                                {/* Preset Category hidden field if needed for logic, but usually we just need serviceId */}
+                            </div>
+                            <div className={styles.row}>
                                 <div className={styles.formGroup}>
-                                    <label className={styles.label}>Pet *</label>
-                                    <select name="petId" className={styles.select} required defaultValue={preSelectedPetId || ""} key={preSelectedPetId}>
-                                        <option value="" disabled>Selecione...</option>
-                                        {pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                    </select>
-                                </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Serviço *</label>
-                                    <select
-                                        name="serviceId"
-                                        className={styles.select}
+                                    <label className={styles.label}>Data *</label>
+                                    <input
+                                        name="date"
+                                        type="date"
+                                        className={styles.input}
                                         required
-                                        value={selectedServiceId}
-                                        onChange={(e) => setSelectedServiceId(e.target.value)}
-                                    >
-                                        <option value="" disabled>Selecione...</option>
-                                        {services
-                                            .filter(s => {
-                                                if (!preSelectedCategory) return true
-                                                // Handle both legacy string categories and new relational categories
-                                                const catName = s.service_categories?.name?.toLowerCase() || s.category?.toLowerCase() || ''
-
-                                                if (preSelectedCategory === 'creche') return catName === 'creche'
-                                                if (preSelectedCategory === 'hospedagem') return catName === 'hospedagem' || catName === 'hotel'
-                                                if (preSelectedCategory === 'banho') return catName.includes('banho') || catName.includes('tosa')
-                                                return true
-                                            })
-                                            .map(s => (
-                                                <option key={s.id} value={s.id}>
-                                                    {s.name} {s.duration_minutes ? `(${Math.floor(s.duration_minutes / 60)}h ${s.duration_minutes % 60}m)` : ''} - R$ {s.base_price.toFixed(2)}
-                                                </option>
-                                            ))}
-                                    </select>
+                                        defaultValue={selectedDate}
+                                        onChange={(e) => {
+                                            setSelectedDate(e.target.value)
+                                            validateScheduling(e.target.value, selectedServiceId, preSelectedPetId || "")
+                                        }}
+                                    />
                                 </div>
-                                {(() => {
-                                    const selectedSvc = services.find(s => s.id === selectedServiceId)
-                                    const isHospedagem = selectedSvc?.service_categories?.name === 'Hospedagem'
-
-                                    if (isHospedagem) {
-                                        return (
-                                            <>
-                                                <div className={styles.formGroup}>
-                                                    <label className={styles.label}>Check-in *</label>
-                                                    <input name="checkInDate" type="date" className={styles.input} required defaultValue={selectedDate} />
-                                                </div>
-                                                <div className={styles.formGroup}>
-                                                    <label className={styles.label}>Check-out *</label>
-                                                    <input name="checkOutDate" type="date" className={styles.input} required />
-                                                </div>
-                                            </>
-                                        )
-                                    }
-
-                                    return (
-                                        <>
-                                            <div className={styles.formGroup}>
-                                                <label className={styles.label}>Data *</label>
-                                                <input name="date" type="date" className={styles.input} required defaultValue={selectedDate} />
-                                            </div>
-                                            <div className={styles.formGroup}>
-                                                <label className={styles.label}>Horário *</label>
-                                                <select name="time" className={styles.select} required defaultValue={selectedHourSlot ? `${selectedHourSlot}:00` : ""}>
-                                                    <option value="" disabled>Selecione...</option>
-                                                    {Array.from({ length: 10 }, (_, i) => i + 8).map(h => (
-                                                        <option key={h} value={`${h.toString().padStart(2, '0')}:00`}>{h}:00</option>
-                                                    ))}
-                                                </select>
-                                            </div>
-                                        </>
-                                    )
-                                })()}
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>Hora *</label>
+                                    <input name="time" type="time" className={styles.input} required defaultValue={selectedHourSlot ? `${selectedHourSlot}:00` : ''} />
+                                </div>
                             </div>
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Observações</label>
-                                <textarea name="notes" className={styles.textarea} rows={2} />
+                                <textarea name="notes" className={styles.textarea} rows={3} />
                             </div>
+
+                            {bookingError && (
+                                <div style={{ color: '#ef4444', padding: '0.5rem', background: '#fee2e2', borderRadius: '4px', marginBottom: '1rem', fontSize: '0.9rem' }}>
+                                    ⚠️ {bookingError}
+                                </div>
+                            )}
+
                             <div className={styles.modalActions}>
                                 <button type="button" className={styles.cancelBtn} onClick={() => setShowNewModal(false)}>Cancelar</button>
-                                <button type="submit" className={styles.submitBtn} disabled={isCreatePending}>Agendar</button>
+                                <button type="submit" className={styles.submitBtn} disabled={isCreatePending || !!bookingError}>Agendar</button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
 
-            {/* Detail Modal (Only for non-Creche/Banho) */}
-            {showDetailModal && selectedAppointment && selectedAppointment.services?.service_categories?.name !== 'Creche' && selectedAppointment.services?.service_categories?.name !== 'Banho e Tosa' && (
+            {/* Detail/Edit Modal */}
+            {showDetailModal && selectedAppointment && (
                 <div className={styles.modalOverlay} onClick={() => setShowDetailModal(false)}>
                     <div className={styles.modal} onClick={e => e.stopPropagation()}>
                         <div className={styles.modalHeader}>
-                            <h2 className={styles.modalTitle}>
-                                {isEditing ? 'Editar Agendamento' : 'Detalhes do Serviço'}
-                                <div style={{ fontSize: '0.9rem', fontWeight: 400, marginTop: '0.5rem', color: '#666' }}>
-                                    {selectedAppointment.pets?.name}
-                                </div>
-                            </h2>
+                            <h2 className={styles.modalTitle}>{isEditing ? 'Editar Agendamento' : 'Detalhes do Agendamento'}</h2>
                             {!isEditing && (
-                                <button onClick={() => setIsEditing(true)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}>
-                                    ✏️ Editar
-                                </button>
+                                <div className={styles.modalTools}>
+                                    <button onClick={() => setIsEditing(true)}>✏️ Editar</button>
+                                    <button onClick={handleDelete} style={{ color: '#ef4444' }}>🗑️ Cancelar</button>
+                                </div>
                             )}
                         </div>
 
                         {isEditing ? (
-                            /* Edit Form */
                             <form action={updateAction}>
                                 <input type="hidden" name="id" value={selectedAppointment.id} />
-                                <div className={styles.formGrid}>
-                                    <div className={styles.formGroup}>
-                                        <label className={styles.label}>Serviço</label>
-                                        <select name="serviceId" className={styles.select} defaultValue={selectedAppointment.service_id}>
-                                            {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className={styles.formGroup}>
-                                        <label className={styles.label}>Data</label>
-                                        <input name="date" type="date" className={styles.input} defaultValue={new Date(selectedAppointment.scheduled_at).toISOString().split('T')[0]} />
-                                        {/* Note: Naive split might be off due to UTC. Ideally specific format. */}
-                                    </div>
-                                    <div className={styles.formGroup}>
-                                        <label className={styles.label}>Horário</label>
-                                        <select name="time" className={styles.select} defaultValue={new Date(selectedAppointment.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }).slice(0, 5)}>
-                                            {Array.from({ length: 10 }, (_, i) => i + 8).map(h => (
-                                                <option key={h} value={`${h.toString().padStart(2, '0')}:00`}>{h}:00</option>
-                                            ))}
-                                        </select>
-                                    </div>
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>Data</label>
+                                    <input name="date" type="date" className={styles.input} defaultValue={new Date(selectedAppointment.scheduled_at).toISOString().split('T')[0]} />
                                 </div>
                                 <div className={styles.formGroup}>
-                                    <label className={styles.label}>Observações</label>
+                                    <label className={styles.label}>Hora</label>
+                                    <input name="time" type="time" className={styles.input} defaultValue={new Date(selectedAppointment.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} />
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>Serviço</label>
+                                    <select name="serviceId" className={styles.select} defaultValue={selectedAppointment.services?.id}>
+                                        {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                                    </select>
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>Notas</label>
                                     <textarea name="notes" className={styles.textarea} defaultValue={selectedAppointment.notes || ''} />
                                 </div>
-
-                                <div className={styles.modalActions} style={{ justifyContent: 'space-between' }}>
-                                    <button type="button" className={styles.deleteBtn} onClick={handleDelete}>Excluir Agendamento</button>
-                                    <div style={{ display: 'flex', gap: '1rem' }}>
-                                        <button type="button" className={styles.cancelBtn} onClick={() => setIsEditing(false)}>Cancelar</button>
-                                        <button type="submit" className={styles.submitBtn} disabled={isUpdatePending}>Salvar</button>
-                                    </div>
+                                <div className={styles.modalActions}>
+                                    <button type="button" className={styles.cancelBtn} onClick={() => setIsEditing(false)}>Cancelar</button>
+                                    <button type="submit" className={styles.submitBtn} disabled={isUpdatePending}>Salvar</button>
                                 </div>
                             </form>
                         ) : (
-                            /* View Mode */
-                            <>
-                                <div className={styles.checklistContainer}>
-                                    <div className={styles.modalHeader} style={{ marginBottom: '0.5rem' }}>
-                                        <h3 style={{ margin: 0, fontSize: '1rem', color: 'white' }}>Checklist</h3>
-                                        <button onClick={saveChecklist} style={{ background: 'var(--success)', border: 'none', borderRadius: '4px', padding: '0.2rem 0.5rem', color: 'white', cursor: 'pointer', fontSize: '0.8rem' }}>Salvar</button>
-                                    </div>
-                                    <div className={styles.progressBar}>
-                                        <div className={styles.progressValue} style={{ width: `${(currentChecklist.filter(i => i.checked).length / currentChecklist.length) * 100}% ` }} />
-                                    </div>
-                                    <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                                        {currentChecklist.map((item, idx) => (
-                                            <div key={idx} className={styles.checklistItem} onClick={() => {
-                                                const newL = [...currentChecklist]; newL[idx].checked = !newL[idx].checked; setCurrentChecklist(newL)
-                                            }}>
-                                                <input type="checkbox" checked={item.checked} readOnly style={{ marginRight: '0.5rem' }} />
-                                                <span style={{ color: item.checked ? 'white' : '#94a3b8' }}>{item.label}</span>
-                                            </div>
-                                        ))}
-                                    </div>
+                            <div className={styles.detailContent}>
+                                <div className={styles.detailRow}>
+                                    <strong>Pet:</strong> {selectedAppointment.pets?.name} ({selectedAppointment.pets?.species === 'cat' ? 'Gato' : 'Cão'})
                                 </div>
+                                <div className={styles.detailRow}>
+                                    <strong>Serviço:</strong> {selectedAppointment.services?.name}
+                                </div>
+                                <div className={styles.detailRow}>
+                                    <strong>Valor:</strong> R$ {(selectedAppointment.services as any)?.base_price?.toFixed(2)}
+                                </div>
+                                <div className={styles.detailRow}>
+                                    <strong>Data:</strong> {new Date(selectedAppointment.scheduled_at).toLocaleString('pt-BR')}
+                                </div>
+                                <div className={styles.detailRow}>
+                                    <strong>Status:</strong> {getStatusLabel(selectedAppointment.status)}
+                                </div>
+                                {selectedAppointment.notes && (
+                                    <div className={styles.detailRow}>
+                                        <strong>Notas:</strong> {selectedAppointment.notes}
+                                    </div>
+                                )}
 
-                                <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px' }}>
-                                    <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: '#cbd5e1' }}>Preferências do Pet</h3>
-                                    <div style={{ display: 'flex', gap: '1.5rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white', cursor: 'pointer' }}>
+                                {/* Checklist Section */}
+                                <div className={styles.checklistSection}>
+                                    <h3>Checklist de Atendimento</h3>
+                                    {currentChecklist.map((item, idx) => (
+                                        <div key={idx} className={styles.checklistItem}>
                                             <input
                                                 type="checkbox"
-                                                checked={selectedAppointment.pets.perfume_allowed || false}
-                                                onChange={(e) => handlePrefToggle('perfume', e.target.checked)}
-                                            />
-                                            🌸 Permitir Perfume
-                                        </label>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'white', cursor: 'pointer' }}>
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedAppointment.pets.accessories_allowed || false}
-                                                onChange={(e) => handlePrefToggle('accessories', e.target.checked)}
-                                            />
-                                            🎀 Acessórios
-                                        </label>
-                                    </div>
-                                </div>
-
-                                <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem' }}>
-                                    <label className={styles.label}>Status:</label>
-                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        {['pending', 'in_progress', 'done'].map(st => (
-                                            <button
-                                                key={st}
-                                                onClick={async () => {
-                                                    await updateAppointmentStatus(selectedAppointment.id, st)
-                                                    setSelectedAppointment({ ...selectedAppointment, status: st as Appointment['status'] })
+                                                checked={item.done}
+                                                onChange={async (e) => {
+                                                    const newList = [...currentChecklist]
+                                                    newList[idx].done = e.target.checked
+                                                    setCurrentChecklist(newList)
+                                                    // Auto-save logic could go here or require a save button
+                                                    await updateChecklist(selectedAppointment.id, newList)
                                                     fetchData()
                                                 }}
-                                                style={{
-                                                    background: selectedAppointment.status === st ? 'var(--primary)' : 'transparent',
-                                                    border: '1px solid var(--border)',
-                                                    color: selectedAppointment.status === st ? 'white' : 'var(--text-secondary)',
-                                                    padding: '0.5rem 1rem', borderRadius: '8px', cursor: 'pointer'
+                                            />
+                                            <span>{item.item}</span>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Preferences Section */}
+                                <div className={styles.preferencesParams}>
+                                    <h3>Preferências do Pet</h3>
+                                    <div className={styles.prefToggle}>
+                                        <label>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedAppointment.pets?.perfume_allowed}
+                                                onChange={async () => {
+                                                    const val = !selectedAppointment.pets?.perfume_allowed
+                                                    await updatePetPreferences(selectedAppointment.pets!.id, { perfume_allowed: val })
+                                                    fetchData()
                                                 }}
-                                            >
-                                                {getStatusLabel(st)}
-                                            </button>
-                                        ))}
+                                            /> Perfume
+                                        </label>
+                                    </div>
+                                    <div className={styles.prefToggle}>
+                                        <label>
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedAppointment.pets?.accessories_allowed}
+                                                onChange={async () => {
+                                                    const val = !selectedAppointment.pets?.accessories_allowed
+                                                    await updatePetPreferences(selectedAppointment.pets!.id, { accessories_allowed: val })
+                                                    fetchData()
+                                                }}
+                                            /> Acessórios/Laços
+                                        </label>
                                     </div>
                                 </div>
-                                <div className={styles.modalActions}>
-                                    <button className={styles.cancelBtn} onClick={() => setShowDetailModal(false)}>Fechar</button>
+
+                                <div className={styles.detailActions}>
+                                    {selectedAppointment.status === 'pending' && (
+                                        <button className={styles.confirmBtn} onClick={async () => { await updateAppointmentStatus(selectedAppointment.id, 'confirmed'); fetchData() }}>Confirmar Agendamento</button>
+                                    )}
+                                    <button className={styles.closeBtn} onClick={() => setShowDetailModal(false)}>Fechar</button>
                                 </div>
-                            </>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -1042,14 +768,26 @@ export default function AgendaPage() {
             {/* Block Modal */}
             {showBlockModal && (
                 <div className={styles.modalOverlay} onClick={() => setShowBlockModal(false)}>
-                    <div className={styles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-                        <h2 className={styles.modalTitle}>Bloquear Horário</h2>
-                        <p style={{ marginBottom: '1rem', color: '#cbd5e1' }}>Bloquear agenda às {selectedHourSlot}:00?</p>
+                    <div className={styles.modal} onClick={e => e.stopPropagation()}>
+                        <h2 className={styles.modalTitle}>Novo Bloqueio</h2>
                         <form action={handleCreateBlock}>
-                            <input name="reason" placeholder="Motivo (opcional)" className={styles.input} style={{ marginBottom: '1rem' }} />
+                            <div className={styles.formGroup}>
+                                <label className={styles.label}>Motivo</label>
+                                <input name="reason" className={styles.input} required placeholder="Ex: Almoço, Feriado..." />
+                            </div>
+                            <div className={styles.row}>
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>Início</label>
+                                    <input name="start_at" type="datetime-local" className={styles.input} required defaultValue={`${selectedDate}T08:00`} />
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>Fim</label>
+                                    <input name="end_at" type="datetime-local" className={styles.input} required defaultValue={`${selectedDate}T18:00`} />
+                                </div>
+                            </div>
                             <div className={styles.modalActions}>
                                 <button type="button" className={styles.cancelBtn} onClick={() => setShowBlockModal(false)}>Cancelar</button>
-                                <button type="submit" className={styles.submitBtn}>Confirmar Bloqueio</button>
+                                <button type="submit" className={styles.submitBtn}>Bloquear</button>
                             </div>
                         </form>
                     </div>

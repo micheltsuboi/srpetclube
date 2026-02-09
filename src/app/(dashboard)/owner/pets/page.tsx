@@ -124,8 +124,10 @@ function PetsContent() {
     }
 
     // History State
+    // History State
     const [crecheHistory, setCrecheHistory] = useState<any[]>([])
     const [hotelHistory, setHotelHistory] = useState<any[]>([])
+    const [searchTerm, setSearchTerm] = useState('')
 
     const fetchData = useCallback(async () => {
         try {
@@ -142,7 +144,7 @@ function PetsContent() {
             if (!profile?.org_id) return
 
             // Fetch Pets
-            const { data: petsData, error: petsError } = await supabase
+            let query = supabase
                 .from('pets')
                 .select(`
                     id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
@@ -150,7 +152,14 @@ function PetsContent() {
                     customers ( id, name )
                 `)
                 .order('name')
-                .limit(50)
+
+            if (searchTerm) {
+                query = query.or(`name.ilike.%${searchTerm}%,breed.ilike.%${searchTerm}%`)
+            } else {
+                query = query.limit(50)
+            }
+
+            const { data: petsData, error: petsError } = await query
 
             if (petsError) throw petsError
 
@@ -180,7 +189,7 @@ function PetsContent() {
         } finally {
             setLoading(false)
         }
-    }, [supabase])
+    }, [supabase, searchTerm])
 
     // Buscar pacotes do pet quando o accordion muda ou o pet é selecionado
     const fetchPetPackageSummary = useCallback(async () => {
@@ -339,6 +348,17 @@ function PetsContent() {
                 <button className={styles.addButton} onClick={handleNewPet}>
                     + Novo Pet
                 </button>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+                <input
+                    type="text"
+                    placeholder="🔍 Buscar pet por nome ou raça..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={styles.input}
+                    style={{ maxWidth: '400px' }}
+                />
             </div>
 
             <div className={styles.tableContainer}>

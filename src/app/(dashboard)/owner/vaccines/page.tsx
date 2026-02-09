@@ -15,6 +15,7 @@ export default function VaccinesPage() {
     const [isVaccineModalOpen, setIsVaccineModalOpen] = useState(false)
     const [isBatchModalOpen, setIsBatchModalOpen] = useState(false)
     const [selectedVaccineForBatch, setSelectedVaccineForBatch] = useState<Vaccine | null>(null)
+    const [searchTerm, setSearchTerm] = useState('')
 
     // Sale State
     const [isSaleModalOpen, setIsSaleModalOpen] = useState(false)
@@ -254,298 +255,317 @@ export default function VaccinesPage() {
                 </button>
             </div>
 
+            <div style={{ marginBottom: '1rem' }}>
+                <input
+                    type="text"
+                    placeholder="🔍 Buscar vacina..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={styles.input}
+                    style={{ maxWidth: '400px' }}
+                />
+            </div>
+
             <div className={styles.vaccineList}>
-                {vaccines.map(vaccine => {
-                    const isExpanded = expandedVaccineId === vaccine.id
-                    const vaccineBatches = batches.filter(b => b.vaccine_id === vaccine.id)
-                    const totalStock = getVaccineStock(vaccine.id)
+                {vaccines
+                    .filter(v => !searchTerm || v.name.toLowerCase().includes(searchTerm.toLowerCase()) || v.manufacturer.toLowerCase().includes(searchTerm.toLowerCase()))
+                    .map(vaccine => {
+                        const isExpanded = expandedVaccineId === vaccine.id
+                        const vaccineBatches = batches.filter(b => b.vaccine_id === vaccine.id)
+                        const totalStock = getVaccineStock(vaccine.id)
 
-                    return (
-                        <div key={vaccine.id} className={`${styles.vaccineCard} ${isExpanded ? styles.expanded : ''}`}>
-                            <div className={styles.vaccineHeader} onClick={() => handleToggleExpand(vaccine.id)}>
-                                <div className={styles.vaccineTitle}>
-                                    <h3>{vaccine.name}</h3>
-                                    <span className={styles.vaccineMeta}>{vaccine.manufacturer} • {vaccine.target_animals.join(', ')}</span>
-                                </div>
-                                <div className={styles.vaccineStats}>
-                                    <div className={styles.statItem}>
-                                        <span className={styles.statLabel}>Estoque Total</span>
-                                        <span className={`${styles.statValue} ${styles.stock}`}>{totalStock} un</span>
+                        return (
+                            <div key={vaccine.id} className={`${styles.vaccineCard} ${isExpanded ? styles.expanded : ''}`}>
+                                <div className={styles.vaccineHeader} onClick={() => handleToggleExpand(vaccine.id)}>
+                                    <div className={styles.vaccineTitle}>
+                                        <h3>{vaccine.name}</h3>
+                                        <span className={styles.vaccineMeta}>{vaccine.manufacturer} • {vaccine.target_animals.join(', ')}</span>
                                     </div>
-                                    <div className={styles.expandIcon}>▼</div>
-                                </div>
-                            </div>
-
-                            {isExpanded && (
-                                <div className={styles.batchesSection}>
-                                    <div className={styles.batchHeader}>
-                                        <h4 className={styles.batchTitle}>Lotes Cadastrados</h4>
-                                        <button
-                                            className={styles.addBatchButton}
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                handleOpenBatchModal(vaccine)
-                                            }}
-                                        >
-                                            + Novo Lote
-                                        </button>
+                                    <div className={styles.vaccineStats}>
+                                        <div className={styles.statItem}>
+                                            <span className={styles.statLabel}>Estoque Total</span>
+                                            <span className={`${styles.statValue} ${styles.stock}`}>{totalStock} un</span>
+                                        </div>
+                                        <div className={styles.expandIcon}>▼</div>
                                     </div>
+                                </div>
 
-                                    {vaccineBatches.length > 0 ? (
-                                        <table className={styles.batchTable}>
-                                            <thead>
-                                                <tr>
-                                                    <th>Lote</th>
-                                                    <th>Validade</th>
-                                                    <th>Qtd.</th>
-                                                    <th>Custo</th>
-                                                    <th>Venda</th>
-                                                    <th>Status</th>
-                                                    <th>Ações</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {vaccineBatches.map(batch => (
-                                                    <tr key={batch.id}>
-                                                        <td>{batch.batch_number}</td>
-                                                        <td>{new Date(batch.expiration_date).toLocaleDateString('pt-BR')}</td>
-                                                        <td>{batch.quantity}</td>
-                                                        <td>{formatCurrency(batch.cost_price)}</td>
-                                                        <td>{formatCurrency(batch.selling_price)}</td>
-                                                        <td>
-                                                            <span className={`${styles.statusBadge} ${styles.statusActive}`}>Ativo</span>
-                                                        </td>
-                                                        <td>
-                                                            <button
-                                                                className={styles.saleButton}
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation()
-                                                                    handleOpenSaleModal(batch)
-                                                                }}
-                                                            >
-                                                                $ Vender
-                                                            </button>
-                                                        </td>
+                                {isExpanded && (
+                                    <div className={styles.batchesSection}>
+                                        <div className={styles.batchHeader}>
+                                            <h4 className={styles.batchTitle}>Lotes Cadastrados</h4>
+                                            <button
+                                                className={styles.addBatchButton}
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleOpenBatchModal(vaccine)
+                                                }}
+                                            >
+                                                + Novo Lote
+                                            </button>
+                                        </div>
+
+                                        {vaccineBatches.length > 0 ? (
+                                            <table className={styles.batchTable}>
+                                                <thead>
+                                                    <tr>
+                                                        <th>Lote</th>
+                                                        <th>Validade</th>
+                                                        <th>Qtd.</th>
+                                                        <th>Custo</th>
+                                                        <th>Venda</th>
+                                                        <th>Status</th>
+                                                        <th>Ações</th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    ) : (
-                                        <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Nenhum lote cadastrado.</p>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    )
-                })}
+                                                </thead>
+                                                <tbody>
+                                                    {vaccineBatches.map(batch => (
+                                                        <tr key={batch.id}>
+                                                            <td>{batch.batch_number}</td>
+                                                            <td>{new Date(batch.expiration_date).toLocaleDateString('pt-BR')}</td>
+                                                            <td>{batch.quantity}</td>
+                                                            <td>{formatCurrency(batch.cost_price)}</td>
+                                                            <td>{formatCurrency(batch.selling_price)}</td>
+                                                            <td>
+                                                                <span className={`${styles.statusBadge} ${styles.statusActive}`}>Ativo</span>
+                                                            </td>
+                                                            <td>
+                                                                <button
+                                                                    className={styles.saleButton}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation()
+                                                                        handleOpenSaleModal(batch)
+                                                                    }}
+                                                                >
+                                                                    $ Vender
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        ) : (
+                                            <p style={{ color: 'var(--text-secondary)', fontStyle: 'italic' }}>Nenhum lote cadastrado.</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        )
+                    })}
             </div>
 
             {/* Modal Nova Vacina */}
-            {isVaccineModalOpen && (
-                <div className={styles.modalOverlay} onClick={() => setIsVaccineModalOpen(false)}>
-                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
-                        <button className={styles.closeButton} onClick={() => setIsVaccineModalOpen(false)}>×</button>
-                        <h2>💉 Nova Vacina</h2>
+            {
+                isVaccineModalOpen && (
+                    <div className={styles.modalOverlay} onClick={() => setIsVaccineModalOpen(false)}>
+                        <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+                            <button className={styles.closeButton} onClick={() => setIsVaccineModalOpen(false)}>×</button>
+                            <h2>💉 Nova Vacina</h2>
 
-                        <form onSubmit={handleSaveVaccine}>
-                            <div className={styles.formGroup}>
-                                <label className={styles.label}>Nome da Vacina</label>
-                                <input
-                                    className={styles.input}
-                                    placeholder="Ex: V10, Antirrábica..."
-                                    required
-                                    value={vaccineForm.name}
-                                    onChange={(e) => setVaccineForm({ ...vaccineForm, name: e.target.value })}
-                                />
-                            </div>
-                            <div className={styles.row}>
-                                <div className={styles.formGroup} style={{ flex: 1 }}>
-                                    <label className={styles.label}>Fabricante</label>
+                            <form onSubmit={handleSaveVaccine}>
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>Nome da Vacina</label>
                                     <input
                                         className={styles.input}
-                                        placeholder="Ex: Zoetis"
+                                        placeholder="Ex: V10, Antirrábica..."
                                         required
-                                        value={vaccineForm.manufacturer}
-                                        onChange={(e) => setVaccineForm({ ...vaccineForm, manufacturer: e.target.value })}
+                                        value={vaccineForm.name}
+                                        onChange={(e) => setVaccineForm({ ...vaccineForm, name: e.target.value })}
                                     />
                                 </div>
-                                <div className={styles.formGroup} style={{ flex: 1 }}>
-                                    <label className={styles.label}>Espécie Alvo</label>
-                                    <select
-                                        className={styles.select}
-                                        value={vaccineForm.target_animals}
-                                        onChange={(e) => setVaccineForm({ ...vaccineForm, target_animals: e.target.value })}
-                                    >
-                                        <option value="Cão">Cão</option>
-                                        <option value="Gato">Gato</option>
-                                        <option value="Ambos">Ambos</option>
-                                    </select>
+                                <div className={styles.row}>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label className={styles.label}>Fabricante</label>
+                                        <input
+                                            className={styles.input}
+                                            placeholder="Ex: Zoetis"
+                                            required
+                                            value={vaccineForm.manufacturer}
+                                            onChange={(e) => setVaccineForm({ ...vaccineForm, manufacturer: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label className={styles.label}>Espécie Alvo</label>
+                                        <select
+                                            className={styles.select}
+                                            value={vaccineForm.target_animals}
+                                            onChange={(e) => setVaccineForm({ ...vaccineForm, target_animals: e.target.value })}
+                                        >
+                                            <option value="Cão">Cão</option>
+                                            <option value="Gato">Gato</option>
+                                            <option value="Ambos">Ambos</option>
+                                        </select>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className={styles.formGroup}>
-                                <label className={styles.label}>Descrição</label>
-                                <textarea
-                                    className={styles.textarea}
-                                    value={vaccineForm.description}
-                                    onChange={(e) => setVaccineForm({ ...vaccineForm, description: e.target.value })}
-                                />
-                            </div>
-                            <button type="submit" className={styles.submitButton}>Salvar Vacina</button>
-                        </form>
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>Descrição</label>
+                                    <textarea
+                                        className={styles.textarea}
+                                        value={vaccineForm.description}
+                                        onChange={(e) => setVaccineForm({ ...vaccineForm, description: e.target.value })}
+                                    />
+                                </div>
+                                <button type="submit" className={styles.submitButton}>Salvar Vacina</button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Modal Novo Lote */}
-            {isBatchModalOpen && selectedVaccineForBatch && (
-                <div className={styles.modalOverlay} onClick={() => setIsBatchModalOpen(false)}>
-                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
-                        <button className={styles.closeButton} onClick={() => setIsBatchModalOpen(false)}>×</button>
-                        <h2>📦 Novo Lote: {selectedVaccineForBatch.name}</h2>
+            {
+                isBatchModalOpen && selectedVaccineForBatch && (
+                    <div className={styles.modalOverlay} onClick={() => setIsBatchModalOpen(false)}>
+                        <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+                            <button className={styles.closeButton} onClick={() => setIsBatchModalOpen(false)}>×</button>
+                            <h2>📦 Novo Lote: {selectedVaccineForBatch.name}</h2>
 
-                        <form onSubmit={handleSaveBatch}>
-                            <div className={styles.row}>
-                                <div className={styles.formGroup} style={{ flex: 1 }}>
-                                    <label className={styles.label}>Número do Lote</label>
-                                    <input
-                                        className={styles.input}
-                                        required
-                                        value={batchForm.batch_number}
-                                        onChange={(e) => setBatchForm({ ...batchForm, batch_number: e.target.value })}
-                                    />
+                            <form onSubmit={handleSaveBatch}>
+                                <div className={styles.row}>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label className={styles.label}>Número do Lote</label>
+                                        <input
+                                            className={styles.input}
+                                            required
+                                            value={batchForm.batch_number}
+                                            onChange={(e) => setBatchForm({ ...batchForm, batch_number: e.target.value })}
+                                        />
+                                    </div>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label className={styles.label}>Validade</label>
+                                        <input
+                                            type="date"
+                                            className={styles.input}
+                                            required
+                                            value={batchForm.expiration_date}
+                                            onChange={(e) => setBatchForm({ ...batchForm, expiration_date: e.target.value })}
+                                        />
+                                    </div>
                                 </div>
-                                <div className={styles.formGroup} style={{ flex: 1 }}>
-                                    <label className={styles.label}>Validade</label>
-                                    <input
-                                        type="date"
-                                        className={styles.input}
-                                        required
-                                        value={batchForm.expiration_date}
-                                        onChange={(e) => setBatchForm({ ...batchForm, expiration_date: e.target.value })}
-                                    />
-                                </div>
-                            </div>
 
-                            <div className={styles.row}>
-                                <div className={styles.formGroup} style={{ flex: 1 }}>
-                                    <label className={styles.label}>Quantidade (un)</label>
-                                    <input
-                                        type="number"
-                                        className={styles.input}
-                                        min="1"
-                                        required
-                                        value={batchForm.quantity}
-                                        onChange={(e) => setBatchForm({ ...batchForm, quantity: parseInt(e.target.value) })}
-                                    />
+                                <div className={styles.row}>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label className={styles.label}>Quantidade (un)</label>
+                                        <input
+                                            type="number"
+                                            className={styles.input}
+                                            min="1"
+                                            required
+                                            value={batchForm.quantity}
+                                            onChange={(e) => setBatchForm({ ...batchForm, quantity: parseInt(e.target.value) })}
+                                        />
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div className={styles.row}>
-                                <div className={styles.formGroup} style={{ flex: 1 }}>
-                                    <label className={styles.label}>Preço de Custo (R$)</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className={styles.input}
-                                        required
-                                        value={batchForm.cost_price}
-                                        onChange={(e) => setBatchForm({ ...batchForm, cost_price: parseFloat(e.target.value) })}
-                                    />
+                                <div className={styles.row}>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label className={styles.label}>Preço de Custo (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className={styles.input}
+                                            required
+                                            value={batchForm.cost_price}
+                                            onChange={(e) => setBatchForm({ ...batchForm, cost_price: parseFloat(e.target.value) })}
+                                        />
+                                    </div>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label className={styles.label}>Preço de Venda (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className={styles.input}
+                                            required
+                                            value={batchForm.selling_price}
+                                            onChange={(e) => setBatchForm({ ...batchForm, selling_price: parseFloat(e.target.value) })}
+                                        />
+                                    </div>
                                 </div>
-                                <div className={styles.formGroup} style={{ flex: 1 }}>
-                                    <label className={styles.label}>Preço de Venda (R$)</label>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        className={styles.input}
-                                        required
-                                        value={batchForm.selling_price}
-                                        onChange={(e) => setBatchForm({ ...batchForm, selling_price: parseFloat(e.target.value) })}
-                                    />
-                                </div>
-                            </div>
 
-                            <button type="submit" className={styles.submitButton}>Cadastrar Lote</button>
-                        </form>
+                                <button type="submit" className={styles.submitButton}>Cadastrar Lote</button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* Modal de Venda */}
-            {isSaleModalOpen && selectedBatchToSell && (
-                <div className={styles.modalOverlay} onClick={() => setIsSaleModalOpen(false)}>
-                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
-                        <button className={styles.closeButton} onClick={() => setIsSaleModalOpen(false)}>×</button>
-                        <h2><span className={styles.modalIcon}>$</span> Registrar Venda de Vacina</h2>
-                        <p className={styles.subtitle}>Lote: {selectedBatchToSell.batch_number}</p>
+            {
+                isSaleModalOpen && selectedBatchToSell && (
+                    <div className={styles.modalOverlay} onClick={() => setIsSaleModalOpen(false)}>
+                        <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+                            <button className={styles.closeButton} onClick={() => setIsSaleModalOpen(false)}>×</button>
+                            <h2><span className={styles.modalIcon}>$</span> Registrar Venda de Vacina</h2>
+                            <p className={styles.subtitle}>Lote: {selectedBatchToSell.batch_number}</p>
 
-                        <form onSubmit={handleConfirmSale} className={styles.saleForm}>
-                            <div className={styles.saleInfo}>
-                                <div className={styles.infoRow}>
-                                    <span>Preço Unitário:</span>
-                                    <strong>{formatCurrency(selectedBatchToSell.selling_price)}</strong>
+                            <form onSubmit={handleConfirmSale} className={styles.saleForm}>
+                                <div className={styles.saleInfo}>
+                                    <div className={styles.infoRow}>
+                                        <span>Preço Unitário:</span>
+                                        <strong>{formatCurrency(selectedBatchToSell.selling_price)}</strong>
+                                    </div>
+                                    <div className={styles.infoRow}>
+                                        <span>Em Estoque:</span>
+                                        <strong>{selectedBatchToSell.quantity} un</strong>
+                                    </div>
                                 </div>
-                                <div className={styles.infoRow}>
-                                    <span>Em Estoque:</span>
-                                    <strong>{selectedBatchToSell.quantity} un</strong>
-                                </div>
-                            </div>
 
-                            <div className={styles.row}>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Quantidade</label>
-                                    <input
-                                        className={styles.input}
-                                        type="number"
-                                        min="1"
-                                        max={selectedBatchToSell.quantity}
-                                        required
-                                        value={saleData.quantity}
-                                        onChange={e => setSaleData({ ...saleData, quantity: parseInt(e.target.value) })}
-                                    />
+                                <div className={styles.row}>
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.label}>Quantidade</label>
+                                        <input
+                                            className={styles.input}
+                                            type="number"
+                                            min="1"
+                                            max={selectedBatchToSell.quantity}
+                                            required
+                                            value={saleData.quantity}
+                                            onChange={e => setSaleData({ ...saleData, quantity: parseInt(e.target.value) })}
+                                        />
+                                    </div>
+                                    <div className={styles.formGroup}>
+                                        <label className={styles.label}>Desconto (%)</label>
+                                        <input
+                                            className={styles.input}
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            value={saleData.tempDiscountPercent}
+                                            onChange={e => setSaleData({ ...saleData, tempDiscountPercent: parseFloat(e.target.value) })}
+                                        />
+                                    </div>
                                 </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Desconto (%)</label>
-                                    <input
-                                        className={styles.input}
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={saleData.tempDiscountPercent}
-                                        onChange={e => setSaleData({ ...saleData, tempDiscountPercent: parseFloat(e.target.value) })}
-                                    />
-                                </div>
-                            </div>
 
-                            <div className={styles.totalSection}>
-                                <div className={styles.totalRow}>
-                                    <span>Subtotal:</span>
-                                    <span>{formatCurrency(selectedBatchToSell.selling_price * saleData.quantity)}</span>
+                                <div className={styles.totalSection}>
+                                    <div className={styles.totalRow}>
+                                        <span>Subtotal:</span>
+                                        <span>{formatCurrency(selectedBatchToSell.selling_price * saleData.quantity)}</span>
+                                    </div>
+                                    <div className={styles.totalRow}>
+                                        <span>Desconto:</span>
+                                        <span className={styles.discountValue}>
+                                            - {formatCurrency((selectedBatchToSell.selling_price * saleData.quantity) * (saleData.tempDiscountPercent / 100))}
+                                        </span>
+                                    </div>
+                                    <div className={`${styles.totalRow} ${styles.finalTotal}`}>
+                                        <span>Total Final:</span>
+                                        <span>
+                                            {formatCurrency(
+                                                (selectedBatchToSell.selling_price * saleData.quantity) -
+                                                ((selectedBatchToSell.selling_price * saleData.quantity) * (saleData.tempDiscountPercent / 100))
+                                            )}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className={styles.totalRow}>
-                                    <span>Desconto:</span>
-                                    <span className={styles.discountValue}>
-                                        - {formatCurrency((selectedBatchToSell.selling_price * saleData.quantity) * (saleData.tempDiscountPercent / 100))}
-                                    </span>
-                                </div>
-                                <div className={`${styles.totalRow} ${styles.finalTotal}`}>
-                                    <span>Total Final:</span>
-                                    <span>
-                                        {formatCurrency(
-                                            (selectedBatchToSell.selling_price * saleData.quantity) -
-                                            ((selectedBatchToSell.selling_price * saleData.quantity) * (saleData.tempDiscountPercent / 100))
-                                        )}
-                                    </span>
-                                </div>
-                            </div>
 
-                            <button type="submit" className={`${styles.submitButton} ${styles.confirmSaleButton}`}>
-                                Confirmar Venda
-                            </button>
-                        </form>
+                                <button type="submit" className={`${styles.submitButton} ${styles.confirmSaleButton}`}>
+                                    Confirmar Venda
+                                </button>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     )
 }

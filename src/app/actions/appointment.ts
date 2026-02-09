@@ -337,3 +337,37 @@ export async function getPetAppointmentsByCategory(petId: string, category: stri
 
     return data || []
 }
+
+export async function checkInAppointment(id: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { message: 'Não autorizado.', success: false }
+
+    const now = new Date().toISOString()
+    const { error } = await supabase
+        .from('appointments')
+        .update({ actual_check_in: now, status: 'in_progress' })
+        .eq('id', id)
+
+    if (error) return { message: error.message, success: false }
+
+    revalidatePath('/owner/agenda')
+    return { message: 'Check-in realizado!', success: true }
+}
+
+export async function checkOutAppointment(id: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { message: 'Não autorizado.', success: false }
+
+    const now = new Date().toISOString()
+    const { error } = await supabase
+        .from('appointments')
+        .update({ actual_check_out: now, status: 'done' })
+        .eq('id', id)
+
+    if (error) return { message: error.message, success: false }
+
+    revalidatePath('/owner/agenda')
+    return { message: 'Check-out realizado!', success: true }
+}

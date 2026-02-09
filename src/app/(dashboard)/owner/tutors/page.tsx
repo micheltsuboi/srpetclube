@@ -30,6 +30,7 @@ export default function TutorsPage() {
     const [loading, setLoading] = useState(true)
     const [showModal, setShowModal] = useState(false)
     const [selectedTutor, setSelectedTutor] = useState<Customer | null>(null)
+    const [searchTerm, setSearchTerm] = useState('')
 
     // Server Action States
     const [createState, createAction, isCreatePending] = useActionState(createTutor, initialState)
@@ -52,11 +53,17 @@ export default function TutorsPage() {
 
             if (!profile?.org_id) return
 
-            const { data, error } = await supabase
+            let query = supabase
                 .from('customers')
                 .select('*')
                 .eq('org_id', profile.org_id)
                 .order('name')
+
+            if (searchTerm) {
+                query = query.or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,phone_1.ilike.%${searchTerm}%`)
+            }
+
+            const { data, error } = await query
 
             if (error) throw error
             if (data) setTutors(data)
@@ -65,7 +72,7 @@ export default function TutorsPage() {
         } finally {
             setLoading(false)
         }
-    }, [supabase])
+    }, [supabase, searchTerm])
 
     useEffect(() => {
         fetchTutors()
@@ -138,6 +145,17 @@ export default function TutorsPage() {
                 <button className={styles.addButton} onClick={handleNewTutor}>
                     + Novo Tutor
                 </button>
+            </div>
+
+            <div style={{ marginBottom: '1rem' }}>
+                <input
+                    type="text"
+                    placeholder="🔍 Buscar tutor por nome, email ou telefone..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className={styles.input}
+                    style={{ maxWidth: '400px' }}
+                />
             </div>
 
             <div className={styles.tableContainer}>
