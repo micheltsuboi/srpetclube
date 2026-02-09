@@ -106,6 +106,23 @@ function PetsContent() {
         }
     }
 
+    const manualCheckAssessment = async () => {
+        if (!selectedPet) return
+        try {
+            const data = await getPetAssessment(selectedPet.id)
+            if (data) {
+                setPetAssessment(data)
+                // Force open sections if needed or just notify
+                alert('Avaliação encontrada e carregada!')
+            } else {
+                alert('Nenhuma avaliação encontrada para este pet.')
+            }
+        } catch (error) {
+            console.error(error)
+            alert('Erro ao verificar avaliação.')
+        }
+    }
+
     // History State
     const [crecheHistory, setCrecheHistory] = useState<any[]>([])
     const [hotelHistory, setHotelHistory] = useState<any[]>([])
@@ -588,11 +605,18 @@ function PetsContent() {
                                                     <div style={{ padding: '1rem', background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: '8px', marginBottom: '1rem', color: '#92400E' }}>
                                                         <strong>⚠️ Avaliação Pendente</strong>
                                                         <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>É necessário preencher a Avaliação Comportamental antes de agendar creche.</p>
-                                                        <button
-                                                            onClick={() => toggleAccordion('assessment')}
-                                                            style={{ marginTop: '0.5rem', background: 'none', border: 'none', color: '#D97706', textDecoration: 'underline', cursor: 'pointer' }}>
-                                                            Ir para Avaliação
-                                                        </button>
+                                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '0.5rem' }}>
+                                                            <button
+                                                                onClick={() => toggleAccordion('assessment')}
+                                                                style={{ background: 'none', border: 'none', color: '#D97706', textDecoration: 'underline', cursor: 'pointer' }}>
+                                                                Ir para Avaliação
+                                                            </button>
+                                                            <button
+                                                                onClick={manualCheckAssessment}
+                                                                style={{ padding: '0.25rem 0.5rem', background: '#F59E0B', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                                                                🔄 Verificar Novamente
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 ) : (
                                                     <div style={{ marginBottom: '1rem' }}>
@@ -644,11 +668,18 @@ function PetsContent() {
                                                     <div style={{ padding: '1rem', background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: '8px', marginBottom: '1rem', color: '#92400E' }}>
                                                         <strong>⚠️ Avaliação Pendente</strong>
                                                         <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>É necessário preencher a Avaliação Comportamental antes de agendar hospedagem.</p>
-                                                        <button
-                                                            onClick={() => toggleAccordion('assessment')}
-                                                            style={{ marginTop: '0.5rem', background: 'none', border: 'none', color: '#D97706', textDecoration: 'underline', cursor: 'pointer' }}>
-                                                            Ir para Avaliação
-                                                        </button>
+                                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '0.5rem' }}>
+                                                            <button
+                                                                onClick={() => toggleAccordion('assessment')}
+                                                                style={{ background: 'none', border: 'none', color: '#D97706', textDecoration: 'underline', cursor: 'pointer' }}>
+                                                                Ir para Avaliação
+                                                            </button>
+                                                            <button
+                                                                onClick={manualCheckAssessment}
+                                                                style={{ padding: '0.25rem 0.5rem', background: '#F59E0B', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                                                                🔄 Verificar Novamente
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 ) : (
                                                     <div style={{ marginBottom: '1rem' }}>
