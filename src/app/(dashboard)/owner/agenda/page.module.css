@@ -193,8 +193,18 @@
     gap: 0.5rem;
     color: #cbd5e1;
     font-size: 0.9rem;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
     font-weight: 500;
+}
+
+.priceTag {
+    margin-left: auto;
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--success, #10b981);
+    background: rgba(16, 185, 129, 0.1);
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
 }
 
 .notesBox {

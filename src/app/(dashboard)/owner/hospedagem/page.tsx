@@ -267,8 +267,20 @@ export default function HospedagemPage() {
                                                             '📅 Reservado'}
                                                 </span>
                                             </div>
-                                            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>
-                                                📅 {dateDisplay}
+                                            <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                <span>📅 {dateDisplay}</span>
+                                                {(appt.services as any).base_price && (
+                                                    <span style={{
+                                                        fontSize: '0.8rem',
+                                                        fontWeight: 700,
+                                                        color: '#10b981',
+                                                        background: 'rgba(16, 185, 129, 0.1)',
+                                                        padding: '2px 6px',
+                                                        borderRadius: '4px'
+                                                    }}>
+                                                        R$ {(appt.services as any).base_price.toFixed(2)}
+                                                    </span>
+                                                )}
                                             </div>
                                             <span className={styles.tutorName} style={{ marginTop: '4px' }}>👤 {appt.pets?.customers?.name || 'Cliente'}</span>
                                         </div>

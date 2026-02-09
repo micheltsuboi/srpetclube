@@ -203,8 +203,20 @@ export default function BanhoTosaPage() {
                                             </span>
                                         </div>
                                         <span className={styles.tutorName}>👤 {appt.pets?.customers?.name || 'Cliente'}</span>
-                                        <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                        <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '0.5rem' }}>
                                             {appt.services?.name || 'Serviço'}
+                                            {(appt.services as any).base_price && (
+                                                <span style={{
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 700,
+                                                    color: '#10b981',
+                                                    background: 'rgba(16, 185, 129, 0.1)',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '4px'
+                                                }}>
+                                                    R$ {(appt.services as any).base_price.toFixed(2)}
+                                                </span>
+                                            )}
                                         </span>
                                         {appt.actual_check_in && (
                                             <span style={{ fontSize: '0.75rem', color: '#64748b' }}>

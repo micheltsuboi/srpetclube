@@ -250,6 +250,21 @@ export default function CrechePage() {
                                             </span>
                                         </div>
                                         <span className={styles.tutorName}>👤 {appt.pets?.customers?.name || 'Cliente'}</span>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
+                                            <span>{appt.services?.name || 'Creche'}</span>
+                                            {(appt.services as any).base_price && (
+                                                <span style={{
+                                                    fontSize: '0.8rem',
+                                                    fontWeight: 700,
+                                                    color: '#10b981',
+                                                    background: 'rgba(16, 185, 129, 0.1)',
+                                                    padding: '2px 6px',
+                                                    borderRadius: '4px'
+                                                }}>
+                                                    R$ {(appt.services as any).base_price.toFixed(2)}
+                                                </span>
+                                            )}
+                                        </div>
                                         {appt.actual_check_in && (
                                             <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                                                 Entrada: {new Date(appt.actual_check_in).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
