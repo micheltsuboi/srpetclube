@@ -530,18 +530,18 @@ export default function AgendaPage() {
 
             <div className={styles.toolbar}>
                 <div className={styles.viewToggle}>
-                    <button className={viewMode === 'day' ? styles.activeView : ''} onClick={() => setViewMode('day')}>Dia</button>
-                    <button className={viewMode === 'week' ? styles.activeView : ''} onClick={() => setViewMode('week')}>Semana</button>
-                    <button className={viewMode === 'month' ? styles.activeView : ''} onClick={() => setViewMode('month')}>Mês</button>
+                    <button className={viewMode === 'day' ? `${styles.viewBtn} ${styles.viewBtnActive}` : styles.viewBtn} onClick={() => setViewMode('day')}>Dia</button>
+                    <button className={viewMode === 'week' ? `${styles.viewBtn} ${styles.viewBtnActive}` : styles.viewBtn} onClick={() => setViewMode('week')}>Semana</button>
+                    <button className={viewMode === 'month' ? `${styles.viewBtn} ${styles.viewBtnActive}` : styles.viewBtn} onClick={() => setViewMode('month')}>Mês</button>
                 </div>
                 <div className={styles.dateNav}>
-                    <button onClick={() => {
+                    <button className={styles.navBtn} onClick={() => {
                         const d = new Date(selectedDate)
                         d.setDate(d.getDate() - 1)
                         setSelectedDate(d.toISOString().split('T')[0])
                     }}>◀</button>
                     <input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className={styles.dateInput} />
-                    <button onClick={() => {
+                    <button className={styles.navBtn} onClick={() => {
                         const d = new Date(selectedDate)
                         d.setDate(d.getDate() + 1)
                         setSelectedDate(d.toISOString().split('T')[0])

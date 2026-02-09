@@ -391,15 +391,22 @@
 
 /* --- New Agenda Views Styles --- */
 
-/* View Selection */
-.viewSelector {
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+/* View Toggle (Segmented Control) */
+.viewToggle {
     display: flex;
     background: var(--bg-tertiary);
     padding: 0.25rem;
     border-radius: 12px;
     border: 1px solid var(--border);
-    margin-bottom: 2rem;
-    width: fit-content;
 }
 
 .viewBtn {
@@ -418,9 +425,74 @@
     color: var(--text-primary);
 }
 
-.viewBtn.active {
+.viewBtnActive {
     background: var(--primary);
     color: white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Date Navigation */
+.dateNav {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: var(--bg-tertiary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+}
+
+.navBtn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 0.8rem;
+}
+
+.navBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.dateInput {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    outline: none;
+    cursor: pointer;
+}
+
+.dateInput::-webkit-calendar-picker-indicator {
+    filter: invert(1);
+    cursor: pointer;
+}
+
+/* Secondary Button */
+.secondaryButton {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.secondaryButton:hover {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
 }
 
 /* Day View Grid (Vertical Timeline) */
@@ -448,11 +520,11 @@
 }
 
 .hourRow:hover {
-    background: rgba(255, 255, 255, 0.01);
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .hourLabel {
-    width: 60px;
+    width: 70px;
     padding: 1rem;
     font-weight: 600;
     color: var(--text-secondary);
@@ -461,6 +533,7 @@
     flex-direction: column;
     justify-content: flex-start;
     background: rgba(0, 0, 0, 0.2);
+    font-size: 0.9rem;
 }
 
 .hourContent {
