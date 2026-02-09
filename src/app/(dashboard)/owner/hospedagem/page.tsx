@@ -50,7 +50,8 @@ export default function HospedagemPage() {
             // we'll fetch 'Hospedagem' appointments for a broader range (e.g. this month) and filter in JS, 
             // OR mostly rely on 'scheduled_at' for now until Phase 5 is complete.
 
-            // For now, let's fetch pending/active/done Hospedagem items that overlap with today
+            // Fetch ONLY in_progress status for Hospedagem (actively staying)
+            // OR pending/confirmed with check-in date = today
             const { data: appts, error } = await supabase
                 .from('appointments')
                 .select(`
@@ -63,7 +64,7 @@ export default function HospedagemPage() {
                 `)
                 .eq('org_id', profile.org_id)
                 .eq('services.service_categories.name', 'Hospedagem')
-                .neq('status', 'canceled')
+                .in('status', ['pending', 'confirmed', 'in_progress'])
                 .order('scheduled_at')
 
             if (error) {
@@ -71,17 +72,24 @@ export default function HospedagemPage() {
             } else if (appts) {
                 // Client-side filter for "Active Today"
                 const active = appts.filter((a: any) => {
-                    const schedDate = a.scheduled_at.split('T')[0]
                     const checkIn = a.check_in_date
                     const checkOut = a.check_out_date
 
-                    // If date range exists, use it
+                    // STRICT: Only show if:
+                    // 1. Status is in_progress (currently staying)
+                    // 2. OR status is pending/confirmed AND check-in is today or in the past AND check-out is today or future
+                    if (a.status === 'in_progress') {
+                        // If actively staying, show regardless of dates
+                        return true
+                    }
+
+                    // For pending/confirmed, require valid date range covering today
                     if (checkIn && checkOut) {
                         return today >= checkIn && today <= checkOut
                     }
 
-                    // Fallback to scheduled date (Active if scheduled_at date is today)
-                    return schedDate === today
+                    // Don't show appointments without proper date ranges
+                    return false
                 })
                 setAppointments(active as unknown as Appointment[])
             }

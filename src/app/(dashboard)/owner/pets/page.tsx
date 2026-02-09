@@ -158,7 +158,9 @@ function PetsContent() {
         if (!selectedPet || (!accordions.assessment && !accordions.creche && !accordions.hotel)) return
 
         try {
+            console.log('[DEBUG] Fetching assessment for pet:', selectedPet.id)
             const data = await getPetAssessment(selectedPet.id)
+            console.log('[DEBUG] Assessment data received:', data)
             setPetAssessment(data)
         } catch (error) {
             console.error('Erro ao buscar assessment:', error)
