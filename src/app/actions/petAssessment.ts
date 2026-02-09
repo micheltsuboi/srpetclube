@@ -125,9 +125,12 @@ export async function createPetAssessment(petId: string, formData: FormData) {
             .insert(assessmentData)
 
         if (error) {
-            console.error('Error creating assessment:', error)
+            console.error('[Assessment] Error creating assessment:', error)
             return { success: false, message: 'Erro ao salvar avaliação' }
         }
+
+        console.log('[Assessment] Created successfully for pet:', petId, 'Org:', profile.org_id)
+
 
         revalidatePath('/owner/pets')
         return { success: true, message: 'Avaliação salva com sucesso!' }

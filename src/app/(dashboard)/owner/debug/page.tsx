@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { deleteAppointment } from '@/app/actions/appointment'
 
 export default function DebugPage() {
     const [assessments, setAssessments] = useState<any[]>([])
@@ -36,7 +37,7 @@ export default function DebugPage() {
                 .eq('org_id', profile.org_id)
 
             setHospedagemAppts(hospData?.filter((a: any) =>
-                a.services?.service_categories?.name === 'Hospedagem'
+                a.services?.service_categories?.name === 'Hospedagem' || a.services?.service_categories?.name === 'Creche'
             ) || [])
 
             setLoading(false)
@@ -79,7 +80,7 @@ export default function DebugPage() {
             </section>
 
             <section style={{ marginTop: '2rem', padding: '1rem', background: '#fef3c7', borderRadius: '8px' }}>
-                <h2>Hospedagem Appointments ({hospedagemAppts.length})</h2>
+                <h2>Creche & Hospedagem Appointments ({hospedagemAppts.length})</h2>
                 {hospedagemAppts.length === 0 ? (
                     <p>Nenhum agendamento de hospedagem encontrado</p>
                 ) : (
@@ -103,6 +104,20 @@ export default function DebugPage() {
                                     <td style={{ padding: '0.5rem' }}>{a.check_in_date || '-'}</td>
                                     <td style={{ padding: '0.5rem' }}>{a.check_out_date || '-'}</td>
                                     <td style={{ padding: '0.5rem' }}>{a.status}</td>
+                                    <td style={{ padding: '0.5rem' }}>
+                                        <button
+                                            onClick={async () => {
+                                                if (confirm('Deletar agendamento?')) {
+                                                    await deleteAppointment(a.id)
+                                                    alert('Deletado!')
+                                                    window.location.reload()
+                                                }
+                                            }}
+                                            style={{ background: 'red', color: 'white', border: 'none', borderRadius: '4px', padding: '2px 6px', cursor: 'pointer' }}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </td>
                                 </tr>
                             ))}
                         </tbody>
