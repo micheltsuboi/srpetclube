@@ -97,6 +97,8 @@ export default function AgendaPage() {
     const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
     const [viewMode, setViewMode] = useState<'day' | 'week' | 'month'>('day')
     const [loading, setLoading] = useState(true)
+    const [searchTerm, setSearchTerm] = useState('')
+
     const [categoryFilter, setCategoryFilter] = useState<string>('')
 
     // Modal State
@@ -338,9 +340,14 @@ export default function AgendaPage() {
     }
 
     const renderAppointmentCard = (appt: Appointment) => {
-        const categoryColor = appt.services?.service_categories?.color || '#2563EB'
-        const categoryIcon = appt.services?.service_categories?.icon || '📋'
-        const isCrecheOrBanho = appt.services?.service_categories?.name === 'Creche' || appt.services?.service_categories?.name === 'Banho e Tosa'
+        // Safe access for nested category properties
+        const serviceCategory = (appt.services as any)?.service_categories
+        const categoryColor = serviceCategory?.color || (Array.isArray(serviceCategory) ? serviceCategory[0]?.color : '#3B82F6')
+        const categoryIcon = serviceCategory?.icon || (Array.isArray(serviceCategory) ? serviceCategory[0]?.icon : '📋')
+        const isCrecheOrBanho = appt.services?.name?.toLowerCase().includes('creche') || appt.services?.name?.toLowerCase().includes('banho')
+
+        const petName = appt.pets?.name || 'Pet Desconhecido'
+        const ownerName = appt.pets?.customers?.name || 'Cliente'
 
         return (
             <div
@@ -360,7 +367,7 @@ export default function AgendaPage() {
                         <div className={styles.petAvatar}>{appt.pets?.species === 'cat' ? '🐱' : '🐶'}</div>
                         <div className={styles.petDetails}>
                             <div className={styles.petName}>
-                                {appt.pets?.name}
+                                {petName}
                                 <span className={styles.statusBadge}>
                                     {appt.actual_check_in && !appt.actual_check_out ? '🟢 Em Andamento' :
                                         appt.actual_check_out ? '🏁 Finalizado' :
@@ -368,7 +375,7 @@ export default function AgendaPage() {
                                 </span>
                             </div>
                             <span className={styles.petBreed}>{appt.pets?.breed}</span>
-                            <span className={styles.tutorName}>👤 {appt.pets?.customers?.name}</span>
+                            <span className={styles.tutorName}>👤 {ownerName}</span>
                         </div>
                     </div>
                 </div>
@@ -377,7 +384,7 @@ export default function AgendaPage() {
                     <span style={{ marginRight: '0.25rem' }}>{categoryIcon}</span>
                     {appt.services?.name}
                     {/* Price Display */}
-                    {(appt.services as any).base_price && (
+                    {(appt.services as any)?.base_price && (
                         <span className={styles.priceTag}>
                             R$ {(appt.services as any).base_price.toFixed(2)}
                         </span>
@@ -409,8 +416,13 @@ export default function AgendaPage() {
                         const d = new Date(a.scheduled_at)
                         const localH = d.getHours()
                         const matchesHour = localH === h
+                        // Filters
                         const matchesCategory = !categoryFilter || a.services?.service_categories?.name === categoryFilter
-                        return matchesHour && matchesCategory
+                        const matchesSearch = !searchTerm ||
+                            a.pets?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            a.pets?.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+
+                        return matchesHour && matchesCategory && matchesSearch
                     })
 
                     const slotBlocks = blocks.filter(b => {

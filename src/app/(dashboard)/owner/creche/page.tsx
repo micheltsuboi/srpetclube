@@ -38,8 +38,8 @@ export default function CrechePage() {
     const [dateRange, setDateRange] = useState<DateRange>('today')
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
     const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
-
     const [viewMode, setViewMode] = useState<'active' | 'history'>('active')
+    const [searchTerm, setSearchTerm] = useState('')
 
     const fetchCrecheData = useCallback(async () => {
         try {
@@ -69,6 +69,7 @@ export default function CrechePage() {
                     pets ( name, species, breed, customers ( name ) ),
                     services ( 
                         name, 
+                        base_price,
                         service_categories!inner ( name, color, icon )
                     )
                 `)
@@ -127,13 +128,33 @@ export default function CrechePage() {
         }
     }
 
-
+    const filteredAppointments = appointments.filter(appt => {
+        if (!searchTerm) return true
+        const lowerSearch = searchTerm.toLowerCase()
+        const petName = appt.pets?.name?.toLowerCase() || ''
+        const tutorName = appt.pets?.customers?.name?.toLowerCase() || ''
+        return petName.includes(lowerSearch) || tutorName.includes(lowerSearch)
+    })
 
     return (
         <div className={styles.container}>
             <div className={styles.header}>
                 <h1 className={styles.title}>🎾 Creche - {viewMode === 'active' ? 'Pets do Dia' : 'Histórico'}</h1>
-                <div style={{ display: 'flex', gap: '1rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                    <input
+                        type="text"
+                        placeholder="🔍 Buscar pet ou tutor..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        style={{
+                            padding: '0.75rem',
+                            borderRadius: '8px',
+                            border: '1px solid #334155',
+                            background: 'var(--bg-secondary)',
+                            color: 'white',
+                            minWidth: '250px'
+                        }}
+                    />
                     <Link href="/owner/agenda?mode=new&category=Creche" className={styles.actionButton} style={{ textDecoration: 'none', background: 'var(--primary)', color: 'white' }}>
                         + Novo Agendamento
                     </Link>
@@ -174,13 +195,13 @@ export default function CrechePage() {
 
             {loading ? (
                 <div style={{ padding: '2rem', color: '#94a3b8' }}>Carregando...</div>
-            ) : appointments.length === 0 ? (
+            ) : filteredAppointments.length === 0 ? (
                 <div style={{ padding: '2rem', color: '#94a3b8', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
-                    {viewMode === 'active' ? 'Nenhum pet agendado para a creche no período selecionado.' : 'Nenhum histórico encontrado para o período.'}
+                    {searchTerm ? 'Nenhum resultado encontrado para a busca.' : (viewMode === 'active' ? 'Nenhum pet agendado para a creche no período selecionado.' : 'Nenhum histórico encontrado para o período.')}
                 </div>
             ) : (
                 <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
-                    {appointments.map(appt => (
+                    {filteredAppointments.map(appt => (
                         <div
                             key={appt.id}
                             className={styles.appointmentCard}
