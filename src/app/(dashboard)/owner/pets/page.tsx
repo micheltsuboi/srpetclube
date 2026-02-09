@@ -78,7 +78,6 @@ function PetsContent() {
     }
 
     // Accordion State
-    // Accordion State
     const [accordions, setAccordions] = useState({ details: true, packages: false, creche: false, hotel: false, assessment: false })
 
     const toggleAccordion = async (key: keyof typeof accordions) => {
@@ -90,9 +89,6 @@ function PetsContent() {
             return newState
         })
 
-        // Manual fetch logic separated to avoid async issues in setState
-        // But setState callback doesn't support async.
-        // Better:
         const isOpen = !accordions[key]
 
         if (isOpen && (key === 'assessment' || key === 'creche' || key === 'hotel')) {
