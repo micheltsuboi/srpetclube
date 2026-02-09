@@ -40,6 +40,7 @@ export default function CrechePage() {
     const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
     const [viewMode, setViewMode] = useState<'active' | 'history'>('active')
     const [searchTerm, setSearchTerm] = useState('')
+    const [showNewModal, setShowNewModal] = useState(false)
 
     const fetchCrecheData = useCallback(async () => {
         try {
@@ -155,9 +156,13 @@ export default function CrechePage() {
                             minWidth: '250px'
                         }}
                     />
-                    <Link href="/owner/agenda?mode=new&category=Creche" className={styles.actionButton} style={{ textDecoration: 'none', background: 'var(--primary)', color: 'white' }}>
+                    <button
+                        className={styles.actionButton}
+                        onClick={() => setShowNewModal(true)}
+                        style={{ background: 'var(--primary)', color: 'white' }}
+                    >
                         + Novo Agendamento
-                    </Link>
+                    </button>
                     <button className={styles.actionButton} onClick={fetchCrecheData}>↻ Atualizar</button>
                 </div>
             </div>
@@ -271,6 +276,13 @@ export default function CrechePage() {
                                             </span>
                                         </div>
                                         <span className={styles.tutorName}>👤 {appt.pets?.customers?.name || 'Cliente'}</span>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+                                            📅 {new Date(appt.scheduled_at).toLocaleDateString('pt-BR', {
+                                                weekday: 'short',
+                                                day: '2-digit',
+                                                month: 'short'
+                                            })}
+                                        </div>
                                         <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
                                             <span>{appt.services?.name || 'Creche'}</span>
                                             {(appt.services as any)?.base_price && (
@@ -349,6 +361,153 @@ export default function CrechePage() {
                     readOnly={viewMode === 'history'}
                 />
             )}
+
+            {/* New Appointment Modal */}
+            {showNewModal && (
+                <NewCrecheAppointmentModal
+                    onClose={() => setShowNewModal(false)}
+                    onSave={() => {
+                        fetchCrecheData()
+                        setShowNewModal(false)
+                    }}
+                />
+            )}
+        </div>
+    )
+}
+
+// Inline component for new appointments
+function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, onSave: () => void }) {
+    const supabase = createClient()
+    const [pets, setPets] = useState<any[]>([])
+    const [services, setServices] = useState<any[]>([])
+    const [selectedPetId, setSelectedPetId] = useState('')
+    const [selectedServiceId, setSelectedServiceId] = useState('')
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+    const [selectedTime, setSelectedTime] = useState('08:00')
+    const [notes, setNotes] = useState('')
+    const [loading, setLoading] = useState(false)
+
+    useEffect(() => {
+        const loadData = async () => {
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
+
+            const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+            if (!profile?.org_id) return
+
+            // Load pets
+            const { data: petsData } = await supabase
+                .from('pets')
+                .select('id, name, species, breed, customers(name)')
+                .order('name')
+            if (petsData) setPets(petsData)
+
+            // Load Creche services only
+            const { data: servicesData } = await supabase
+                .from('services')
+                .select('id, name, base_price, service_categories!inner(name)')
+                .eq('org_id', profile.org_id)
+                .eq('service_categories.name', 'Creche')
+                .order('name')
+            if (servicesData) setServices(servicesData)
+        }
+        loadData()
+    }, [])
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!selectedPetId || !selectedServiceId) {
+            alert('Selecione um pet e um serviço')
+            return
+        }
+
+        setLoading(true)
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+
+        const { error } = await supabase.from('appointments').insert({
+            org_id: profile?.org_id,
+            pet_id: selectedPetId,
+            service_id: selectedServiceId,
+            scheduled_at: `${selectedDate}T${selectedTime}:00`,
+            status: 'confirmed',
+            notes: notes || null
+        })
+
+        setLoading(false)
+
+        if (error) {
+            alert('Erro ao criar agendamento: ' + error.message)
+        } else {
+            alert('Agendamento criado com sucesso!')
+            onSave()
+        }
+    }
+
+    return (
+        <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)'
+        }} onClick={onClose}>
+            <div style={{
+                background: '#1e293b', borderRadius: '16px', width: '90%', maxWidth: '500px',
+                padding: '2rem', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', border: '1px solid #334155'
+            }} onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <h2 style={{ margin: 0, color: 'white', fontSize: '1.25rem', fontWeight: 700 }}>Novo Agendamento</h2>
+                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#cbd5e1' }}>✕</button>
+                </div>
+                <form onSubmit={handleSubmit}>
+                    <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Pet *</label>
+                        <select required value={selectedPetId} onChange={e => setSelectedPetId(e.target.value)}
+                            style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }}>
+                            <option value="">Selecione...</option>
+                            {pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                    <div style={{ marginBottom: '1rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Serviço *</label>
+                        <select required value={selectedServiceId} onChange={e => setSelectedServiceId(e.target.value)}
+                            style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }}>
+                            <option value="">Selecione...</option>
+                            {services.map(s => <option key={s.id} value={s.id}>{s.name} - R$ {s.base_price.toFixed(2)}</option>)}
+                        </select>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Data *</label>
+                            <input type="date" required value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+                                style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }} />
+                        </div>
+                        <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Hora *</label>
+                            <input type="time" required value={selectedTime} onChange={e => setSelectedTime(e.target.value)}
+                                style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }} />
+                        </div>
+                    </div>
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Observações</label>
+                        <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+                            style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white', fontFamily: 'inherit', resize: 'vertical' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                        <button type="button" onClick={onClose}
+                            style={{ padding: '0.75rem 1.5rem', border: '1px solid #334155', borderRadius: '8px', background: 'transparent', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
+                            Cancelar
+                        </button>
+                        <button type="submit" disabled={loading}
+                            style={{ padding: '0.75rem 1.5rem', border: 'none', borderRadius: '8px', background: '#10B981', color: 'white', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: loading ? 0.6 : 1 }}>
+                            {loading ? 'Criando...' : 'Criar Agendamento'}
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
     )
 }
