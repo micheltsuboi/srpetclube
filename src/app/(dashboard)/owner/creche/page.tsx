@@ -39,6 +39,8 @@ export default function CrechePage() {
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
     const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
 
+    const [viewMode, setViewMode] = useState<'active' | 'history'>('active')
+
     const fetchCrecheData = useCallback(async () => {
         try {
             setLoading(true)
@@ -52,6 +54,11 @@ export default function CrechePage() {
             const { start, end } = getDateRange(dateRange)
             const startISO = start.toISOString()
             const endISO = end.toISOString()
+
+            // Status Filter based on viewMode
+            const statusFilter = viewMode === 'active'
+                ? ['pending', 'confirmed', 'in_progress']
+                : ['done', 'completed']
 
             // Fetch Appointments
             const { data: appts, error } = await supabase
@@ -69,8 +76,8 @@ export default function CrechePage() {
                 .eq('services.service_categories.name', 'Creche') // Filter by joined category name
                 .gte('scheduled_at', startISO)
                 .lte('scheduled_at', endISO)
-                .in('status', ['pending', 'confirmed', 'in_progress']) // Exclude completed/cancelled
-                .order('scheduled_at')
+                .in('status', statusFilter)
+                .order('scheduled_at', { ascending: viewMode === 'active' })
 
             if (error) {
                 console.error('Error fetching creche:', error)
@@ -83,7 +90,7 @@ export default function CrechePage() {
         } finally {
             setLoading(false)
         }
-    }, [supabase, dateRange])
+    }, [supabase, dateRange, viewMode])
 
     useEffect(() => {
         fetchCrecheData()
@@ -125,13 +132,41 @@ export default function CrechePage() {
     return (
         <div className={styles.container}>
             <div className={styles.header}>
-                <h1 className={styles.title}>🎾 Creche - Pets do Dia</h1>
+                <h1 className={styles.title}>🎾 Creche - {viewMode === 'active' ? 'Pets do Dia' : 'Histórico'}</h1>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     <Link href="/owner/agenda?mode=new&category=Creche" className={styles.actionButton} style={{ textDecoration: 'none', background: 'var(--primary)', color: 'white' }}>
                         + Novo Agendamento
                     </Link>
                     <button className={styles.actionButton} onClick={fetchCrecheData}>↻ Atualizar</button>
                 </div>
+            </div>
+
+            {/* View Mode Tabs */}
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid #334155', paddingBottom: '0.5rem' }}>
+                <button
+                    onClick={() => setViewMode('active')}
+                    style={{
+                        background: 'none', border: 'none', padding: '0.5rem 1rem',
+                        color: viewMode === 'active' ? '#3B82F6' : '#94a3b8',
+                        fontWeight: viewMode === 'active' ? 700 : 500,
+                        borderBottom: viewMode === 'active' ? '2px solid #3B82F6' : '2px solid transparent',
+                        cursor: 'pointer', fontSize: '1rem'
+                    }}
+                >
+                    Em Aberto / Na Creche
+                </button>
+                <button
+                    onClick={() => setViewMode('history')}
+                    style={{
+                        background: 'none', border: 'none', padding: '0.5rem 1rem',
+                        color: viewMode === 'history' ? '#3B82F6' : '#94a3b8',
+                        fontWeight: viewMode === 'history' ? 700 : 500,
+                        borderBottom: viewMode === 'history' ? '2px solid #3B82F6' : '2px solid transparent',
+                        cursor: 'pointer', fontSize: '1rem'
+                    }}
+                >
+                    📜 Histórico
+                </button>
             </div>
 
             {/* Date Range Filter */}
@@ -141,7 +176,7 @@ export default function CrechePage() {
                 <div style={{ padding: '2rem', color: '#94a3b8' }}>Carregando...</div>
             ) : appointments.length === 0 ? (
                 <div style={{ padding: '2rem', color: '#94a3b8', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
-                    Nenhum pet agendado para a creche no período selecionado.
+                    {viewMode === 'active' ? 'Nenhum pet agendado para a creche no período selecionado.' : 'Nenhum histórico encontrado para o período.'}
                 </div>
             ) : (
                 <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
@@ -157,50 +192,52 @@ export default function CrechePage() {
                                 cursor: 'pointer'
                             }}>
                             <div className={styles.cardTop}>
-                                <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem', zIndex: 10 }}>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            setEditingAppointment(appt)
-                                        }}
-                                        title="Editar Agendamento"
-                                        style={{
-                                            background: 'rgba(255,255,255,0.1)',
-                                            border: 'none',
-                                            borderRadius: '50%',
-                                            width: '32px',
-                                            height: '32px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '1rem'
-                                        }}
-                                    >
-                                        ✏️
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleDelete(appt.id)
-                                        }}
-                                        title="Excluir Agendamento"
-                                        style={{
-                                            background: 'rgba(239, 68, 68, 0.1)',
-                                            border: 'none',
-                                            borderRadius: '50%',
-                                            width: '32px',
-                                            height: '32px',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '1rem'
-                                        }}
-                                    >
-                                        🗑️
-                                    </button>
-                                </div>
+                                {viewMode === 'active' && (
+                                    <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem', zIndex: 10 }}>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                setEditingAppointment(appt)
+                                            }}
+                                            title="Editar Agendamento"
+                                            style={{
+                                                background: 'rgba(255,255,255,0.1)',
+                                                border: 'none',
+                                                borderRadius: '50%',
+                                                width: '32px',
+                                                height: '32px',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: '1rem'
+                                            }}
+                                        >
+                                            ✏️
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                handleDelete(appt.id)
+                                            }}
+                                            title="Excluir Agendamento"
+                                            style={{
+                                                background: 'rgba(239, 68, 68, 0.1)',
+                                                border: 'none',
+                                                borderRadius: '50%',
+                                                width: '32px',
+                                                height: '32px',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: '1rem'
+                                            }}
+                                        >
+                                            🗑️
+                                        </button>
+                                    </div>
+                                )}
                                 <div className={styles.petInfoMain}>
                                     <div className={styles.petAvatar}>{appt.pets?.species === 'cat' ? '🐱' : '🐶'}</div>
                                     <div className={styles.petDetails}>
@@ -208,7 +245,7 @@ export default function CrechePage() {
                                             {appt.pets?.name || 'Pet'}
                                             <span className={styles.statusBadge} style={{ fontSize: '0.75rem', padding: '2px 6px' }}>
                                                 {appt.actual_check_in && !appt.actual_check_out ? '🟢 Na Creche' :
-                                                    appt.actual_check_out ? '🏁 Já saiu' :
+                                                    appt.actual_check_out ? '✅ Finalizado' :
                                                         '⏳ Aguardando'}
                                             </span>
                                         </div>
@@ -228,25 +265,34 @@ export default function CrechePage() {
                             </div>
 
                             <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>
-                                {!appt.actual_check_in ? (
+                                {viewMode === 'active' ? (
+                                    <>
+                                        {!appt.actual_check_in ? (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleCheckIn(appt.id)
+                                                }}
+                                                style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#10B981', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
+                                                📥 Check-in (Entrada)
+                                            </button>
+                                        ) : !appt.actual_check_out ? (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleCheckOut(appt.id)
+                                                }}
+                                                style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#F97316', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
+                                                📤 Check-out (Saída)
+                                            </button>
+                                        ) : null}
+                                    </>
+                                ) : (
                                     <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleCheckIn(appt.id)
-                                        }}
-                                        style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#10B981', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
-                                        📥 Check-in (Entrada)
+                                        style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#475569', color: '#e2e8f0', cursor: 'pointer', fontWeight: 600 }}>
+                                        📜 Ver Relatório do Dia
                                     </button>
-                                ) : !appt.actual_check_out ? (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleCheckOut(appt.id)
-                                        }}
-                                        style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#F97316', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
-                                        📤 Check-out (Saída)
-                                    </button>
-                                ) : null}
+                                )}
                             </div>
                         </div>
                     ))}
@@ -264,6 +310,7 @@ export default function CrechePage() {
                         fetchCrecheData()
                         setSelectedAppointment(null)
                     }}
+                    readOnly={viewMode === 'history'}
                 />
             )}
         </div>

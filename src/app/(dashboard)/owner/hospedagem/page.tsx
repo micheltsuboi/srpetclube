@@ -34,6 +34,8 @@ export default function HospedagemPage() {
     const [loading, setLoading] = useState(true)
     const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
 
+    const [viewMode, setViewMode] = useState<'active' | 'history'>('active')
+
     const fetchHospedagemData = useCallback(async () => {
         try {
             setLoading(true)
@@ -46,54 +48,74 @@ export default function HospedagemPage() {
             // Today's Date
             const today = new Date().toISOString().split('T')[0]
 
-            // Fetch Appointments
-            // Logic: Category='Hospedagem' AND (scheduled_at=today OR (check_in <= today <= check_out))
-            // Note: Since we can't easily do complex ORs across joined tables and dates in one Supabase simple query,
-            // we'll fetch 'Hospedagem' appointments for a broader range (e.g. this month) and filter in JS, 
-            // OR mostly rely on 'scheduled_at' for now until Phase 5 is complete.
+            if (viewMode === 'active') {
+                // Fetch ONLY in_progress status for Hospedagem (actively staying)
+                // OR pending/confirmed with check-in date = today
+                const { data: appts, error } = await supabase
+                    .from('appointments')
+                    .select(`
+                        id, pet_id, service_id, scheduled_at, status, notes, check_in_date, check_out_date,
+                        pets ( name, species, breed, customers ( name ) ),
+                        services ( 
+                            name, 
+                            service_categories!inner ( name, color, icon )
+                        )
+                    `)
+                    .eq('org_id', profile.org_id)
+                    .eq('services.service_categories.name', 'Hospedagem')
+                    .in('status', ['pending', 'confirmed', 'in_progress'])
+                    .order('scheduled_at')
 
-            // Fetch ONLY in_progress status for Hospedagem (actively staying)
-            // OR pending/confirmed with check-in date = today
-            const { data: appts, error } = await supabase
-                .from('appointments')
-                .select(`
-                    id, pet_id, service_id, scheduled_at, status, notes, check_in_date, check_out_date,
-                    pets ( name, species, breed, customers ( name ) ),
-                    services ( 
-                        name, 
-                        service_categories!inner ( name, color, icon )
-                    )
-                `)
-                .eq('org_id', profile.org_id)
-                .eq('services.service_categories.name', 'Hospedagem')
-                .in('status', ['pending', 'confirmed', 'in_progress'])
-                .order('scheduled_at')
+                if (error) {
+                    console.error('Error fetching hospedagem:', error)
+                } else if (appts) {
+                    // Client-side filter for "Active Today"
+                    const active = appts.filter((a: any) => {
+                        const checkIn = a.check_in_date
+                        const checkOut = a.check_out_date
 
-            if (error) {
-                console.error('Error fetching hospedagem:', error)
-            } else if (appts) {
-                // Client-side filter for "Active Today"
-                const active = appts.filter((a: any) => {
-                    const checkIn = a.check_in_date
-                    const checkOut = a.check_out_date
+                        // STRICT: Only show if:
+                        // 1. Status is in_progress (currently staying)
+                        // 2. OR status is pending/confirmed AND check-in is today or in the past AND check-out is today or future
+                        if (a.status === 'in_progress') {
+                            // If actively staying, show regardless of dates
+                            return true
+                        }
 
-                    // STRICT: Only show if:
-                    // 1. Status is in_progress (currently staying)
-                    // 2. OR status is pending/confirmed AND check-in is today or in the past AND check-out is today or future
-                    if (a.status === 'in_progress') {
-                        // If actively staying, show regardless of dates
-                        return true
-                    }
+                        // For pending/confirmed, require valid date range covering today
+                        if (checkIn && checkOut) {
+                            return today >= checkIn && today <= checkOut
+                        }
 
-                    // For pending/confirmed, require valid date range covering today
-                    if (checkIn && checkOut) {
-                        return today >= checkIn && today <= checkOut
-                    }
+                        // Don't show appointments without proper date ranges
+                        return false
+                    })
+                    setAppointments(active as unknown as Appointment[])
+                }
+            } else {
+                // History Mode
+                // Fetch completed/done hospedagem
+                const { data: appts, error } = await supabase
+                    .from('appointments')
+                    .select(`
+                        id, pet_id, service_id, scheduled_at, status, notes, check_in_date, check_out_date,
+                        pets ( name, species, breed, customers ( name ) ),
+                        services ( 
+                            name, 
+                            service_categories!inner ( name, color, icon )
+                        )
+                    `)
+                    .eq('org_id', profile.org_id)
+                    .eq('services.service_categories.name', 'Hospedagem')
+                    .in('status', ['done', 'completed'])
+                    .order('actual_check_out', { ascending: false }) // Most recently finished first
+                    .limit(50) // Limit to 50 for performance
 
-                    // Don't show appointments without proper date ranges
-                    return false
-                })
-                setAppointments(active as unknown as Appointment[])
+                if (error) {
+                    console.error('Error fetching hospedagem history:', error)
+                } else if (appts) {
+                    setAppointments(appts as unknown as Appointment[])
+                }
             }
 
         } catch (error) {
@@ -101,7 +123,7 @@ export default function HospedagemPage() {
         } finally {
             setLoading(false)
         }
-    }, [supabase])
+    }, [supabase, viewMode])
 
     useEffect(() => {
         fetchHospedagemData()
@@ -130,7 +152,7 @@ export default function HospedagemPage() {
     return (
         <div className={styles.container}>
             <div className={styles.header}>
-                <h1 className={styles.title}>🏨 Hospedagem - Hóspedes Ativos</h1>
+                <h1 className={styles.title}>🏨 Hospedagem - {viewMode === 'active' ? 'Hóspedes Ativos' : 'Histórico'}</h1>
                 <div style={{ display: 'flex', gap: '1rem' }}>
                     <Link href="/owner/agenda?mode=new&category=Hospedagem" className={styles.actionButton} style={{ textDecoration: 'none', background: 'var(--primary)', color: 'white' }}>
                         + Novo Agendamento
@@ -139,11 +161,39 @@ export default function HospedagemPage() {
                 </div>
             </div>
 
+            {/* View Mode Tabs */}
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', borderBottom: '1px solid #334155', paddingBottom: '0.5rem' }}>
+                <button
+                    onClick={() => setViewMode('active')}
+                    style={{
+                        background: 'none', border: 'none', padding: '0.5rem 1rem',
+                        color: viewMode === 'active' ? '#3B82F6' : '#94a3b8',
+                        fontWeight: viewMode === 'active' ? 700 : 500,
+                        borderBottom: viewMode === 'active' ? '2px solid #3B82F6' : '2px solid transparent',
+                        cursor: 'pointer', fontSize: '1rem'
+                    }}
+                >
+                    Hóspedes Ativos
+                </button>
+                <button
+                    onClick={() => setViewMode('history')}
+                    style={{
+                        background: 'none', border: 'none', padding: '0.5rem 1rem',
+                        color: viewMode === 'history' ? '#3B82F6' : '#94a3b8',
+                        fontWeight: viewMode === 'history' ? 700 : 500,
+                        borderBottom: viewMode === 'history' ? '2px solid #3B82F6' : '2px solid transparent',
+                        cursor: 'pointer', fontSize: '1rem'
+                    }}
+                >
+                    📜 Histórico
+                </button>
+            </div>
+
             {loading ? (
                 <div style={{ padding: '2rem', color: '#94a3b8' }}>Carregando...</div>
             ) : appointments.length === 0 ? (
                 <div style={{ padding: '2rem', color: '#94a3b8', textAlign: 'center', background: 'var(--bg-secondary)', borderRadius: '8px' }}>
-                    Nenhum hóspede ativo no momento.
+                    {viewMode === 'active' ? 'Nenhum hóspede ativo no momento.' : 'Nenhum histórico de hospedagem encontrado.'}
                 </div>
             ) : (
                 <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
@@ -156,54 +206,56 @@ export default function HospedagemPage() {
                         return (
                             <div key={appt.id} className={styles.appointmentCard} style={{
                                 borderLeft: `4px solid ${appt.services?.service_categories?.color || '#ccc'}`,
-                                background: appt.status === 'done' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
-                                opacity: appt.status === 'done' ? 0.7 : 1
+                                background: appt.status === 'done' || appt.status === 'completed' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
+                                opacity: appt.status === 'done' || appt.status === 'completed' ? 0.8 : 1
                             }}>
                                 <div className={styles.cardTop}>
-                                    <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem', zIndex: 10 }}>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                setEditingAppointment(appt)
-                                            }}
-                                            title="Editar Agendamento"
-                                            style={{
-                                                background: 'rgba(255,255,255,0.1)',
-                                                border: 'none',
-                                                borderRadius: '50%',
-                                                width: '32px',
-                                                height: '32px',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                fontSize: '1rem'
-                                            }}
-                                        >
-                                            ✏️
-                                        </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                handleDelete(appt.id)
-                                            }}
-                                            title="Excluir Agendamento"
-                                            style={{
-                                                background: 'rgba(239, 68, 68, 0.1)',
-                                                border: 'none',
-                                                borderRadius: '50%',
-                                                width: '32px',
-                                                height: '32px',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                fontSize: '1rem'
-                                            }}
-                                        >
-                                            🗑️
-                                        </button>
-                                    </div>
+                                    {viewMode === 'active' && (
+                                        <div style={{ position: 'absolute', top: '1rem', right: '1rem', display: 'flex', gap: '0.5rem', zIndex: 10 }}>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    setEditingAppointment(appt)
+                                                }}
+                                                title="Editar Agendamento"
+                                                style={{
+                                                    background: 'rgba(255,255,255,0.1)',
+                                                    border: 'none',
+                                                    borderRadius: '50%',
+                                                    width: '32px',
+                                                    height: '32px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontSize: '1rem'
+                                                }}
+                                            >
+                                                ✏️
+                                            </button>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation()
+                                                    handleDelete(appt.id)
+                                                }}
+                                                title="Excluir Agendamento"
+                                                style={{
+                                                    background: 'rgba(239, 68, 68, 0.1)',
+                                                    border: 'none',
+                                                    borderRadius: '50%',
+                                                    width: '32px',
+                                                    height: '32px',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontSize: '1rem'
+                                                }}
+                                            >
+                                                🗑️
+                                            </button>
+                                        </div>
+                                    )}
                                     <div className={styles.petInfoMain}>
                                         <div className={styles.petAvatar}>{appt.pets?.species === 'cat' ? '🐱' : '🐶'}</div>
                                         <div className={styles.petDetails}>
@@ -211,7 +263,7 @@ export default function HospedagemPage() {
                                                 {appt.pets?.name || 'Pet desconhecido'}
                                                 <span className={styles.statusBadge} style={{ fontSize: '0.75rem', padding: '2px 6px' }}>
                                                     {appt.status === 'in_progress' ? '🏠 Hospedado' :
-                                                        appt.status === 'done' ? '🏁 Finalizado' :
+                                                        (appt.status === 'done' || appt.status === 'completed') ? '🏁 Finalizado' :
                                                             '📅 Reservado'}
                                                 </span>
                                             </div>
