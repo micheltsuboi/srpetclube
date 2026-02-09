@@ -264,8 +264,26 @@ export default function ServicesPage() {
                                     <input name="base_price" type="number" step="0.01" className={styles.input} defaultValue={selectedService?.base_price} required />
                                 </div>
                                 <div className={styles.inputGroup}>
-                                    <label className={styles.label}>Duração (min)</label>
-                                    <input name="duration_minutes" type="number" className={styles.input} defaultValue={selectedService?.duration_minutes || 60} required />
+                                    <label className={styles.label}>Duração</label>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        <input
+                                            name="duration_hours"
+                                            type="number"
+                                            min="0"
+                                            placeholder="Horas"
+                                            className={styles.input}
+                                            defaultValue={selectedService?.duration_minutes ? Math.floor(selectedService.duration_minutes / 60) : ''}
+                                        />
+                                        <input
+                                            name="duration_minutes_part"
+                                            type="number"
+                                            min="0"
+                                            max="59"
+                                            placeholder="Min"
+                                            className={styles.input}
+                                            defaultValue={selectedService?.duration_minutes ? selectedService.duration_minutes % 60 : ''}
+                                        />
+                                    </div>
                                 </div>
                                 <div className={styles.inputGroup} style={{ gridColumn: '1/-1' }}>
                                     <label className={styles.label}>Descrição</label>

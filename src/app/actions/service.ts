@@ -25,7 +25,18 @@ export async function createService(prevState: CreateServiceState, formData: For
     // Assuming DB 'category' column might be NOT NULL, let's keep sending a value.
     const categoryName = formData.get('category_name') as string || 'custom'
     const category_id = formData.get('category_id') as string
-    const duration_minutes = parseInt(formData.get('duration_minutes') as string)
+
+    // Duration Logic
+    const rawHours = formData.get('duration_hours') as string
+    const rawMinutes = formData.get('duration_minutes_part') as string
+
+    let duration_minutes: number | null = null
+
+    if (rawHours !== '' || rawMinutes !== '') {
+        const h = parseInt(rawHours) || 0
+        const m = parseInt(rawMinutes) || 0
+        duration_minutes = (h * 60) + m
+    }
 
     const { error } = await supabase.from('services').insert({
         org_id: profile.org_id,
@@ -53,7 +64,18 @@ export async function updateService(prevState: CreateServiceState, formData: For
     const base_price = parseFloat(formData.get('base_price') as string)
     const categoryName = formData.get('category_name') as string || 'custom'
     const category_id = formData.get('category_id') as string
-    const duration_minutes = parseInt(formData.get('duration_minutes') as string)
+
+    // Duration Logic
+    const rawHours = formData.get('duration_hours') as string
+    const rawMinutes = formData.get('duration_minutes_part') as string
+
+    let duration_minutes: number | null = null
+
+    if (rawHours !== '' || rawMinutes !== '') {
+        const h = parseInt(rawHours) || 0
+        const m = parseInt(rawMinutes) || 0
+        duration_minutes = (h * 60) + m
+    }
 
     const { error } = await supabase.from('services').update({
         name,
