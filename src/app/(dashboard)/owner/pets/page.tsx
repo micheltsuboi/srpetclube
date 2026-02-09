@@ -152,8 +152,9 @@ function PetsContent() {
     }, [selectedPet, accordions.packages])
 
     // Buscar assessment do pet quando o accordion assessment abre
+    // Buscar assessment do pet quando o accordion assessment, creche ou hotel abre
     const fetchPetAssessment = useCallback(async () => {
-        if (!selectedPet || !accordions.assessment) return
+        if (!selectedPet || (!accordions.assessment && !accordions.creche && !accordions.hotel)) return
 
         try {
             const data = await getPetAssessment(selectedPet.id)
@@ -161,7 +162,7 @@ function PetsContent() {
         } catch (error) {
             console.error('Erro ao buscar assessment:', error)
         }
-    }, [selectedPet, accordions.assessment])
+    }, [selectedPet, accordions.assessment, accordions.creche, accordions.hotel])
 
     // Buscar histórico de agendamentos
     useEffect(() => {

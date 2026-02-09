@@ -133,16 +133,16 @@ export default function HospedagemPage() {
 
                         return (
                             <div key={appt.id} className={styles.appointmentCard} style={{
-                                borderLeft: `4px solid ${appt.services.service_categories.color}`,
+                                borderLeft: `4px solid ${appt.services?.service_categories?.color || '#ccc'}`,
                                 background: appt.status === 'done' ? 'var(--bg-tertiary)' : 'var(--bg-secondary)',
                                 opacity: appt.status === 'done' ? 0.7 : 1
                             }}>
                                 <div className={styles.cardTop}>
                                     <div className={styles.petInfoMain}>
-                                        <div className={styles.petAvatar}>{appt.pets.species === 'cat' ? '🐱' : '🐶'}</div>
+                                        <div className={styles.petAvatar}>{appt.pets?.species === 'cat' ? '🐱' : '🐶'}</div>
                                         <div className={styles.petDetails}>
                                             <div className={styles.petName}>
-                                                {appt.pets.name}
+                                                {appt.pets?.name || 'Pet desconhecido'}
                                                 <span className={styles.statusBadge} style={{ fontSize: '0.75rem', padding: '2px 6px' }}>
                                                     {appt.status === 'in_progress' ? '🏠 Hospedado' :
                                                         appt.status === 'done' ? '🏁 Finalizado' :
@@ -152,7 +152,7 @@ export default function HospedagemPage() {
                                             <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '4px' }}>
                                                 📅 {dateDisplay}
                                             </div>
-                                            <span className={styles.tutorName} style={{ marginTop: '4px' }}>👤 {appt.pets.customers?.name}</span>
+                                            <span className={styles.tutorName} style={{ marginTop: '4px' }}>👤 {appt.pets?.customers?.name || 'Cliente'}</span>
                                         </div>
                                     </div>
                                 </div>
