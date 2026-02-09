@@ -9,6 +9,7 @@ import { checkInAppointment, checkOutAppointment } from '@/app/actions/checkInOu
 import { deleteAppointment } from '@/app/actions/appointment'
 import DailyReportModal from '@/components/DailyReportModal'
 import EditAppointmentModal from '@/components/EditAppointmentModal'
+import ServiceExecutionModal from '@/components/ServiceExecutionModal'
 
 interface Appointment {
     id: string
@@ -254,16 +255,29 @@ export default function BanhoTosaPage() {
                 </div>
             )}
 
-            {/* Daily Report Modal */}
+            {/* Service Execution Modal (Replacing DailyReport for Banho e Tosa) */}
             {selectedAppointment && (
-                <DailyReportModal
-                    appointmentId={selectedAppointment.id}
-                    petName={selectedAppointment.pets?.name || 'Pet'}
-                    serviceName={selectedAppointment.services?.name || 'Banho e Tosa'}
+                <ServiceExecutionModal
+                    appointment={selectedAppointment}
                     onClose={() => setSelectedAppointment(null)}
                     onSave={() => {
                         fetchBanhoTosaData()
-                        setSelectedAppointment(null)
+                        // Keep open if just checking checklist? No, maybe close or refresh.
+                        // Let's refresh data but keep modal open would be ideal, but for now simple refresh.
+                        // Actually, if we want to keep working, we should probably refetch the appointment data specifically.
+                        // But simplified: close on major actions, refresh on minor.
+                    }}
+                />
+            )}
+
+            {/* Edit Modal */}
+            {editingAppointment && (
+                <EditAppointmentModal
+                    appointment={editingAppointment}
+                    onClose={() => setEditingAppointment(null)}
+                    onSave={() => {
+                        fetchBanhoTosaData()
+                        setEditingAppointment(null)
                     }}
                 />
             )}

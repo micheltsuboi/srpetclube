@@ -52,7 +52,7 @@ export async function checkOutAppointment(appointmentId: string) {
             .from('appointments')
             .update({
                 actual_check_out: new Date().toISOString(),
-                status: 'completed' // Auto-complete on checkout
+                status: 'done' // Auto-complete on checkout
             })
             .eq('id', appointmentId)
 
