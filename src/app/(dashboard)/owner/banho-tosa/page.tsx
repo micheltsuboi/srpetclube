@@ -192,26 +192,29 @@ export default function BanhoTosaPage() {
                                 cursor: 'pointer',
                                 position: 'relative' // Ensure relative positioning for absolute badge
                             }}>
-                            {/* Date Badge */}
+                            {/* Date Badge - Enhanced for visibility */}
                             <div style={{
                                 position: 'absolute',
-                                top: '-10px',
-                                right: '20px',
-                                background: 'var(--primary)',
+                                top: '-12px',
+                                right: '16px',
+                                background: appt.services?.service_categories?.color || 'var(--primary)',
                                 color: 'white',
-                                padding: '4px 10px',
+                                padding: '6px 12px',
                                 borderRadius: '12px',
                                 textAlign: 'center',
-                                boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+                                boxShadow: '0 4px 10px rgba(0,0,0,0.4)',
                                 zIndex: 10,
                                 display: 'flex',
                                 flexDirection: 'column',
                                 alignItems: 'center',
                                 lineHeight: 1,
-                                border: '2px solid var(--bg-primary)'
+                                border: '3px solid var(--bg-primary, #0f172a)', // Thicker border to detach from card
+                                minWidth: '54px'
                             }}>
-                                <span style={{ fontSize: '1.2rem', fontWeight: '800' }}>{new Date(appt.scheduled_at).getDate()}</span>
-                                <span style={{ fontSize: '0.65rem', textTransform: 'uppercase', fontWeight: 600, marginTop: '2px' }}>
+                                <span style={{ fontSize: '1.4rem', fontWeight: '900', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                                    {new Date(appt.scheduled_at).getDate()}
+                                </span>
+                                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, marginTop: '2px', opacity: 0.95 }}>
                                     {new Date(appt.scheduled_at).toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
                                 </span>
                             </div>
