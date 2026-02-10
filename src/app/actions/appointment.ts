@@ -156,11 +156,18 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             .eq('is_active', true)
             .lte('weight_min', weight)
             .gte('weight_max', weight)
-            .order('fixed_price', { ascending: false }) // Take highest if overlaps
-            .limit(1)
+            .order('fixed_price', { ascending: false }) // Initial sort
 
         if (rules && rules.length > 0) {
-            calculatedPrice = rules[0].fixed_price
+            // Find the most specific rule (smallest range)
+            const specificRule = rules.sort((a, b) => {
+                const rangeA = a.max_weight - a.min_weight
+                const rangeB = b.max_weight - b.min_weight
+                return rangeA - rangeB
+            })[0]
+
+            calculatedPrice = specificRule.fixed_price
+            console.log('[CreateAppointment] Selected Specific Rule:', specificRule)
         }
     }
 
