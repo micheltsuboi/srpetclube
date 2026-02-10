@@ -183,6 +183,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             org_id: profile.org_id,
             pet_id: petId,
             service_id: serviceId,
+            service_category_id: serviceAny.category_id,
             customer_id: petData.customer_id,
             staff_id: staffId || null,
             scheduled_at: scheduledAt,
