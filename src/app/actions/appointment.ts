@@ -148,18 +148,19 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
 
     if (weight !== null && weight !== undefined) {
         const { data: rules, error: rErr } = await supabase
-            .from('pricing_rules')
+            .from('pricing_matrix')
             .select('*')
             .eq('service_id', serviceId)
-            .lte('min_weight', weight)
-            .gte('max_weight', weight)
-            .order('price', { ascending: false }) // Take highest if overlaps
+            .eq('is_active', true)
+            .lte('weight_min', weight)
+            .gte('weight_max', weight)
+            .order('fixed_price', { ascending: false }) // Take highest if overlaps
             .limit(1)
 
         console.log('[PRICING] Rules:', rules, 'Error:', rErr)
         if (rules && rules.length > 0) {
-            console.log('[PRICING] Applying:', rules[0].price)
-            calculatedPrice = rules[0].price
+            console.log('[PRICING] Applying:', rules[0].fixed_price)
+            calculatedPrice = rules[0].fixed_price
         }
     }
 
