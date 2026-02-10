@@ -161,6 +161,21 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
         }
     }
 
+    // Hospedagem Daily Rate Calculation
+    if (isHospedagem && checkIn && checkOut) {
+        const start = new Date(checkIn)
+        const end = new Date(checkOut)
+        // Set to noon to avoid timezone issues
+        start.setHours(12, 0, 0, 0)
+        end.setHours(12, 0, 0, 0)
+
+        const diffTime = Math.abs(end.getTime() - start.getTime())
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        const days = diffDays > 0 ? diffDays : 1
+
+        calculatedPrice = calculatedPrice * days
+    }
+
     // 3. Create Appointment
     const { error } = await supabase
         .from('appointments')

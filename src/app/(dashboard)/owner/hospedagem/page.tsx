@@ -6,7 +6,8 @@ import styles from '../agenda/page.module.css' // Reuse agenda styles for consis
 import Link from 'next/link'
 import DateRangeFilter, { DateRange, getDateRange } from '@/components/DateRangeFilter'
 import { checkInAppointment, checkOutAppointment } from '@/app/actions/checkInOut'
-import { deleteAppointment } from '@/app/actions/appointment'
+import { deleteAppointment, createAppointment } from '@/app/actions/appointment'
+import ServiceExecutionModal from '@/components/ServiceExecutionModal'
 import DailyReportModal from '@/components/DailyReportModal'
 import EditAppointmentModal from '@/components/EditAppointmentModal'
 
@@ -498,37 +499,30 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
 
         setLoading(true)
 
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        const formData = new FormData()
+        formData.append('petId', selectedPetId)
+        formData.append('serviceId', selectedServiceId)
+        formData.append('checkInDate', checkInDate)
+        formData.append('checkOutDate', checkOutDate)
+        if (notes) formData.append('notes', notes)
 
-        const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+        // Pass fake date/time for compatibility (will be ignored by backend for Hospedagem)
+        formData.append('date', checkInDate)
+        formData.append('time', '12:00')
 
-        // Construct FormData to use the server action if desired, check appointment.ts
-        // But here we might just insert directly or use a custom action.
-        // Let's us direct insert for simplicity as we handled Logic locally or replicate similar logic
-
-        // Actually, let's use the createAppointment action pattern if possible, 
-        // BUT the createAppointment action expects FormData and handles specifics. 
-        // Let's use direct Supabase insert for this modal to be precise with fields
-
-        const { error } = await supabase.from('appointments').insert({
-            org_id: profile?.org_id,
-            pet_id: selectedPetId,
-            service_id: selectedServiceId,
-            scheduled_at: `${checkInDate}T12:00:00`, // Sort by check-in
-            check_in_date: checkInDate,
-            check_out_date: checkOutDate,
-            status: 'confirmed',
-            notes: notes || null
-        })
-
-        setLoading(false)
-
-        if (error) {
-            alert('Erro ao criar agendamento: ' + error.message)
-        } else {
-            alert('Hospedagem agendada com sucesso!')
-            onSave()
+        try {
+            const result = await createAppointment({ message: '', success: false }, formData)
+            if (result.success) {
+                alert(result.message)
+                onSave()
+            } else {
+                alert(result.message || 'Erro ao criar agendamento.')
+            }
+        } catch (error: any) {
+            console.error(error)
+            alert('Erro inesperado: ' + error.message)
+        } finally {
+            setLoading(false)
         }
     }
 

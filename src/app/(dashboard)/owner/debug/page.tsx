@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteAppointment } from '@/app/actions/appointment'
+import { fixServiceCategories } from '@/app/actions/fix_data'
 
 export default function DebugPage() {
     const [assessments, setAssessments] = useState<any[]>([])
@@ -50,6 +51,21 @@ export default function DebugPage() {
     return (
         <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
             <h1>🔍 Debug Page</h1>
+
+            <section style={{ marginTop: '2rem', padding: '1rem', background: '#dbeafe', borderRadius: '8px' }}>
+                <h2>🛠️ Tools</h2>
+                <button
+                    onClick={async () => {
+                        if (confirm('Isso vai atualizar a categoria de todos os serviços com nome "Hospedagem" ou "Hotel". Continuar?')) {
+                            const res = await fixServiceCategories()
+                            alert(res.message)
+                        }
+                    }}
+                    style={{ background: 'blue', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', border: 'none', cursor: 'pointer' }}
+                >
+                    Corrigir Categorias de Hospedagem
+                </button>
+            </section>
 
             <section style={{ marginTop: '2rem', padding: '1rem', background: '#f3f4f6', borderRadius: '8px' }}>
                 <h2>Pet Assessments ({assessments.length})</h2>
