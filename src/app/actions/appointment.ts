@@ -144,7 +144,6 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
 
     // Use weight_kg from petData
     const weight = (petData as any).weight_kg ?? (petData as any).weight
-    console.log('[PRICING] Weight:', weight, 'Service:', serviceId, 'Base:', calculatedPrice)
 
     if (weight !== null && weight !== undefined) {
         const { data: rules, error: rErr } = await supabase
@@ -157,9 +156,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             .order('fixed_price', { ascending: false }) // Take highest if overlaps
             .limit(1)
 
-        console.log('[PRICING] Rules:', rules, 'Error:', rErr)
         if (rules && rules.length > 0) {
-            console.log('[PRICING] Applying:', rules[0].fixed_price)
             calculatedPrice = rules[0].fixed_price
         }
     }
