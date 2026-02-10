@@ -42,6 +42,7 @@ interface Service {
     duration_minutes: number | null
     pricing_matrix: PricingRule[]
     scheduling_rules?: { day: number, species: string[] }[]
+    checklist_template?: string[]
 }
 
 const initialState = { message: '', success: false }
@@ -61,6 +62,10 @@ export default function ServicesPage() {
     const [schedulingRules, setSchedulingRules] = useState<{ day: number, species: string[] }[]>([])
     const [newRuleDay, setNewRuleDay] = useState<string>('')
     const [newRuleSpecies, setNewRuleSpecies] = useState<string[]>([])
+
+    // Checklist State
+    const [checklistTemplate, setChecklistTemplate] = useState<string[]>([])
+    const [newItemText, setNewItemText] = useState('')
 
     // Form Action States
     const [createState, createAction, isCreatePending] = useActionState(createService, initialState)
@@ -125,6 +130,7 @@ export default function ServicesPage() {
     const handleEdit = (service: Service) => {
         setSelectedService(service)
         setSchedulingRules(service.scheduling_rules || [])
+        setChecklistTemplate(service.checklist_template || [])
         setIsEditing(true)
         setShowModal(true)
     }
@@ -132,6 +138,7 @@ export default function ServicesPage() {
     const handleCreate = () => {
         setSelectedService(null)
         setSchedulingRules([])
+        setChecklistTemplate([])
         setIsEditing(false)
         setShowModal(true)
     }
@@ -194,6 +201,16 @@ export default function ServicesPage() {
         setNewRuleSpecies(prev =>
             prev.includes(species) ? prev.filter(s => s !== species) : [...prev, species]
         )
+    }
+
+    const handleAddChecklistItem = () => {
+        if (!newItemText.trim()) return
+        setChecklistTemplate([...checklistTemplate, newItemText.trim()])
+        setNewItemText('')
+    }
+
+    const handleRemoveChecklistItem = (index: number) => {
+        setChecklistTemplate(checklistTemplate.filter((_, i) => i !== index))
     }
 
     return (
@@ -401,6 +418,48 @@ export default function ServicesPage() {
                                             ))}
                                         </div>
                                     )}
+                                </div>
+
+                                {/* Checklist Template Section */}
+                                <div style={{ marginBottom: '1.5rem', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px' }}>
+                                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: '#666' }}>📋 Checklist Padrão (Procedimentos)</h4>
+                                    <input type="hidden" name="checklist_template" value={JSON.stringify(checklistTemplate)} />
+
+                                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Ex: Cortar unhas, Limpar ouvidos..."
+                                            className={styles.input}
+                                            value={newItemText}
+                                            onChange={(e) => setNewItemText(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddChecklistItem(); } }}
+                                        />
+                                        <button
+                                            type="button"
+                                            className={styles.addBtnSmall}
+                                            onClick={handleAddChecklistItem}
+                                        >
+                                            +
+                                        </button>
+                                    </div>
+
+                                    {checklistTemplate.length > 0 && (
+                                        <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                                            {checklistTemplate.map((item, idx) => (
+                                                <li key={idx} style={{ background: '#f8fafc', padding: '0.5rem', marginBottom: '0.25rem', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8f0' }}>
+                                                    <span style={{ fontSize: '0.9rem' }}>{item}</span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRemoveChecklistItem(idx)}
+                                                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444' }}
+                                                    >
+                                                        🗑️
+                                                    </button>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    )}
+                                    {checklistTemplate.length === 0 && <p style={{ fontSize: '0.8rem', color: '#94a3b8', fontStyle: 'italic' }}>Nenhum item adicionado.</p>}
                                 </div>
 
                                 <div className={styles.modalActions} style={{ marginTop: 0, marginBottom: '2rem' }}>

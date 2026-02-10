@@ -59,6 +59,19 @@ export async function createService(prevState: CreateServiceState, formData: For
         console.error('Error parsing scheduling rules', e)
     }
 
+    // Parse checklist template
+    const checklistTemplateRaw = formData.get('checklist_template') as string
+    let checklist_template = []
+    try {
+        if (checklistTemplateRaw) {
+            checklist_template = JSON.parse(checklistTemplateRaw)
+            // Ensure it's an array of strings
+            if (!Array.isArray(checklist_template)) checklist_template = []
+        }
+    } catch (e) {
+        console.error('Error parsing checklist template', e)
+    }
+
     const { error } = await supabase.from('services').insert({
         org_id: profile.org_id,
         name,
@@ -67,7 +80,8 @@ export async function createService(prevState: CreateServiceState, formData: For
         category: legacyCategory, // Legacy support
         category_id,
         duration_minutes,
-        scheduling_rules
+        scheduling_rules,
+        checklist_template
     })
 
     if (error) return { message: error.message, success: false }
@@ -121,6 +135,18 @@ export async function updateService(prevState: CreateServiceState, formData: For
         console.error('Error parsing scheduling rules', e)
     }
 
+    // Parse checklist template
+    const checklistTemplateRaw = formData.get('checklist_template') as string
+    let checklist_template = []
+    try {
+        if (checklistTemplateRaw) {
+            checklist_template = JSON.parse(checklistTemplateRaw)
+            if (!Array.isArray(checklist_template)) checklist_template = []
+        }
+    } catch (e) {
+        console.error('Error parsing checklist template', e)
+    }
+
     const { error } = await supabase.from('services').update({
         name,
         description,
@@ -128,7 +154,8 @@ export async function updateService(prevState: CreateServiceState, formData: For
         category: legacyCategory,
         category_id,
         duration_minutes,
-        scheduling_rules
+        scheduling_rules,
+        checklist_template
     }).eq('id', id)
 
     if (error) return { message: error.message, success: false }

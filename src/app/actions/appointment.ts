@@ -51,7 +51,8 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             id, 
             duration_minutes, 
             base_price,
-            category_id, 
+            category_id,
+            checklist_template,
             service_categories (id, name)
         `)
         .eq('id', serviceId)
@@ -190,7 +191,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             notes: notes || null,
             status: 'pending',
             package_credit_id: packageCreditId,
-            checklist: [],
+            checklist: serviceAny.checklist_template || [],
             check_in_date: checkIn,
             check_out_date: checkOut,
             calculated_price: calculatedPrice
