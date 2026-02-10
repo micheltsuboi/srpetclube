@@ -1,0 +1,11 @@
+Ajustei o menu lateral! 📐
+
+**Melhorias aplicadas:**
+1.  **Compactação**: Reduzi os espaçamentos (padding e gap) para que o menu ocupe menos espaço vertical e pareça mais integrado.
+2.  **Organização Lógica**: Reordenei os itens para agrupá-los por função para melhorar a usabilidade:
+    *   **Início**: Dashboard, Agenda
+    *   **Operacional**: Banho e Tosa, Creche, Hospedagem
+    *   **Gestão**: Financeiro
+    *   **Cadastros**: Tutores, Pets, Serviços, etc.
+
+Isso deve resolver a sensação de "muito espaçado" e facilitar a navegação no dia a dia. Já subi as alterações! ✨
