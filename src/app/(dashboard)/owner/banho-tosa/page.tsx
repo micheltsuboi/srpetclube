@@ -75,7 +75,7 @@ export default function BanhoTosaPage() {
                     calculated_price,
                     actual_check_in, actual_check_out,
                     pets ( name, species, breed, customers ( name ) ),
-                    services ( 
+                    services!inner ( 
                         name, 
                         base_price,
                         service_categories!inner ( name, color, icon )
