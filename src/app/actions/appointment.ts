@@ -172,6 +172,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     }
 
     // Hospedagem Daily Rate Calculation
+    let days = 1
     if (isHospedagem && checkIn && checkOut) {
         const start = new Date(checkIn)
         const end = new Date(checkOut)
@@ -181,7 +182,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
 
         const diffTime = Math.abs(end.getTime() - start.getTime())
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-        const days = diffDays > 0 ? diffDays : 1
+        days = diffDays > 0 ? diffDays : 1
 
         console.log('[CreateAppointment] Hospedagem Pricing:', {
             initialPrice: calculatedPrice,
@@ -228,7 +229,19 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     revalidatePath('/owner/pets')
     revalidatePath('/owner/creche') // Revalidate new dashboards
     revalidatePath('/owner/hospedagem')
-    return { message: 'Agendamento criado com sucesso!', success: true }
+    revalidatePath('/owner/hospedagem')
+
+    let debugMsg = `Agendamento criado! total: R$ ${calculatedPrice}`
+    if (isHospedagem) {
+        // Safe access (though logic implies it's set)
+        const daysDebug = (calculatedPrice && (serviceData as any).base_price) ? Math.round(calculatedPrice / ((calculatedPrice / (days || 1)))) : days
+        debugMsg = `Agendamento criado!
+        Preço Final: R$ ${calculatedPrice}
+        Dias Calculados: ${days}
+        (Valor Diária usado: R$ ${calculatedPrice / (days || 1)})`
+    }
+
+    return { message: debugMsg, success: true }
 }
 
 export async function updateAppointmentStatus(id: string, status: string) {
