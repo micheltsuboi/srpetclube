@@ -12,26 +12,28 @@
 /* Animated gradient orbs - cores do logo */
 .gradientOrb1 {
     position: absolute;
-    top: -20%;
-    left: -10%;
-    width: 600px;
-    height: 600px;
-    background: radial-gradient(circle, rgba(232, 130, 106, 0.25) 0%, transparent 70%);
+    top: -100px;
+    left: -100px;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(232, 130, 106, 0.2) 0%, transparent 70%);
     border-radius: 50%;
-    filter: blur(60px);
-    animation: float 8s ease-in-out infinite;
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
 }
 
 .gradientOrb2 {
     position: absolute;
-    bottom: -20%;
-    right: -10%;
-    width: 500px;
-    height: 500px;
-    background: radial-gradient(circle, rgba(140, 180, 201, 0.25) 0%, transparent 70%);
+    bottom: -100px;
+    right: -100px;
+    width: 250px;
+    height: 250px;
+    background: radial-gradient(circle, rgba(140, 180, 201, 0.2) 0%, transparent 70%);
     border-radius: 50%;
-    filter: blur(60px);
-    animation: float 10s ease-in-out infinite reverse;
+    filter: blur(80px);
+    pointer-events: none;
+    z-index: 0;
 }
 
 @keyframes float {
@@ -118,6 +120,12 @@
     max-width: 600px;
 }
 
+@media (max-width: 500px) {
+    .cardsGrid {
+        grid-template-columns: 1fr;
+    }
+}
+
 .card {
     background: rgba(43, 75, 111, 0.4);
     backdrop-filter: blur(12px);
@@ -197,36 +205,35 @@
 
 /* Responsive */
 @media (max-width: 640px) {
-    .container {
+    .main {
         padding: 1rem;
-        gap: 2rem;
+        overflow-x: hidden;
     }
 
-    .cardsGrid {
-        grid-template-columns: 1fr;
+    .container {
+        width: 100%;
         padding: 0 1rem;
+        gap: 1.5rem;
     }
 
-    .title {
-        font-size: 1.75rem;
+    .hero {
+        padding: 2rem 0;
+        width: 100%;
+    }
+
+    .hero h1 {
+        font-size: 2.25rem;
+    }
+
+    .cardsGrid,
+    .features {
+        width: 100%;
+        gap: 1.5rem;
+        padding: 0;
     }
 
     .logoImage {
-        width: 140px;
-    }
-
-    .features {
-        gap: 1rem;
-        padding: 0 1rem;
-    }
-
-    .feature {
-        padding: 0.5rem 1rem;
-        font-size: 0.75rem;
-    }
-
-    .card {
-        padding: 1.5rem;
+        width: 120px;
     }
 }
 

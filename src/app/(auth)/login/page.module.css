@@ -11,26 +11,28 @@
 /* Animated gradient orbs - cores do logo */
 .gradientOrb1 {
     position: absolute;
-    top: -20%;
-    left: -10%;
-    width: 600px;
-    height: 600px;
+    top: -100px;
+    left: -100px;
+    width: 300px;
+    height: 300px;
     background: radial-gradient(circle, rgba(232, 130, 106, 0.25) 0%, transparent 70%);
     border-radius: 50%;
     filter: blur(60px);
     animation: float 8s ease-in-out infinite;
+    pointer-events: none;
 }
 
 .gradientOrb2 {
     position: absolute;
-    bottom: -20%;
-    right: -10%;
-    width: 500px;
-    height: 500px;
+    bottom: -100px;
+    right: -100px;
+    width: 250px;
+    height: 250px;
     background: radial-gradient(circle, rgba(140, 180, 201, 0.25) 0%, transparent 70%);
     border-radius: 50%;
     filter: blur(60px);
     animation: float 10s ease-in-out infinite reverse;
+    pointer-events: none;
 }
 
 @keyframes float {
@@ -270,8 +272,18 @@
 
 /* Responsive */
 @media (max-width: 480px) {
+    .main {
+        padding: 1rem;
+    }
+
+    .container {
+        width: 100%;
+        max-width: 100%;
+    }
+
     .card {
         padding: 1.5rem;
+        width: 100%;
     }
 
     .title {

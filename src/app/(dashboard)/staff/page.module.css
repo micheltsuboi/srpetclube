@@ -413,8 +413,15 @@
 }
 
 @media (max-width: 768px) {
+    .container {
+        padding: 0;
+        gap: 1.5rem;
+        width: 100%;
+    }
+
     .statsGrid {
         grid-template-columns: 1fr;
+        gap: 1rem;
     }
 
     .petCard {
