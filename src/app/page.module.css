@@ -197,8 +197,14 @@
 
 /* Responsive */
 @media (max-width: 640px) {
+    .container {
+        padding: 1rem;
+        gap: 2rem;
+    }
+
     .cardsGrid {
         grid-template-columns: 1fr;
+        padding: 0 1rem;
     }
 
     .title {
@@ -211,11 +217,16 @@
 
     .features {
         gap: 1rem;
+        padding: 0 1rem;
     }
 
     .feature {
         padding: 0.5rem 1rem;
         font-size: 0.75rem;
+    }
+
+    .card {
+        padding: 1.5rem;
     }
 }
 

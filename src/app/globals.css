@@ -108,6 +108,7 @@ body {
   background: var(--gradient-dark);
   color: var(--text-primary);
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
 /* Scrollbar styling */
@@ -473,6 +474,12 @@ body {
   50% {
     opacity: 0.5;
   }
+}
+
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @keyframes spin {

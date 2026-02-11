@@ -47,6 +47,7 @@ export default function DashboardLayout({
 
 
     const [user, setUser] = useState<{ name: string; role: string } | null>(null)
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const supabase = createClient()
     const router = useRouter()
 
@@ -81,8 +82,16 @@ export default function DashboardLayout({
 
     return (
         <div className={styles.container}>
+            {/* Mobile Overlay */}
+            {isSidebarOpen && (
+                <div
+                    className={styles.overlay}
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
             {/* Sidebar */}
-            <aside className={styles.sidebar}>
+            <aside className={`${styles.sidebar} ${isSidebarOpen ? styles.sidebarOpen : ''}`}>
                 <div className={styles.logo}>
                     <Image
                         src="/logo.png"
@@ -92,6 +101,12 @@ export default function DashboardLayout({
                         className={styles.logoImage}
                     />
                     <span className={styles.logoText}>Sr. Pet</span>
+                    <button
+                        className={styles.closeMenu}
+                        onClick={() => setIsSidebarOpen(false)}
+                    >
+                        ✕
+                    </button>
                 </div>
 
                 <nav className={styles.nav}>
@@ -100,6 +115,7 @@ export default function DashboardLayout({
                             key={item.href}
                             href={item.href}
                             className={`${styles.navItem} ${pathname === item.href ? styles.active : ''}`}
+                            onClick={() => setIsSidebarOpen(false)}
                         >
                             <span className={styles.navIcon}>{item.icon}</span>
                             <span className={styles.navLabel}>{item.name}</span>
@@ -119,7 +135,15 @@ export default function DashboardLayout({
             <main className={styles.main}>
                 <header className={styles.header}>
                     <div className={styles.headerLeft}>
-                        <h1 className={styles.pageTitle}>Dashboard</h1>
+                        <div className={styles.headerTop}>
+                            <button
+                                className={styles.menuButton}
+                                onClick={() => setIsSidebarOpen(true)}
+                            >
+                                ☰
+                            </button>
+                            <h1 className={styles.pageTitle}>Dashboard</h1>
+                        </div>
                         <span className={styles.date}>
                             {new Date().toLocaleDateString('pt-BR', {
                                 weekday: 'long',
