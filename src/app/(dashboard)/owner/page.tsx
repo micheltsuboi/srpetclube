@@ -56,15 +56,26 @@ export default function OwnerDashboard() {
         pendingPayments: 0,
         monthlyGrowth: 0
     })
-    // Placeholder states for future Appointments integration
     const [petsToday] = useState<PetToday[]>([])
     const [loading, setLoading] = useState(true)
-
     const [stats, setStats] = useState({
         tutors: 0,
         pets: 0,
         appointmentsToday: 0
     })
+
+    // Records for drill-down
+    const [extractRecords, setExtractRecords] = useState<{
+        type: 'revenue' | 'expenses' | 'pending' | null;
+        appointments: any[];
+        transactions: any[];
+    }>({
+        type: null,
+        appointments: [],
+        transactions: []
+    })
+
+    const [isExtractModalOpen, setIsExtractModalOpen] = useState(false)
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -81,16 +92,20 @@ export default function OwnerDashboard() {
 
                 if (!profile?.org_id) return
 
-                // 1. Fetch Financial Data from APPOINTMENTS (paid ones)
+                // 1. Fetch Financial Data from APPOINTMENTS
                 const now = new Date()
                 const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
                 const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
                 const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString()
 
-                // Current month paid appointments
+                // Current month appointments (paid and unpaid)
                 const { data: currentMonthAppts } = await supabase
                     .from('appointments')
-                    .select('final_price, calculated_price, payment_status')
+                    .select(`
+                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at,
+                        pets ( name ),
+                        services ( name )
+                    `)
                     .eq('org_id', profile.org_id)
                     .gte('scheduled_at', startOfCurrentMonth)
 
@@ -102,12 +117,13 @@ export default function OwnerDashboard() {
                     .gte('scheduled_at', startOfPreviousMonth)
                     .lte('scheduled_at', endOfPreviousMonth)
 
-                const currentRevenue = (currentMonthAppts || [])
-                    .filter(a => a.payment_status === 'paid')
+                const paidAppts = (currentMonthAppts || []).filter(a => a.payment_status === 'paid')
+                const pendingAppts = (currentMonthAppts || []).filter(a => a.payment_status !== 'paid')
+
+                const currentRevenue = paidAppts
                     .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
 
-                const pendingPayments = (currentMonthAppts || [])
-                    .filter(a => a.payment_status !== 'paid')
+                const pendingPayments = pendingAppts
                     .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
 
                 const prevRevenue = (prevMonthAppts || [])
@@ -119,17 +135,15 @@ export default function OwnerDashboard() {
                 // 3. Fetch all financial transactions (income and expenses) for the month
                 const { data: transactions } = await supabase
                     .from('financial_transactions')
-                    .select('amount, type')
+                    .select('*')
                     .eq('org_id', profile.org_id)
                     .gte('date', startOfCurrentMonth)
 
-                const productRevenue = (transactions || [])
-                    .filter(t => t.type === 'income')
-                    .reduce((sum, t) => sum + t.amount, 0)
+                const incomeTxs = (transactions || []).filter(t => t.type === 'income')
+                const expenseTxs = (transactions || []).filter(t => t.type === 'expense')
 
-                const expenses = (transactions || [])
-                    .filter(t => t.type === 'expense')
-                    .reduce((sum, t) => sum + t.amount, 0)
+                const productRevenue = incomeTxs.reduce((sum, t) => sum + t.amount, 0)
+                const expenses = expenseTxs.reduce((sum, t) => sum + t.amount, 0)
 
                 const totalRevenue = currentRevenue + productRevenue
 
@@ -139,6 +153,13 @@ export default function OwnerDashboard() {
                     profit: totalRevenue - expenses,
                     pendingPayments,
                     monthlyGrowth: parseFloat(growth.toFixed(1))
+                })
+
+                // Store records for extract
+                setExtractRecords({
+                    type: null, // Keep null until a card is clicked
+                    appointments: currentMonthAppts || [],
+                    transactions: transactions || []
                 })
 
                 // 2. Fetch Operational Stats
@@ -176,6 +197,51 @@ export default function OwnerDashboard() {
 
         fetchDashboardData()
     }, [supabase])
+
+    const handleOpenExtract = (type: 'revenue' | 'expenses' | 'pending') => {
+        setExtractRecords(prev => ({ ...prev, type }))
+        setIsExtractModalOpen(true)
+    }
+
+    const handleConfirmPayment = async (appointmentId: string) => {
+        try {
+            const { error } = await supabase
+                .from('appointments')
+                .update({
+                    payment_status: 'paid',
+                    paid_at: new Date().toISOString()
+                })
+                .eq('id', appointmentId)
+
+            if (error) throw error
+
+            alert('Pagamento confirmado com sucesso!')
+            // Refresh data
+            window.location.reload()
+        } catch (error) {
+            console.error('Erro ao confirmar pagamento:', error)
+            alert('Erro ao confirmar pagamento.')
+        }
+    }
+
+    const handleDeleteTransaction = async (txId: string) => {
+        if (!confirm('Tem certeza que deseja excluir esta transação?')) return
+
+        try {
+            const { error } = await supabase
+                .from('financial_transactions')
+                .delete()
+                .eq('id', txId)
+
+            if (error) throw error
+
+            alert('Transação excluída com sucesso!')
+            window.location.reload()
+        } catch (error) {
+            console.error('Erro ao excluir transação:', error)
+            alert('Erro ao excluir transação.')
+        }
+    }
 
     const filteredPets = selectedArea === 'all'
         ? petsToday
@@ -268,7 +334,10 @@ export default function OwnerDashboard() {
             {/* Financial Summary */}
             <h2 className={styles.sectionTitle}>💰 Resumo Financeiro</h2>
             <div className={styles.financialGrid}>
-                <div className={styles.financialCard}>
+                <div
+                    className={`${styles.financialCard} ${styles.clickable}`}
+                    onClick={() => handleOpenExtract('revenue')}
+                >
                     <div className={styles.cardIcon}>💰</div>
                     <div className={styles.cardContent}>
                         <span className={styles.cardValue}>{formatCurrency(financials.revenue)}</span>
@@ -278,21 +347,30 @@ export default function OwnerDashboard() {
                         {financials.monthlyGrowth >= 0 ? '+' : ''}{financials.monthlyGrowth}%
                     </span>
                 </div>
-                <div className={styles.financialCard}>
+                <div
+                    className={`${styles.financialCard} ${styles.clickable}`}
+                    onClick={() => handleOpenExtract('expenses')}
+                >
                     <div className={styles.cardIcon}>📉</div>
                     <div className={styles.cardContent}>
                         <span className={styles.cardValue}>{formatCurrency(financials.expenses)}</span>
                         <span className={styles.cardLabel}>Despesas</span>
                     </div>
                 </div>
-                <div className={styles.financialCard}>
+                <div
+                    className={`${styles.financialCard} ${styles.clickable}`}
+                    onClick={() => handleOpenExtract('revenue')} // Show revenue for profit too
+                >
                     <div className={styles.cardIcon}>📈</div>
                     <div className={styles.cardContent}>
                         <span className={`${styles.cardValue} ${styles.profit}`}>{formatCurrency(financials.profit)}</span>
                         <span className={styles.cardLabel}>Lucro Líquido</span>
                     </div>
                 </div>
-                <div className={styles.financialCard}>
+                <div
+                    className={`${styles.financialCard} ${styles.clickable}`}
+                    onClick={() => handleOpenExtract('pending')}
+                >
                     <div className={styles.cardIcon}>⏳</div>
                     <div className={styles.cardContent}>
                         <span className={styles.cardValue} style={{ color: '#f59e0b' }}>{formatCurrency(financials.pendingPayments)}</span>
@@ -377,6 +455,80 @@ export default function OwnerDashboard() {
                     </div>
                 )}
             </div>
+            {/* Extract Modal */}
+            {isExtractModalOpen && extractRecords.type && (
+                <div className={styles.modalOverlay} onClick={() => setIsExtractModalOpen(false)}>
+                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+                        <button className={styles.closeButton} onClick={() => setIsExtractModalOpen(false)}>×</button>
+
+                        <h2>
+                            {extractRecords.type === 'revenue' && '📜 Extrato de Faturamento'}
+                            {extractRecords.type === 'expenses' && '📉 Extrato de Despesas'}
+                            {extractRecords.type === 'pending' && '⏳ Valores a Receber'}
+                        </h2>
+
+                        <div className={styles.extractList}>
+                            {/* Appointments list (for Revenue and Pending) */}
+                            {extractRecords.type !== 'expenses' && extractRecords.appointments
+                                .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
+                                .map(appt => (
+                                    <div key={appt.id} className={styles.extractItem}>
+                                        <div className={styles.extractInfo}>
+                                            <strong>{appt.pets?.name || 'Pet'} • {appt.services?.name || 'Serviço'}</strong>
+                                            <span>{new Date(appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                        <div className={styles.extractActions}>
+                                            <span className={styles.extractAmount}>
+                                                {formatCurrency(appt.final_price || appt.calculated_price || 0)}
+                                            </span>
+                                            {extractRecords.type === 'pending' && (
+                                                <button
+                                                    className={styles.confirmPayBtn}
+                                                    onClick={() => handleConfirmPayment(appt.id)}
+                                                >
+                                                    Confirmar Pago
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+
+                            {/* Transactions list (for Revenue and Expenses) */}
+                            {extractRecords.type !== 'pending' && extractRecords.transactions
+                                .filter(t => extractRecords.type === 'revenue' ? t.type === 'income' : t.type === 'expense')
+                                .map(tx => (
+                                    <div key={tx.id} className={styles.extractItem}>
+                                        <div className={styles.extractInfo}>
+                                            <strong>{tx.category}</strong>
+                                            <span>{tx.description}</span>
+                                            <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                        <div className={styles.extractActions}>
+                                            <span className={styles.extractAmount}>
+                                                {formatCurrency(tx.amount)}
+                                            </span>
+                                            <button
+                                                className={styles.deleteBtn}
+                                                onClick={() => handleDeleteTransaction(tx.id)}
+                                            >
+                                                Excluir
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+
+                            {/* Empty State */}
+                            {((extractRecords.type === 'pending' && extractRecords.appointments.filter(a => a.payment_status !== 'paid').length === 0) ||
+                                (extractRecords.type === 'expenses' && extractRecords.transactions.filter(t => t.type === 'expense').length === 0) ||
+                                (extractRecords.type === 'revenue' &&
+                                    extractRecords.appointments.filter(a => a.payment_status === 'paid').length === 0 &&
+                                    extractRecords.transactions.filter(t => t.type === 'income').length === 0)) && (
+                                    <p className={styles.emptyExtract}>Nenhum registro encontrado para este período.</p>
+                                )}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

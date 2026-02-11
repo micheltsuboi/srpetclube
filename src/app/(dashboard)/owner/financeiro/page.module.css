@@ -312,3 +312,143 @@
         height: 140px;
     }
 }
+
+/* Modal and Extract Styles */
+.summaryCard.clickable {
+    cursor: pointer;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.summaryCard.clickable:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.modalOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(5px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.modalContent {
+    background: #1a2233;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 2rem;
+    width: 100%;
+    max-width: 600px;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.closeButton {
+    position: absolute;
+    top: 1rem;
+    right: 1.5rem;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 2rem;
+    cursor: pointer;
+}
+
+.extractList {
+    margin-top: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.extractItem {
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+}
+
+.extractInfo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.extractInfo strong {
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.extractInfo span {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.extractActions {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.5rem;
+}
+
+.extractAmount {
+    font-weight: 700;
+    color: #2ecc71;
+    font-size: 1.1rem;
+}
+
+.expenses .extractAmount {
+    color: #e74c3c;
+}
+
+.confirmPayBtn,
+.deleteBtn {
+    padding: 0.4rem 0.8rem;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.confirmPayBtn {
+    background: var(--primary);
+}
+
+.confirmPayBtn:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+}
+
+.deleteBtn {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.deleteBtn:hover {
+    background: #e74c3c;
+    color: white;
+}
+
+.emptyExtract {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 2rem;
+    opacity: 0.7;
+}

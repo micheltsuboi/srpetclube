@@ -27,6 +27,17 @@ export default function FinanceiroPage() {
     const [categoryRevenue, setCategoryRevenue] = useState<CategoryRevenue[]>([])
     const [loading, setLoading] = useState(true)
 
+    // Records for drill-down
+    const [extractRecords, setExtractRecords] = useState<{
+        type: 'revenue' | 'expenses' | 'pending' | null;
+        appointments: any[];
+        transactions: any[];
+    }>({
+        type: null,
+        appointments: [],
+        transactions: []
+    })
+    const [isExtractModalOpen, setIsExtractModalOpen] = useState(false)
 
     const fetchFinancials = useCallback(async () => {
         try {
@@ -46,20 +57,20 @@ export default function FinanceiroPage() {
             const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1)
             const startOfPeriod = sixMonthsAgo.toISOString()
 
-            // Fetch PAID appointments
+            // Fetch ALL appointments for the period
             const { data: appointments, error } = await supabase
                 .from('appointments')
                 .select(`
-                    id, final_price, calculated_price, payment_status, paid_at,
+                    id, final_price, calculated_price, payment_status, scheduled_at, paid_at,
+                    pets ( name ),
                     services (
                         name,
                         service_categories ( name )
                     )
                 `)
                 .eq('org_id', profile.org_id)
-                .eq('payment_status', 'paid')
-                .gte('paid_at', startOfPeriod)
-                .order('paid_at', { ascending: true })
+                .gte('scheduled_at', startOfPeriod)
+                .order('scheduled_at', { ascending: true })
 
             if (error) throw error
 
@@ -76,14 +87,14 @@ export default function FinanceiroPage() {
                 }
 
                 appointments.forEach(appt => {
-                    const date = new Date(appt.paid_at!)
+                    const date = new Date(appt.payment_status === 'paid' ? appt.paid_at! : appt.scheduled_at)
                     const monthKey = date.toLocaleString('pt-BR', { month: 'short' })
                     const amount = appt.final_price ?? appt.calculated_price ?? 0
 
-                    if (monthMap.has(monthKey)) {
+                    if (monthMap.has(monthKey) && appt.payment_status === 'paid') {
                         const data = monthMap.get(monthKey)!
                         data.revenue += amount
-                        data.profit += amount // Expenses not yet tracked in appointments
+                        data.profit += amount
                     }
                 })
 
@@ -91,16 +102,16 @@ export default function FinanceiroPage() {
 
                 // Process Category Data (Current Month)
                 const currentMonthFilter = (appt: any) => {
-                    const d = new Date(appt.paid_at!)
+                    const d = new Date(appt.payment_status === 'paid' ? appt.paid_at! : appt.scheduled_at)
                     return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
                 }
 
-                const currentMonthAppts = appointments.filter(currentMonthFilter)
-                const totalRevenue = currentMonthAppts.reduce((acc, curr) => acc + (curr.final_price ?? curr.calculated_price ?? 0), 0)
+                const paidCurrentMonthAppts = appointments.filter(a => a.payment_status === 'paid' && currentMonthFilter(a))
+                const totalRevenue = paidCurrentMonthAppts.reduce((acc, curr) => acc + (curr.final_price ?? curr.calculated_price ?? 0), 0)
 
                 const catMap = new Map<string, CategoryRevenue>()
 
-                currentMonthAppts.forEach(appt => {
+                paidCurrentMonthAppts.forEach(appt => {
                     const catName = (appt.services as any)?.service_categories?.name || 'Outros'
                     const amount = appt.final_price ?? appt.calculated_price ?? 0
 
@@ -177,6 +188,22 @@ export default function FinanceiroPage() {
                 }
             }
 
+            // Store for extract (only current month for dashboard simplicity)
+            const currentMonthAppts = (appointments || []).filter(a => {
+                const d = new Date(a.payment_status === 'paid' ? a.paid_at! : a.scheduled_at)
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+            })
+            const currentMonthTxs = (transactions || []).filter(t => {
+                const d = new Date(t.date)
+                return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+            })
+
+            setExtractRecords({
+                type: null,
+                appointments: currentMonthAppts,
+                transactions: currentMonthTxs
+            })
+
         } catch (error) {
             console.error('Erro ao buscar financeiro:', error)
         } finally {
@@ -188,8 +215,57 @@ export default function FinanceiroPage() {
         fetchFinancials()
     }, [fetchFinancials])
 
+    const handleOpenExtract = (type: 'revenue' | 'expenses' | 'pending') => {
+        setExtractRecords(prev => ({ ...prev, type }))
+        setIsExtractModalOpen(true)
+    }
+
+    const handleConfirmPayment = async (appointmentId: string) => {
+        try {
+            const { error } = await supabase
+                .from('appointments')
+                .update({
+                    payment_status: 'paid',
+                    paid_at: new Date().toISOString()
+                })
+                .eq('id', appointmentId)
+
+            if (error) throw error
+
+            alert('Pagamento confirmado com sucesso!')
+            fetchFinancials() // Direct refresh
+        } catch (error) {
+            console.error('Erro ao confirmar pagamento:', error)
+            alert('Erro ao confirmar pagamento.')
+        }
+    }
+
+    const handleDeleteTransaction = async (txId: string) => {
+        if (!confirm('Tem certeza que deseja excluir esta transação?')) return
+
+        try {
+            const { error } = await supabase
+                .from('financial_transactions')
+                .delete()
+                .eq('id', txId)
+
+            if (error) throw error
+
+            alert('Transação excluída com sucesso!')
+            fetchFinancials()
+        } catch (error) {
+            console.error('Erro ao excluir transação:', error)
+            alert('Erro ao excluir transação.')
+        }
+    }
+
     const currentMonth = monthlyData.length > 0 ? monthlyData[monthlyData.length - 1] : { revenue: 0, expenses: 0, profit: 0 }
     const previousMonth = monthlyData.length > 1 ? monthlyData[monthlyData.length - 2] : { revenue: 0, expenses: 0, profit: 0 }
+
+    // Add pending calculator for the "A Receber" card logic (which we'll add)
+    const pendingTotal = extractRecords.appointments
+        .filter(a => a.payment_status !== 'paid')
+        .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
 
     const revenueGrowth = previousMonth.revenue > 0
         ? ((currentMonth.revenue - previousMonth.revenue) / previousMonth.revenue * 100).toFixed(1)
@@ -238,7 +314,10 @@ export default function FinanceiroPage() {
 
             {/* Summary Cards */}
             <div className={styles.summaryGrid}>
-                <div className={styles.summaryCard}>
+                <div
+                    className={`${styles.summaryCard} ${styles.clickable}`}
+                    onClick={() => handleOpenExtract('revenue')}
+                >
                     <div className={styles.cardHeader}>
                         <span className={styles.cardIcon}>💵</span>
                         <span className={`${styles.cardGrowth} ${Number(revenueGrowth) >= 0 ? styles.positive : styles.negative}`}>
@@ -249,7 +328,10 @@ export default function FinanceiroPage() {
                     <span className={styles.cardLabel}>Faturamento</span>
                 </div>
 
-                <div className={styles.summaryCard}>
+                <div
+                    className={`${styles.summaryCard} ${styles.clickable}`}
+                    onClick={() => handleOpenExtract('expenses')}
+                >
                     <div className={styles.cardHeader}>
                         <span className={styles.cardIcon}>📉</span>
                     </div>
@@ -257,7 +339,10 @@ export default function FinanceiroPage() {
                     <span className={styles.cardLabel}>Despesas</span>
                 </div>
 
-                <div className={styles.summaryCard}>
+                <div
+                    className={`${styles.summaryCard} ${styles.clickable}`}
+                    onClick={() => handleOpenExtract('revenue')}
+                >
                     <div className={styles.cardHeader}>
                         <span className={styles.cardIcon}>📈</span>
                     </div>
@@ -265,16 +350,92 @@ export default function FinanceiroPage() {
                     <span className={styles.cardLabel}>Lucro Líquido</span>
                 </div>
 
-                <div className={styles.summaryCard}>
+                <div
+                    className={`${styles.summaryCard} ${styles.clickable}`}
+                    onClick={() => handleOpenExtract('pending')}
+                >
                     <div className={styles.cardHeader}>
-                        <span className={styles.cardIcon}>📊</span>
+                        <span className={styles.cardIcon}>⏳</span>
                     </div>
-                    <span className={styles.cardValue}>
-                        {currentMonth.revenue > 0 ? ((currentMonth.profit / currentMonth.revenue) * 100).toFixed(1) : '0.0'}%
-                    </span>
-                    <span className={styles.cardLabel}>Margem de Lucro</span>
+                    <span className={styles.cardValue} style={{ color: '#f39c12' }}>{formatCurrency(pendingTotal)}</span>
+                    <span className={styles.cardLabel}>A Receber</span>
                 </div>
             </div>
+
+            {/* Extract Modal */}
+            {isExtractModalOpen && extractRecords.type && (
+                <div className={styles.modalOverlay} onClick={() => setIsExtractModalOpen(false)}>
+                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+                        <button className={styles.closeButton} onClick={() => setIsExtractModalOpen(false)}>×</button>
+
+                        <h2>
+                            {extractRecords.type === 'revenue' && '📜 Extrato de Faturamento'}
+                            {extractRecords.type === 'expenses' && '📉 Extrato de Despesas'}
+                            {extractRecords.type === 'pending' && '⏳ Valores a Receber'}
+                        </h2>
+
+                        <div className={styles.extractList}>
+                            {/* Appointments list (for Revenue and Pending) */}
+                            {extractRecords.type !== 'expenses' && extractRecords.appointments
+                                .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
+                                .map(appt => (
+                                    <div key={appt.id} className={styles.extractItem}>
+                                        <div className={styles.extractInfo}>
+                                            <strong>{appt.pets?.name || 'Pet'} • {appt.services?.name || 'Serviço'}</strong>
+                                            <span>{new Date(appt.payment_status === 'paid' ? appt.paid_at! : appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                        <div className={styles.extractActions}>
+                                            <span className={styles.extractAmount}>
+                                                {formatCurrency(appt.final_price || appt.calculated_price || 0)}
+                                            </span>
+                                            {extractRecords.type === 'pending' && (
+                                                <button
+                                                    className={styles.confirmPayBtn}
+                                                    onClick={() => handleConfirmPayment(appt.id)}
+                                                >
+                                                    Confirmar Pago
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+
+                            {/* Transactions list (for Revenue and Expenses) */}
+                            {extractRecords.type !== 'pending' && extractRecords.transactions
+                                .filter(t => extractRecords.type === 'revenue' ? t.type === 'income' : t.type === 'expense')
+                                .map(tx => (
+                                    <div key={tx.id} className={styles.extractItem}>
+                                        <div className={styles.extractInfo}>
+                                            <strong>{tx.category}</strong>
+                                            <span>{tx.description}</span>
+                                            <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                        <div className={styles.extractActions}>
+                                            <span className={styles.extractAmount}>
+                                                {formatCurrency(tx.amount)}
+                                            </span>
+                                            <button
+                                                className={styles.deleteBtn}
+                                                onClick={() => handleDeleteTransaction(tx.id)}
+                                            >
+                                                Excluir
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+
+                            {/* Empty State */}
+                            {((extractRecords.type === 'pending' && extractRecords.appointments.filter(a => a.payment_status !== 'paid').length === 0) ||
+                                (extractRecords.type === 'expenses' && extractRecords.transactions.filter(t => t.type === 'expense').length === 0) ||
+                                (extractRecords.type === 'revenue' &&
+                                    extractRecords.appointments.filter(a => a.payment_status === 'paid').length === 0 &&
+                                    extractRecords.transactions.filter(t => t.type === 'income').length === 0)) && (
+                                    <p className={styles.emptyExtract}>Nenhum registro encontrado para este período.</p>
+                                )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Revenue Chart */}
             <div className={styles.chartSection}>
