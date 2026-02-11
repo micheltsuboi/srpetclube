@@ -456,6 +456,12 @@ export default function FinanceiroPage() {
                 <h2 className={styles.sectionTitle}>📊 Faturamento Mensal (Últimos 6 Meses)</h2>
                 {monthlyData.length > 0 ? (
                     <div className={styles.chart}>
+                        {/* Background Grid Lines */}
+                        <div className={styles.gridLines}>
+                            {[0, 1, 2, 3, 4].map((i) => (
+                                <div key={i} className={styles.gridLine} />
+                            ))}
+                        </div>
                         {monthlyData.map((data, index) => (
                             <div key={data.month} className={styles.chartBar}>
                                 <div className={styles.barContainer}>
