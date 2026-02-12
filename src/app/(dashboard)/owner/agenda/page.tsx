@@ -131,6 +131,14 @@ export default function AgendaPage() {
     // Actions
     const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
     const [updateState, updateAction, isUpdatePending] = useActionState(updateAppointment, initialState)
+    const [blockState, blockAction, isBlockPending] = useActionState(createScheduleBlock, initialState)
+
+    // Debug state change
+    useEffect(() => {
+        if (blockState.message) {
+            console.log('[Agenda] blockState updated:', blockState)
+        }
+    }, [blockState])
 
     const fetchData = useCallback(async () => {
         try {
@@ -184,7 +192,8 @@ export default function AgendaPage() {
                 .from('schedule_blocks')
                 .select('*')
                 .eq('org_id', profile.org_id)
-                .or(`and(start_at.gte.${startDateStr},start_at.lte.${endDateStr}),and(end_at.gte.${startDateStr},end_at.lte.${endDateStr}),and(start_at.lte.${startDateStr},end_at.gte.${endDateStr})`)
+                .lt('start_at', endDateStr)
+                .gt('end_at', startDateStr)
 
             if (blks) setBlocks(blks)
 
@@ -233,8 +242,19 @@ export default function AgendaPage() {
             setSelectedServiceId('')
             setPreSelectedPetId(null)
             setBookingError(null)
+        } else if (createState.message) {
+            alert(createState.message)
         }
     }, [createState, fetchData])
+
+    useEffect(() => {
+        if (blockState.success) {
+            setShowBlockModal(false)
+            fetchData()
+        } else if (blockState.message) {
+            alert(blockState.message)
+        }
+    }, [blockState, fetchData])
 
     const validateScheduling = (dateStr: string, svcId: string, pId: string) => {
         if (!dateStr || !svcId || !pId) return true
@@ -344,12 +364,19 @@ export default function AgendaPage() {
     }
 
     const handleCreateBlock = async (formData: FormData) => {
-        const res = await createScheduleBlock(null, formData)
-        if (res.success) {
-            setShowBlockModal(false)
-            fetchData()
-        } else {
-            alert(res.message)
+        console.log('[Agenda] Creating block...')
+        try {
+            const res = await createScheduleBlock(null, formData)
+            console.log('[Agenda] Block result:', res)
+            if (res.success) {
+                setShowBlockModal(false)
+                fetchData()
+            } else {
+                alert(res.message)
+            }
+        } catch (err) {
+            console.error('[Agenda] Block error:', err)
+            alert('Erro inesperado ao criar bloqueio.')
         }
     }
 
@@ -858,7 +885,7 @@ export default function AgendaPage() {
                 <div className={styles.modalOverlay} onClick={() => setShowBlockModal(false)}>
                     <div className={styles.modal} onClick={e => e.stopPropagation()}>
                         <h2 className={styles.modalTitle}>Novo Bloqueio</h2>
-                        <form action={handleCreateBlock}>
+                        <form action={blockAction}>
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Motivo</label>
                                 <input name="reason" className={styles.input} required placeholder="Ex: Almoço, Feriado..." />
@@ -875,7 +902,9 @@ export default function AgendaPage() {
                             </div>
                             <div className={styles.modalActions}>
                                 <button type="button" className={styles.cancelBtn} onClick={() => setShowBlockModal(false)}>Cancelar</button>
-                                <button type="submit" className={styles.submitBtn}>Bloquear</button>
+                                <button type="submit" className={styles.submitBtn} disabled={isBlockPending}>
+                                    {isBlockPending ? 'Bloqueando...' : 'Bloquear'}
+                                </button>
                             </div>
                         </form>
                     </div>

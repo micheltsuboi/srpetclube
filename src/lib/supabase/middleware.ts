@@ -36,8 +36,7 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     // Rotas públicas - não requerem autenticação
-    // Durante desenvolvimento, /staff, /master-admin e /owner são públicos
-    const publicPaths = ['/', '/login', '/auth', '/tutor', '/staff', '/master-admin', '/owner']
+    const publicPaths = ['/', '/login', '/auth', '/tutor']
     const isPublicPath = publicPaths.some(path =>
         request.nextUrl.pathname === path ||
         request.nextUrl.pathname.startsWith(path + '/')
