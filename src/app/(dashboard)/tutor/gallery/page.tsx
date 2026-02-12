@@ -12,8 +12,15 @@ interface Photo {
     pet_name: string
 }
 
+interface Pet {
+    id: string
+    name: string
+}
+
 export default function GalleryPage() {
     const supabase = createClient()
+    const [pets, setPets] = useState<Pet[]>([])
+    const [selectedPetId, setSelectedPetId] = useState<string>('all')
     const [photos, setPhotos] = useState<Photo[]>([])
     const [loading, setLoading] = useState(true)
     const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null)
@@ -33,13 +40,17 @@ export default function GalleryPage() {
 
             if (!customer) return
 
-            const { data: pets } = await supabase
+            const { data: petData } = await supabase
                 .from('pets')
                 .select('id, name')
                 .eq('customer_id', customer.id)
 
-            if (!pets || pets.length === 0) return
-            const petIds = pets.map(p => p.id)
+            if (!petData || petData.length === 0) return
+            setPets(petData)
+
+            const petIds = selectedPetId === 'all'
+                ? petData.map(p => p.id)
+                : [selectedPetId]
 
             // 2. Get reports with photos for these pets
             const { data: reportData } = await supabase
@@ -79,7 +90,7 @@ export default function GalleryPage() {
         } finally {
             setLoading(false)
         }
-    }, [supabase])
+    }, [supabase, selectedPetId])
 
     useEffect(() => {
         fetchPhotos()
@@ -93,7 +104,7 @@ export default function GalleryPage() {
         })
     }
 
-    if (loading) {
+    if (loading && pets.length === 0) {
         return (
             <div className={styles.loading}>
                 <div className={styles.spinner} />
@@ -106,11 +117,27 @@ export default function GalleryPage() {
         <div className={styles.container}>
             <div className={styles.header}>
                 <a href="/tutor" className={styles.backButton}>← Voltar</a>
-                <h1 className={styles.title}>🖼️ Galeria do Thor</h1>
+                <h1 className={styles.title}>🖼️ Galeria</h1>
             </div>
 
+            {pets.length > 1 && (
+                <div className={styles.filterContainer}>
+                    <label className={styles.filterLabel}>Filtrar por pet:</label>
+                    <select
+                        className={styles.filterSelect}
+                        value={selectedPetId}
+                        onChange={(e) => setSelectedPetId(e.target.value)}
+                    >
+                        <option value="all">Todos os pets</option>
+                        {pets.map(pet => (
+                            <option key={pet.id} value={pet.id}>{pet.name}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
+
             <div className={styles.gallery}>
-                {photos.map((photo) => (
+                {photos.length > 0 ? photos.map((photo) => (
                     <div
                         key={photo.id}
                         className={styles.photoCard}
@@ -118,11 +145,15 @@ export default function GalleryPage() {
                     >
                         <img src={photo.url} alt={`Foto de ${photo.service_name}`} />
                         <div className={styles.photoOverlay}>
-                            <span className={styles.photoService}>{photo.service_name}</span>
+                            <span className={styles.photoService}>{photo.pet_name} • {photo.service_name}</span>
                             <span className={styles.photoDate}>{formatDate(photo.date)}</span>
                         </div>
                     </div>
-                ))}
+                )) : (
+                    <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '3rem 1rem', color: 'var(--text-secondary)' }}>
+                        <p>Nenhuma foto encontrada.</p>
+                    </div>
+                )}
             </div>
 
             {/* Lightbox */}

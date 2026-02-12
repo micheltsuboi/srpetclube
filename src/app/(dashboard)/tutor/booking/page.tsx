@@ -10,6 +10,12 @@ interface TimeSlot {
     available: boolean
 }
 
+interface Pet {
+    id: string
+    name: string
+    species: string
+}
+
 interface Service {
     id: string
     name: string
@@ -19,16 +25,20 @@ interface Service {
 
 export default function BookingPage() {
     const supabase = createClient()
+    const [pets, setPets] = useState<Pet[]>([])
     const [services, setServices] = useState<Service[]>([])
+    const [selectedPet, setSelectedPet] = useState<string | null>(null)
     const [selectedService, setSelectedService] = useState<string | null>(null)
     const [selectedDate, setSelectedDate] = useState<string>('')
     const [selectedTime, setSelectedTime] = useState<string | null>(null)
     const [step, setStep] = useState(1)
     const [loading, setLoading] = useState(true)
+    const [submitting, setSubmitting] = useState(false)
     const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([])
     const [bookingComplete, setBookingComplete] = useState(false)
+    const [error, setError] = useState<string | null>(null)
 
-    const fetchServices = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true)
             const { data: { user } } = await supabase.auth.getUser()
@@ -43,7 +53,22 @@ export default function BookingPage() {
 
             if (!profile?.org_id) return
 
-            // 2. Get active services for this org
+            // 2. Get tutor's pets
+            const { data: customer } = await supabase
+                .from('customers')
+                .select('id')
+                .eq('user_id', user.id)
+                .single()
+
+            if (customer) {
+                const { data: petData } = await supabase
+                    .from('pets')
+                    .select('id, name, species')
+                    .eq('customer_id', customer.id)
+                if (petData) setPets(petData)
+            }
+
+            // 3. Get active services for this org
             const { data: serviceData } = await supabase
                 .from('services')
                 .select('id, name, base_price, category')
@@ -53,22 +78,22 @@ export default function BookingPage() {
             if (serviceData) setServices(serviceData)
 
         } catch (error) {
-            console.error('Error fetching services:', error)
+            console.error('Error fetching data:', error)
         } finally {
             setLoading(false)
         }
     }, [supabase])
 
     useEffect(() => {
-        fetchServices()
-    }, [fetchServices])
+        fetchData()
+    }, [fetchData])
 
-    // Generate mock time slots for now (real availability check would be complex)
+    // Generate mock time slots for now
     const generateTimeSlots = useCallback(() => {
         const slots: TimeSlot[] = []
         for (let hour = 8; hour <= 17; hour++) {
-            slots.push({ time: `${hour.toString().padStart(2, '0')}:00`, available: Math.random() > 0.3 })
-            if (hour < 17) slots.push({ time: `${hour.toString().padStart(2, '0')}:30`, available: Math.random() > 0.3 })
+            slots.push({ time: `${hour.toString().padStart(2, '0')}:00`, available: true })
+            if (hour < 17) slots.push({ time: `${hour.toString().padStart(2, '0')}:30`, available: true })
         }
         setTimeSlots(slots)
     }, [])
@@ -77,14 +102,19 @@ export default function BookingPage() {
         if (selectedDate) generateTimeSlots()
     }, [selectedDate, generateTimeSlots])
 
+    const handlePetSelect = (petId: string) => {
+        setSelectedPet(petId)
+        setStep(2)
+    }
+
     const handleServiceSelect = (serviceId: string) => {
         setSelectedService(serviceId)
-        setStep(2)
+        setStep(3)
     }
 
     const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSelectedDate(e.target.value)
-        setStep(3)
+        setStep(4)
     }
 
     const handleTimeSelect = (time: string) => {
@@ -92,11 +122,53 @@ export default function BookingPage() {
     }
 
     const handleConfirm = async () => {
-        // Here we would implement the real appointment creation
-        // For now, let's at least simulate success
-        setBookingComplete(true)
+        if (!selectedPet || !selectedService || !selectedDate || !selectedTime) return
+
+        try {
+            setSubmitting(true)
+            setError(null)
+
+            const formData = new FormData()
+            formData.append('petId', selectedPet)
+            formData.append('serviceId', selectedService)
+            formData.append('date', selectedDate)
+            formData.append('time', selectedTime)
+            formData.append('notes', 'Agendado pelo portal do tutor')
+
+            // Import the action dynamically to avoid bundle issues if needed, 
+            // but for simplicity we'll assume it works via API if we can't use server action directly here easily
+            // Actually, we can just use supabase directly to insert to avoid complexity with CreateAppointmentState
+
+            const { data: { user } } = await supabase.auth.getUser()
+            const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user?.id).single()
+            const { data: pet } = await supabase.from('pets').select('customer_id').eq('id', selectedPet).single()
+
+            const scheduledAt = new Date(`${selectedDate}T${selectedTime}:00-03:00`).toISOString()
+
+            const { error: insertError } = await supabase
+                .from('appointments')
+                .insert({
+                    org_id: profile?.org_id,
+                    pet_id: selectedPet,
+                    service_id: selectedService,
+                    customer_id: pet?.customer_id,
+                    scheduled_at: scheduledAt,
+                    status: 'pending',
+                    notes: 'Agendado pelo portal do tutor'
+                })
+
+            if (insertError) throw insertError
+
+            setBookingComplete(true)
+        } catch (err: any) {
+            console.error('Error creating appointment:', err)
+            setError(err.message || 'Ocorreu um erro ao realizar o agendamento.')
+        } finally {
+            setSubmitting(false)
+        }
     }
 
+    const selectedPetData = pets.find(p => p.id === selectedPet)
     const selectedServiceData = services.find(s => s.id === selectedService)
 
     if (bookingComplete) {
@@ -105,9 +177,13 @@ export default function BookingPage() {
                 <div className={styles.successCard}>
                     <div className={styles.successIcon}>✅</div>
                     <h1>Agendado com Sucesso!</h1>
-                    <p>Seu agendamento foi confirmado</p>
+                    <p>Seu agendamento foi enviado para aprovação</p>
 
                     <div className={styles.confirmDetails}>
+                        <div className={styles.confirmRow}>
+                            <span>Pet:</span>
+                            <strong>{selectedPetData?.name}</strong>
+                        </div>
                         <div className={styles.confirmRow}>
                             <span>Serviço:</span>
                             <strong>{selectedServiceData?.name}</strong>
@@ -123,10 +199,6 @@ export default function BookingPage() {
                         <div className={styles.confirmRow}>
                             <span>Horário:</span>
                             <strong>{selectedTime}</strong>
-                        </div>
-                        <div className={styles.confirmRow}>
-                            <span>Valor:</span>
-                            <strong>R$ {selectedServiceData?.base_price.toFixed(2)}</strong>
                         </div>
                     </div>
 
@@ -149,42 +221,68 @@ export default function BookingPage() {
             <div className={styles.progress}>
                 <div className={`${styles.progressStep} ${step >= 1 ? styles.active : ''}`}>
                     <span>1</span>
-                    <p>Serviço</p>
+                    <p>Pet</p>
                 </div>
                 <div className={styles.progressLine} />
                 <div className={`${styles.progressStep} ${step >= 2 ? styles.active : ''}`}>
                     <span>2</span>
-                    <p>Data</p>
+                    <p>Serviço</p>
                 </div>
                 <div className={styles.progressLine} />
                 <div className={`${styles.progressStep} ${step >= 3 ? styles.active : ''}`}>
                     <span>3</span>
+                    <p>Data</p>
+                </div>
+                <div className={styles.progressLine} />
+                <div className={`${styles.progressStep} ${step >= 4 ? styles.active : ''}`}>
+                    <span>4</span>
                     <p>Horário</p>
                 </div>
             </div>
 
-            {/* Step 1: Service Selection */}
+            {error && <div className={styles.errorBanner}>{error}</div>}
+
+            {/* Step 1: Pet Selection */}
             <div className={styles.section}>
-                <h2 className={styles.sectionTitle}>Escolha o serviço</h2>
+                <h2 className={styles.sectionTitle}>Escolha o pet</h2>
                 <div className={styles.serviceList}>
-                    {services.map((service) => (
+                    {pets.map((pet) => (
                         <button
-                            key={service.id}
-                            className={`${styles.serviceCard} ${selectedService === service.id ? styles.selected : ''}`}
-                            onClick={() => handleServiceSelect(service.id)}
+                            key={pet.id}
+                            className={`${styles.serviceCard} ${selectedPet === pet.id ? styles.selected : ''}`}
+                            onClick={() => handlePetSelect(pet.id)}
                         >
                             <div className={styles.serviceInfo}>
-                                <span className={styles.serviceName}>{service.name}</span>
-                                <span className={styles.serviceDuration}>⏱️ --</span>
+                                <span className={styles.serviceName}>{pet.species === 'cat' ? '🐱' : '🐶'} {pet.name}</span>
                             </div>
-                            <span className={styles.servicePrice}>R$ {service.base_price}</span>
                         </button>
                     ))}
                 </div>
             </div>
 
-            {/* Step 2: Date Selection */}
+            {/* Step 2: Service Selection */}
             {step >= 2 && (
+                <div className={styles.section}>
+                    <h2 className={styles.sectionTitle}>Escolha o serviço</h2>
+                    <div className={styles.serviceList}>
+                        {services.map((service) => (
+                            <button
+                                key={service.id}
+                                className={`${styles.serviceCard} ${selectedService === service.id ? styles.selected : ''}`}
+                                onClick={() => handleServiceSelect(service.id)}
+                            >
+                                <div className={styles.serviceInfo}>
+                                    <span className={styles.serviceName}>{service.name}</span>
+                                </div>
+                                <span className={styles.servicePrice}>R$ {service.base_price.toFixed(2)}</span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Step 3: Date Selection */}
+            {step >= 3 && (
                 <div className={styles.section}>
                     <h2 className={styles.sectionTitle}>Escolha a data</h2>
                     <input
@@ -197,8 +295,8 @@ export default function BookingPage() {
                 </div>
             )}
 
-            {/* Step 3: Time Selection */}
-            {step >= 3 && selectedDate && (
+            {/* Step 4: Time Selection */}
+            {step >= 4 && selectedDate && (
                 <div className={styles.section}>
                     <h2 className={styles.sectionTitle}>Escolha o horário</h2>
                     <div className={styles.timeGrid}>
@@ -217,17 +315,21 @@ export default function BookingPage() {
             )}
 
             {/* Confirm Button */}
-            {selectedService && selectedDate && selectedTime && (
+            {selectedPet && selectedService && selectedDate && selectedTime && (
                 <div className={styles.confirmSection}>
                     <div className={styles.summary}>
-                        <span>{selectedServiceData?.name}</span>
+                        <span>{selectedPetData?.name}</span>
                         <span>•</span>
-                        <span>{new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}</span>
+                        <span>{selectedServiceData?.name}</span>
                         <span>•</span>
                         <span>{selectedTime}</span>
                     </div>
-                    <button className={styles.confirmButton} onClick={handleConfirm}>
-                        Confirmar Agendamento
+                    <button
+                        className={styles.confirmButton}
+                        onClick={handleConfirm}
+                        disabled={submitting}
+                    >
+                        {submitting ? 'Agendando...' : 'Confirmar Agendamento'}
                     </button>
                 </div>
             )}
