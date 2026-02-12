@@ -476,14 +476,20 @@ export default function AgendaPage() {
 
                         const d = new Date(a.scheduled_at)
                         const localH = d.getHours()
+
+                        // If it's the start day of a multiday or a single day appointment, 
+                        // decide which hour it matches.
                         let hourMatches = localH === h
 
+                        // If scheduled before the first visible hour, show in the first hour
+                        if (localH < 8 && h === 8) hourMatches = true
+                        // If scheduled after the last visible hour, show in the last hour
+                        if (localH > 18 && h === 18) hourMatches = true
+
                         if (isMultiday) {
-                            // If it's a middle day, maybe show it in a specific "all day" slot or at the scheduled hour?
-                            // For simplicity, let's keep it in the scheduled hour if it's the start day, 
-                            // or maybe hour 7 (start of day) if it's a middle day.
+                            // If it's a middle day, show at 8 AM
                             if (selectedDate > a.check_in_date! && selectedDate <= a.check_out_date!) {
-                                hourMatches = h === 8 // Show middle days at 8 AM
+                                hourMatches = h === 8
                             }
                         }
 
@@ -565,7 +571,12 @@ export default function AgendaPage() {
                                     : apptDateStr === dateStr
 
                                 const ad = new Date(a.scheduled_at)
-                                let hourMatches = ad.getHours() === h
+                                const localH = ad.getHours()
+                                let hourMatches = localH === h
+
+                                // Boundary check for week view
+                                if (localH < 8 && h === 8) hourMatches = true
+                                if (localH > 18 && h === 18) hourMatches = true
 
                                 if (isMultiday && dateStr > a.check_in_date! && dateStr <= a.check_out_date!) {
                                     hourMatches = h === 8 // Middle days at 8 AM
