@@ -487,7 +487,12 @@ export default function AgendaPage() {
                             }
                         }
 
-                        const matchesCategory = !categoryFilter || a.services?.service_categories?.name === categoryFilter
+                        const serviceCategory = (a.services as any)?.service_categories
+                        const categoryName = Array.isArray(serviceCategory)
+                            ? serviceCategory[0]?.name
+                            : serviceCategory?.name
+
+                        const matchesCategory = !categoryFilter || categoryName === categoryFilter
                         const matchesSearch = !searchTerm ||
                             a.pets?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             a.pets?.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -498,8 +503,8 @@ export default function AgendaPage() {
                     const slotBlocks = blocks.filter(b => {
                         const bStart = new Date(b.start_at)
                         const bEnd = new Date(b.end_at)
-                        const dayStr = selectedDate // Use selectedDate for the day view
-                        const slotTime = new Date(`${dayStr}T${h.toString().padStart(2, '0')}:00:00-03:00`)
+                        const [y, m, d] = selectedDate.split('-').map(Number)
+                        const slotTime = new Date(y, m - 1, d, h)
                         return slotTime >= bStart && slotTime < bEnd
                     })
                     const isBlocked = slotBlocks.length > 0
@@ -566,12 +571,23 @@ export default function AgendaPage() {
                                     hourMatches = h === 8 // Middle days at 8 AM
                                 }
 
-                                return matchesDay && hourMatches
+                                const serviceCategory = (a.services as any)?.service_categories
+                                const categoryName = Array.isArray(serviceCategory)
+                                    ? serviceCategory[0]?.name
+                                    : serviceCategory?.name
+
+                                const matchesCategory = !categoryFilter || categoryName === categoryFilter
+                                const matchesSearch = !searchTerm ||
+                                    a.pets?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                    a.pets?.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+
+                                return matchesDay && hourMatches && matchesCategory && matchesSearch
                             })
+                            const [y, m, dayNum] = dateStr.split('-').map(Number)
+                            const slotTime = new Date(y, m - 1, dayNum, h)
                             const slotBlocks = blocks.filter(b => {
                                 const bStart = new Date(b.start_at)
                                 const bEnd = new Date(b.end_at)
-                                const slotTime = new Date(`${dateStr}T${h.toString().padStart(2, '0')}:00:00-03:00`)
                                 return slotTime >= bStart && slotTime < bEnd
                             })
                             const isBlocked = slotBlocks.length > 0
@@ -625,9 +641,21 @@ export default function AgendaPage() {
                     const dayAppts = appointments.filter(a => {
                         const isMultiday = !!(a.check_in_date && a.check_out_date)
                         const apptDateStr = new Date(a.scheduled_at).toLocaleDateString('en-CA')
-                        return isMultiday
+                        const matchesDay = isMultiday
                             ? (dateStr >= a.check_in_date! && dateStr <= a.check_out_date!)
                             : apptDateStr === dateStr
+
+                        const serviceCategory = (a.services as any)?.service_categories
+                        const categoryName = Array.isArray(serviceCategory)
+                            ? serviceCategory[0]?.name
+                            : serviceCategory?.name
+
+                        const matchesCategory = !categoryFilter || categoryName === categoryFilter
+                        const matchesSearch = !searchTerm ||
+                            a.pets?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            a.pets?.customers?.name?.toLowerCase().includes(searchTerm.toLowerCase())
+
+                        return matchesDay && matchesCategory && matchesSearch
                     })
                     return (
                         <div key={day} className={styles.monthCell} onClick={() => { setSelectedDate(dateStr); setViewMode('day') }}>
@@ -661,7 +689,11 @@ export default function AgendaPage() {
                 <div className={styles.actionGroup}>
                     <select className={styles.select} value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)}>
                         <option value="">Filtro...</option>
-                        {Array.from(new Set(services.flatMap(s => s.service_categories ? [s.service_categories.name] : []))).map(c => <option key={c} value={c}>{c}</option>)}
+                        {Array.from(new Set(services.flatMap(s => {
+                            const sc = (s as any).service_categories
+                            const name = Array.isArray(sc) ? sc[0]?.name : sc?.name
+                            return name ? [name] : []
+                        }))).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                     <div style={{ display: 'flex', gap: '1rem', width: '100%' }}>
                         <button className={styles.actionButton} style={{ flex: 1 }} onClick={() => handleNewAppointment()}>+ Agendar</button>
