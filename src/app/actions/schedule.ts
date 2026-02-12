@@ -33,12 +33,13 @@ export async function createScheduleBlock(prevState: any, formData: FormData): P
     }
 
     // Ensure timezone offset is included if not present to match appointment logic
+    // We use -03:00 (Brasilia time) as the standard for the application
     const finalStart = start_at.includes('T') && !start_at.includes('-') && !start_at.includes('Z') ? `${start_at}:00-03:00` : start_at
     const finalEnd = end_at.includes('T') && !end_at.includes('-') && !end_at.includes('Z') ? `${end_at}:00-03:00` : end_at
 
-    console.log('[CreateScheduleBlock] Input:', { reason, start_at, end_at })
-    console.log('[CreateScheduleBlock] Auth User:', user.id)
-    console.log('[CreateScheduleBlock] Profile Org:', profile.org_id)
+    console.log('[CreateScheduleBlock] Original:', { start_at, end_at })
+    console.log('[CreateScheduleBlock] Final:', { finalStart, finalEnd })
+    console.log('[CreateScheduleBlock] User:', user.id, 'Org:', profile.org_id)
 
     const { error } = await supabase.from('schedule_blocks').insert({
         org_id: profile.org_id,
@@ -49,8 +50,8 @@ export async function createScheduleBlock(prevState: any, formData: FormData): P
     })
 
     if (error) {
-        console.error('[CreateScheduleBlock] DB Error:', error)
-        return { message: `Erro ao criar bloqueio: ${error.message}`, success: false }
+        console.error('[CreateScheduleBlock] Error:', error)
+        return { message: `Erro ao bloquear horário: ${error.message}`, success: false }
     }
 
     revalidatePath('/owner/agenda')
@@ -78,8 +79,7 @@ export async function getScheduleBlocks(startStr: string, endStr: string) {
         .from('schedule_blocks')
         .select('*')
         .eq('org_id', profile?.org_id!)
-        .gte('end_at', startStr) // Começa depois do início do range ou termina dps
-        .lte('start_at', endStr) // Termina antes do fim do range ou começa antes
+        .or(`and(start_at.gte.${startStr},start_at.lte.${endStr}),and(end_at.gte.${startStr},end_at.lte.${endStr}),and(start_at.lte.${startStr},end_at.gte.${endStr})`)
         .order('start_at')
 
     return data || []

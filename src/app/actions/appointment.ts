@@ -96,6 +96,18 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
         // Standard / Creche Logic
         try {
             scheduledAt = new Date(`${date}T${time}:00-03:00`).toISOString()
+
+            // 3. Check for Schedule Blocks (Conflict Check)
+            const { data: blocks } = await supabase
+                .from('schedule_blocks')
+                .select('id, reason')
+                .eq('org_id', profile.org_id)
+                .lte('start_at', scheduledAt)
+                .gte('end_at', scheduledAt)
+
+            if (blocks && blocks.length > 0) {
+                return { message: `Este horário está bloqueado: ${blocks[0].reason}`, success: false }
+            }
         } catch (_) { // unused e
             return { message: 'Data ou hora inválida.', success: false }
         }

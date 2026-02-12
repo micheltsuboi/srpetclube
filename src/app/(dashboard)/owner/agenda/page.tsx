@@ -184,7 +184,7 @@ export default function AgendaPage() {
                 .from('schedule_blocks')
                 .select('*')
                 .eq('org_id', profile.org_id)
-                .or(`start_at.gte.${startDateStr},end_at.lte.${endDateStr}`)
+                .or(`and(start_at.gte.${startDateStr},start_at.lte.${endDateStr}),and(end_at.gte.${startDateStr},end_at.lte.${endDateStr}),and(start_at.lte.${startDateStr},end_at.gte.${endDateStr})`)
 
             if (blks) setBlocks(blks)
 
@@ -455,13 +455,13 @@ export default function AgendaPage() {
                     const isBlocked = slotBlocks.length > 0
 
                     return (
-                        <div key={h} className={styles.hourRow}>
+                        <div key={h} className={`${styles.hourRow} ${isBlocked ? styles.blockedRow : ''}`}>
                             <div className={styles.hourLabel}>{timeStr}</div>
                             <div className={styles.hourContent}>
                                 {slotBlocks.map(b => (
-                                    <div key={b.id} className={styles.blockItem}>
+                                    <div key={b.id} className={styles.blockedCard}>
                                         🔒 {b.reason}
-                                        <button onClick={() => handleBlockDelete(b.id)} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', cursor: 'pointer' }}>×</button>
+                                        <button onClick={() => handleBlockDelete(b.id)} style={{ marginLeft: 'auto', background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit' }}>×</button>
                                     </div>
                                 ))}
                                 {slotAppts.map(renderAppointmentCard)}
