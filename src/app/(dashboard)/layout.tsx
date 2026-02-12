@@ -18,10 +18,16 @@ export default function DashboardLayout({
     const isMasterAdmin = pathname?.startsWith('/master-admin')
 
     const staffNavigation = [
-        { name: 'Pets do Dia', href: '/staff', icon: '🐾' },
-        { name: 'Agendamentos', href: '/staff/appointments', icon: '📅' },
-        { name: 'Clientes', href: '/staff/customers', icon: '👥' },
-        { name: 'Ponto', href: '/staff/timesheet', icon: '⏰' },
+        { name: 'Dashboard', href: '/staff', icon: '📊' },
+        { name: 'Agenda', href: '/owner/agenda', icon: '📅' },
+        { name: 'Banho e Tosa', href: '/owner/banho-tosa', icon: '🛁' },
+        { name: 'Creche', href: '/owner/creche', icon: '🎾' },
+        { name: 'Hospedagem', href: '/owner/hospedagem', icon: '🏨' },
+        { name: 'Tutores', href: '/owner/tutors', icon: '👤' },
+        { name: 'Pets', href: '/owner/pets', icon: '🐾' },
+        { name: 'Serviços', href: '/owner/services', icon: '✂️' },
+        { name: 'Petshop', href: '/owner/petshop', icon: '🛍️' },
+        { name: 'Vacinas', href: '/owner/vaccines', icon: '💉' },
     ]
 
     const ownerNavigation = [
@@ -43,8 +49,6 @@ export default function DashboardLayout({
         { name: 'Dashboard', href: '/master-admin', icon: '⚡' },
         { name: 'Tenants', href: '/master-admin/tenants', icon: '🏢' },
     ]
-
-
 
     const [user, setUser] = useState<{ name: string; role: string } | null>(null)
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -80,6 +84,12 @@ export default function DashboardLayout({
         router.push('/login')
     }
 
+    // Determine target navigation based on role, falling back to path-based if role hasn't loaded
+    const navigation = user?.role === 'Super Admin' ? masterAdminNavigation :
+        user?.role === 'Staff' ? staffNavigation :
+            user?.role === 'Administrador' ? ownerNavigation :
+                (isMasterAdmin ? masterAdminNavigation : (isOwner ? ownerNavigation : staffNavigation))
+
     return (
         <div className={styles.container}>
             {/* Mobile Overlay */}
@@ -110,7 +120,7 @@ export default function DashboardLayout({
                 </div>
 
                 <nav className={styles.nav}>
-                    {(isMasterAdmin ? masterAdminNavigation : (isOwner ? ownerNavigation : staffNavigation)).map((item) => (
+                    {navigation.map((item) => (
                         <Link
                             key={item.href}
                             href={item.href}

@@ -1,7 +1,33 @@
 .container {
+    padding: 1.5rem;
+    max-width: 100%;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
-    gap: 2rem;
+    gap: 1.5rem;
+}
+
+.welcomeHeader {
+    margin-bottom: 0.5rem;
+}
+
+.title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin: 0 0 0.25rem 0;
+}
+
+.subtitle {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    margin: 0;
+}
+
+.staffTools {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
 }
 
 /* Loading */

@@ -1,251 +1,162 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import styles from './page.module.css'
+import { createClient } from '@/lib/supabase/client'
 import TimeClock from '@/components/modules/TimeClock'
-import ServiceModal from '@/components/modules/ServiceModal'
 import CreditAlerts from '@/components/modules/CreditAlerts'
 
 type ServiceArea = 'all' | 'banho_tosa' | 'creche' | 'hotel'
 
-// Tipos temporários para mock
-interface Pet {
+interface PetToday {
     id: string
     name: string
-    species: 'dog' | 'cat'
     breed: string
-    photo_url: string | null
-    customer_name: string
-}
-
-interface Appointment {
-    id: string
-    pet: Pet
-    service_name: string
-    service_area: ServiceArea
-    scheduled_at: string
-    status: 'pending' | 'confirmed' | 'in_progress' | 'done' | 'canceled'
-    notes: string | null
-    perfume_allowed: boolean
-    accessories_allowed: boolean
-}
-
-// Mock data para demonstração
-const mockAppointments: Appointment[] = [
-    {
-        id: '1',
-        pet: {
-            id: 'p1',
-            name: 'Thor',
-            species: 'dog',
-            breed: 'Golden Retriever',
-            photo_url: null,
-            customer_name: 'Maria Silva'
-        },
-        service_name: 'Banho + Tosa',
-        service_area: 'banho_tosa',
-        scheduled_at: new Date().toISOString(),
-        status: 'confirmed',
-        notes: 'Cuidado com as orelhas, sensíveis',
-        perfume_allowed: true,
-        accessories_allowed: true
-    },
-    {
-        id: '2',
-        pet: {
-            id: 'p2',
-            name: 'Luna',
-            species: 'cat',
-            breed: 'Persa',
-            photo_url: null,
-            customer_name: 'João Santos'
-        },
-        service_name: 'Banho',
-        service_area: 'banho_tosa',
-        scheduled_at: new Date().toISOString(),
-        status: 'in_progress',
-        notes: null,
-        perfume_allowed: false,
-        accessories_allowed: true
-    },
-    {
-        id: '3',
-        pet: {
-            id: 'p3',
-            name: 'Max',
-            species: 'dog',
-            breed: 'Bulldog Francês',
-            photo_url: null,
-            customer_name: 'Ana Costa'
-        },
-        service_name: 'Tosa Higiênica',
-        service_area: 'banho_tosa',
-        scheduled_at: new Date().toISOString(),
-        status: 'pending',
-        notes: 'Primeira vez no pet shop',
-        perfume_allowed: true,
-        accessories_allowed: false
-    },
-    {
-        id: '4',
-        pet: {
-            id: 'p4',
-            name: 'Bella',
-            species: 'dog',
-            breed: 'Poodle',
-            photo_url: null,
-            customer_name: 'Pedro Lima'
-        },
-        service_name: 'Creche Diária',
-        service_area: 'creche',
-        scheduled_at: new Date().toISOString(),
-        status: 'in_progress',
-        notes: null,
-        perfume_allowed: true,
-        accessories_allowed: true
-    },
-    {
-        id: '5',
-        pet: {
-            id: 'p5',
-            name: 'Rex',
-            species: 'dog',
-            breed: 'Labrador',
-            photo_url: null,
-            customer_name: 'Carlos Souza'
-        },
-        service_name: 'Hospedagem 3 dias',
-        service_area: 'hotel',
-        scheduled_at: new Date().toISOString(),
-        status: 'in_progress',
-        notes: 'Medicação às 18h',
-        perfume_allowed: true,
-        accessories_allowed: true
-    },
-    {
-        id: '6',
-        pet: {
-            id: 'p6',
-            name: 'Mel',
-            species: 'dog',
-            breed: 'Shih Tzu',
-            photo_url: null,
-            customer_name: 'Julia Ferreira'
-        },
-        service_name: 'Creche Diária',
-        service_area: 'creche',
-        scheduled_at: new Date().toISOString(),
-        status: 'in_progress',
-        notes: null,
-        perfume_allowed: true,
-        accessories_allowed: true
-    }
-]
-
-const statusLabels: Record<string, string> = {
-    pending: 'Aguardando',
-    confirmed: 'Confirmado',
-    in_progress: 'Em Atendimento',
-    done: 'Finalizado',
-    canceled: 'Cancelado'
-}
-
-const statusColors: Record<string, string> = {
-    pending: 'pending',
-    confirmed: 'confirmed',
-    in_progress: 'inProgress',
-    done: 'done',
-    canceled: 'canceled'
+    area: ServiceArea
+    service: string
+    status: 'waiting' | 'in_progress' | 'done'
+    checkedInAt: string | null
+    ownerName: string
 }
 
 const areaLabels: Record<ServiceArea, string> = {
-    all: 'Todas',
+    all: 'Todas as Áreas',
     banho_tosa: '🛁 Banho + Tosa',
     creche: '🐕 Creche',
     hotel: '🏨 Hotel'
 }
 
-export default function StaffPage() {
-    const [appointments, setAppointments] = useState<Appointment[]>([])
-    const [filter, setFilter] = useState<string>('all')
-    const [areaFilter, setAreaFilter] = useState<ServiceArea>('all')
+const areaIcons: Record<ServiceArea, string> = {
+    all: '📊',
+    banho_tosa: '🛁',
+    creche: '🐕',
+    hotel: '🏨'
+}
+
+const statusLabels: Record<string, string> = {
+    waiting: 'Aguardando',
+    in_progress: 'Em Atendimento',
+    done: 'Finalizado'
+}
+
+export default function StaffDashboard() {
+    const supabase = createClient()
+    const [selectedArea, setSelectedArea] = useState<ServiceArea>('all')
+    const [petsToday, setPetsToday] = useState<PetToday[]>([])
     const [loading, setLoading] = useState(true)
-    const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
-    const [isModalOpen, setIsModalOpen] = useState(false)
-
-    const handleConfirm = (appointmentId: string) => {
-        setAppointments(prev =>
-            prev.map(a => a.id === appointmentId ? { ...a, status: 'confirmed' as const } : a)
-        )
-    }
-
-    const handleStart = (appointmentId: string) => {
-        setAppointments(prev =>
-            prev.map(a => a.id === appointmentId ? { ...a, status: 'in_progress' as const } : a)
-        )
-    }
-
-    const handleOpenModal = (appointment: Appointment) => {
-        setSelectedAppointment(appointment)
-        setIsModalOpen(true)
-    }
-
-    const handleComplete = () => {
-        if (selectedAppointment) {
-            setAppointments(prev =>
-                prev.map(a => a.id === selectedAppointment.id ? { ...a, status: 'done' as const } : a)
-            )
-        }
-        setSelectedAppointment(null)
-        setIsModalOpen(false)
-    }
+    const [stats, setStats] = useState({
+        appointmentsToday: 0,
+        pending: 0,
+        inProgress: 0,
+        done: 0
+    })
 
     useEffect(() => {
-        // Simular carregamento
-        setTimeout(() => {
-            setAppointments(mockAppointments)
-            setLoading(false)
-        }, 500)
-    }, [])
+        const fetchDashboardData = async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) return
 
-    const filteredAppointments = appointments
-        .filter(a => areaFilter === 'all' || a.service_area === areaFilter)
-        .filter(a => filter === 'all' || a.status === filter)
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('org_id')
+                    .eq('id', user.id)
+                    .single()
 
-    const areaBasedAppointments = areaFilter === 'all'
-        ? appointments
-        : appointments.filter(a => a.service_area === areaFilter)
+                if (!profile?.org_id) return
 
-    const stats = {
-        total: areaBasedAppointments.length,
-        pending: areaBasedAppointments.filter(a => a.status === 'pending').length,
-        inProgress: areaBasedAppointments.filter(a => a.status === 'in_progress').length,
-        done: areaBasedAppointments.filter(a => a.status === 'done').length,
-    }
+                const now = new Date()
+                const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString()
+                const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59).toISOString()
+
+                // Fetch Today's Appointments
+                const { data: appts } = await supabase
+                    .from('appointments')
+                    .select(`
+                        id, scheduled_at, status,
+                        pets ( id, name, breed, species ),
+                        customers ( full_name ),
+                        services ( name, service_categories ( name ) )
+                    `)
+                    .eq('org_id', profile.org_id)
+                    .gte('scheduled_at', todayStart)
+                    .lte('scheduled_at', todayEnd)
+                    .order('scheduled_at', { ascending: true })
+
+                if (appts) {
+                    const mappedPets: PetToday[] = appts.map(a => {
+                        const catName = (a.services as any)?.service_categories?.name || ''
+                        let area: ServiceArea = 'all'
+                        if (catName.includes('Banho') || catName.includes('Tosa')) area = 'banho_tosa'
+                        else if (catName.includes('Creche')) area = 'creche'
+                        else if (catName.includes('Hospedagem')) area = 'hotel'
+
+                        return {
+                            id: a.id,
+                            name: (a.pets as any)?.name || 'Desconhecido',
+                            breed: (a.pets as any)?.breed || '',
+                            area,
+                            service: (a.services as any)?.name || '',
+                            status: a.status === 'done' ? 'done' : a.status === 'in_progress' ? 'in_progress' : 'waiting',
+                            checkedInAt: new Date(a.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                            ownerName: (a.customers as any)?.full_name || ''
+                        }
+                    })
+
+                    setPetsToday(mappedPets)
+
+                    setStats({
+                        appointmentsToday: mappedPets.length,
+                        pending: mappedPets.filter(p => p.status === 'waiting').length,
+                        inProgress: mappedPets.filter(p => p.status === 'in_progress').length,
+                        done: mappedPets.filter(p => p.status === 'done').length
+                    })
+                }
+
+            } catch (error) {
+                console.error('Erro ao carregar dashboard do staff:', error)
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchDashboardData()
+    }, [supabase])
+
+    const filteredPets = selectedArea === 'all'
+        ? petsToday
+        : petsToday.filter(p => p.area === selectedArea)
 
     if (loading) {
         return (
             <div className={styles.loading}>
                 <div className={styles.spinner} />
-                <p>Carregando...</p>
+                <p>Carregando dashboard...</p>
             </div>
         )
     }
 
     return (
         <div className={styles.container}>
-            {/* Time Clock */}
-            <TimeClock />
+            {/* Header / Salutation */}
+            <div className={styles.welcomeHeader}>
+                <h1 className={styles.title}>👋 Olá, Equipe Sr. Pet</h1>
+                <p className={styles.subtitle}>Painel de Atendimento do Dia</p>
+            </div>
 
-            {/* Credit Alerts */}
-            <CreditAlerts />
+            {/* Time Clock & Alerts */}
+            <div className={styles.staffTools}>
+                <TimeClock />
+                <CreditAlerts />
+            </div>
 
-            {/* Stats Cards */}
+            {/* Operational Stats Cards */}
             <div className={styles.statsGrid}>
                 <div className={styles.statCard}>
                     <div className={styles.statIcon}>📋</div>
                     <div className={styles.statInfo}>
-                        <span className={styles.statValue}>{stats.total}</span>
+                        <span className={styles.statValue}>{stats.appointmentsToday}</span>
                         <span className={styles.statLabel}>Total Hoje</span>
                     </div>
                 </div>
@@ -277,148 +188,59 @@ export default function StaffPage() {
                 {(['all', 'banho_tosa', 'creche', 'hotel'] as ServiceArea[]).map(area => (
                     <button
                         key={area}
-                        className={`${styles.areaTab} ${areaFilter === area ? styles.active : ''}`}
-                        onClick={() => setAreaFilter(area)}
+                        className={`${styles.areaTab} ${selectedArea === area ? styles.active : ''}`}
+                        onClick={() => setSelectedArea(area)}
                     >
-                        {areaLabels[area]}
-                        <span className={styles.areaCount}>
+                        <span>{areaIcons[area]}</span>
+                        <span>{area === 'all' ? 'Todas' : areaLabels[area].split(' ').slice(1).join(' ')}</span>
+                        <span className={styles.tabCount}>
                             {area === 'all'
-                                ? appointments.length
-                                : appointments.filter(a => a.service_area === area).length}
+                                ? petsToday.length
+                                : petsToday.filter(p => p.area === area).length}
                         </span>
                     </button>
                 ))}
             </div>
 
-            {/* Filter Tabs */}
-            <div className={styles.filterTabs}>
-                <button
-                    className={`${styles.filterTab} ${filter === 'all' ? styles.active : ''}`}
-                    onClick={() => setFilter('all')}
-                >
-                    Todos
-                </button>
-                <button
-                    className={`${styles.filterTab} ${filter === 'pending' ? styles.active : ''}`}
-                    onClick={() => setFilter('pending')}
-                >
-                    Aguardando
-                </button>
-                <button
-                    className={`${styles.filterTab} ${filter === 'in_progress' ? styles.active : ''}`}
-                    onClick={() => setFilter('in_progress')}
-                >
-                    Em Atendimento
-                </button>
-                <button
-                    className={`${styles.filterTab} ${filter === 'done' ? styles.active : ''}`}
-                    onClick={() => setFilter('done')}
-                >
-                    Finalizados
-                </button>
-            </div>
+            {/* Pets List - Reusing Owner's List Style */}
+            <div className={styles.petsSection}>
+                <h2 className={styles.sectionTitle}>
+                    {areaLabels[selectedArea]} - Pets de Hoje
+                </h2>
 
-            {/* Pets List */}
-            <div className={styles.petsList}>
-                {filteredAppointments.length === 0 ? (
-                    <div className={styles.emptyState}>
-                        <span className={styles.emptyIcon}>🐾</span>
-                        <p>Nenhum pet encontrado</p>
-                    </div>
-                ) : (
-                    filteredAppointments.map((appointment) => (
-                        <div key={appointment.id} className={styles.petCard}>
+                <div className={styles.petsList}>
+                    {filteredPets.map(pet => (
+                        <div key={pet.id} className={styles.petCard}>
                             <div className={styles.petAvatar}>
-                                {appointment.pet.photo_url ? (
-                                    <img src={appointment.pet.photo_url} alt={appointment.pet.name} />
-                                ) : (
-                                    <span>{appointment.pet.species === 'dog' ? '🐕' : '🐈'}</span>
-                                )}
+                                <span>{areaIcons[pet.area]}</span>
                             </div>
-
                             <div className={styles.petInfo}>
                                 <div className={styles.petHeader}>
-                                    <h3 className={styles.petName}>{appointment.pet.name}</h3>
-                                    <span className={`${styles.badge} ${styles[statusColors[appointment.status]]}`}>
-                                        {statusLabels[appointment.status]}
+                                    <span className={styles.petName}>{pet.name}</span>
+                                    <span className={`${styles.statusBadge} ${styles[pet.status]}`}>
+                                        {statusLabels[pet.status]}
                                     </span>
                                 </div>
-                                <p className={styles.petBreed}>{appointment.pet.breed}</p>
-                                <p className={styles.petCustomer}>👤 {appointment.pet.customer_name}</p>
-                                <p className={styles.petService}>🎯 {appointment.service_name}</p>
-
-                                {appointment.notes && (
-                                    <div className={styles.petNotes}>
-                                        <span>📝</span> {appointment.notes}
-                                    </div>
-                                )}
-
-                                <div className={styles.petTags}>
-                                    {appointment.perfume_allowed && (
-                                        <span className={styles.tag}>🌸 Perfume OK</span>
-                                    )}
-                                    {appointment.accessories_allowed && (
-                                        <span className={styles.tag}>🎀 Acessórios OK</span>
-                                    )}
-                                    {!appointment.perfume_allowed && (
-                                        <span className={`${styles.tag} ${styles.tagWarning}`}>🚫 Sem Perfume</span>
-                                    )}
-                                </div>
+                                <span className={styles.petBreed}>{pet.breed}</span>
+                                <span className={styles.petService}>{pet.service}</span>
                             </div>
-
-                            <div className={styles.petActions}>
-                                {appointment.status === 'confirmed' && (
-                                    <button
-                                        className={`${styles.actionBtn} ${styles.primary}`}
-                                        onClick={() => handleStart(appointment.id)}
-                                    >
-                                        ▶️ Iniciar
-                                    </button>
-                                )}
-                                {appointment.status === 'in_progress' && (
-                                    <>
-                                        <button
-                                            className={`${styles.actionBtn} ${styles.secondary}`}
-                                            onClick={() => handleOpenModal(appointment)}
-                                        >
-                                            📸 Foto
-                                        </button>
-                                        <button
-                                            className={`${styles.actionBtn} ${styles.success}`}
-                                            onClick={() => handleOpenModal(appointment)}
-                                        >
-                                            ✅ Finalizar
-                                        </button>
-                                    </>
-                                )}
-                                {appointment.status === 'pending' && (
-                                    <button
-                                        className={`${styles.actionBtn} ${styles.outline}`}
-                                        onClick={() => handleConfirm(appointment.id)}
-                                    >
-                                        ✓ Confirmar
-                                    </button>
+                            <div className={styles.petMeta}>
+                                <span className={styles.ownerName}>{pet.ownerName}</span>
+                                {pet.checkedInAt && (
+                                    <span className={styles.checkInTime}>Check-in: {pet.checkedInAt}</span>
                                 )}
                             </div>
                         </div>
-                    ))
+                    ))}
+                </div>
+
+                {filteredPets.length === 0 && (
+                    <div className={styles.emptyState}>
+                        <span>🐾</span>
+                        <p>Nenhum agendamento encontrado para esta área hoje.</p>
+                    </div>
                 )}
             </div>
-
-            {/* Service Modal */}
-            <ServiceModal
-                appointment={selectedAppointment ? {
-                    id: selectedAppointment.id,
-                    pet_id: selectedAppointment.pet.id,
-                    pet_name: selectedAppointment.pet.name,
-                    service_name: selectedAppointment.service_name,
-                    customer_name: selectedAppointment.pet.customer_name,
-                    notes: selectedAppointment.notes
-                } : null}
-                isOpen={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                onComplete={handleComplete}
-            />
         </div>
     )
 }
