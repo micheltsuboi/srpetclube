@@ -44,41 +44,43 @@ export default function BookingPage() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            // 1. Get tutor profile to find org_id
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('org_id')
-                .eq('id', user.id)
-                .single()
-
-            if (!profile?.org_id) return
-
-            // 2. Get tutor's pets
+            // 1. Get tutor's customer record to find org_id and customer_id
             const { data: customer } = await supabase
                 .from('customers')
-                .select('id')
+                .select('id, org_id')
                 .eq('user_id', user.id)
                 .single()
 
-            if (customer) {
-                const { data: petData } = await supabase
-                    .from('pets')
-                    .select('id, name, species')
-                    .eq('customer_id', customer.id)
-                if (petData) setPets(petData)
+            if (!customer) {
+                setError('Tutor não vinculado a uma organização.')
+                return
             }
 
-            // 3. Get active services for this org
-            const { data: serviceData } = await supabase
-                .from('services')
-                .select('id, name, base_price, category')
-                .eq('org_id', profile.org_id)
+            const orgId = customer.org_id
+
+            // 2. Get tutor's pets
+            const { data: petData } = await supabase
+                .from('pets')
+                .select('id, name, species')
+                .eq('customer_id', customer.id)
                 .eq('is_active', true)
 
-            if (serviceData) setServices(serviceData)
+            if (petData) setPets(petData)
+
+            // 3. Get active services for this org
+            if (orgId) {
+                const { data: serviceData } = await supabase
+                    .from('services')
+                    .select('id, name, base_price, category')
+                    .eq('org_id', orgId)
+                    .eq('is_active', true)
+
+                if (serviceData) setServices(serviceData)
+            }
 
         } catch (error) {
             console.error('Error fetching data:', error)
+            setError('Erro ao carregar dados. Verifique sua conexão.')
         } finally {
             setLoading(false)
         }
@@ -128,33 +130,31 @@ export default function BookingPage() {
             setSubmitting(true)
             setError(null)
 
-            const formData = new FormData()
-            formData.append('petId', selectedPet)
-            formData.append('serviceId', selectedService)
-            formData.append('date', selectedDate)
-            formData.append('time', selectedTime)
-            formData.append('notes', 'Agendado pelo portal do tutor')
-
-            // Import the action dynamically to avoid bundle issues if needed, 
-            // but for simplicity we'll assume it works via API if we can't use server action directly here easily
-            // Actually, we can just use supabase directly to insert to avoid complexity with CreateAppointmentState
-
             const { data: { user } } = await supabase.auth.getUser()
-            const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user?.id).single()
-            const { data: pet } = await supabase.from('pets').select('customer_id').eq('id', selectedPet).single()
+            if (!user) throw new Error('Usuário não autenticado.')
+
+            // Fetch metadata again to be safe
+            const { data: customerData } = await supabase
+                .from('customers')
+                .select('id, org_id')
+                .eq('user_id', user.id)
+                .single()
+
+            if (!customerData) throw new Error('Dados do tutor não encontrados.')
 
             const scheduledAt = new Date(`${selectedDate}T${selectedTime}:00-03:00`).toISOString()
 
             const { error: insertError } = await supabase
                 .from('appointments')
                 .insert({
-                    org_id: profile?.org_id,
+                    org_id: customerData.org_id,
                     pet_id: selectedPet,
                     service_id: selectedService,
-                    customer_id: pet?.customer_id,
+                    customer_id: customerData.id,
                     scheduled_at: scheduledAt,
                     status: 'pending',
-                    notes: 'Agendado pelo portal do tutor'
+                    notes: 'Agendado pelo portal do tutor',
+                    payment_status: 'pending'
                 })
 
             if (insertError) throw insertError
