@@ -117,11 +117,12 @@ export default function AdminPage() {
 
             const { data: profile } = await supabase
                 .from('profiles')
-                .select('role')
+                .select('role, org_id')
                 .eq('id', user.id)
                 .single()
 
-            if (!profile || profile.role !== 'superadmin') {
+            // Only SaaS level superadmins (no org_id) can access master admin
+            if (!profile || profile.role !== 'superadmin' || profile.org_id) {
                 router.push('/owner') // Redirect unauthorized users to regular dashboard
                 return
             }

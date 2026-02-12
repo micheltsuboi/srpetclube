@@ -4,10 +4,10 @@ import { useState, useEffect, useCallback, useActionState } from 'react'
 import Link from 'next/link'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
-import { createUser } from '@/app/actions/user'
+import { createUser, updateUser } from '@/app/actions/user'
 
 // Use Profile interface or define local type matching DB
-interface Profile {
+export interface Profile {
     id: string
     full_name: string
     email: string
@@ -37,10 +37,15 @@ export default function UsuariosPage() {
     const [users, setUsers] = useState<Profile[]>([])
     const [loading, setLoading] = useState(true)
     const [showModal, setShowModal] = useState(false)
+    const [showEditModal, setShowEditModal] = useState(false)
+    const [selectedUser, setSelectedUser] = useState<Profile | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
 
-    // Server Action State
+    // Server Action State - Create
     const [state, formAction, isPending] = useActionState(createUser, initialState)
+
+    // Server Action State - Update
+    const [updateState, updateFormAction, isUpdatePending] = useActionState(updateUser, initialState)
 
     const fetchUsers = useCallback(async () => {
         try {
@@ -81,16 +86,44 @@ export default function UsuariosPage() {
         if (state.success) {
             setShowModal(false)
             fetchUsers()
-            // Reset state? wrapper component or just alert
-            alert(state.message) // Simple feedback
-        } else if (state.message) {
-            // Error case
-            // Alert is fine for now, or display in form
+            alert(state.message)
         }
     }, [state, fetchUsers])
 
-    const toggleUserStatus = () => {
-        alert('Funcionalidade de alterar status em desenvolvimento.')
+    useEffect(() => {
+        if (updateState.success) {
+            setShowEditModal(false)
+            fetchUsers()
+            alert(updateState.message)
+        }
+    }, [updateState, fetchUsers])
+
+    const handleEdit = (user: Profile) => {
+        setSelectedUser(user)
+        setShowEditModal(true)
+    }
+
+    const toggleUserStatus = async (user: Profile) => {
+        if (!confirm(`Tem certeza que deseja ${user.is_active ? 'desativar' : 'ativar'} este usuário?`)) return
+
+        const formData = new FormData()
+        formData.append('userId', user.id)
+        formData.append('fullName', user.full_name)
+        formData.append('role', user.role)
+        formData.append('isActive', (!user.is_active).toString())
+
+        // Pass existing work hours if any
+        if (user.work_start_time) formData.append('workStartTime', user.work_start_time)
+        if (user.lunch_start_time) formData.append('lunchStartTime', user.lunch_start_time)
+        if (user.lunch_end_time) formData.append('lunchEndTime', user.lunch_end_time)
+        if (user.work_end_time) formData.append('workEndTime', user.work_end_time)
+
+        const result = await updateUser(null, formData)
+        if (result.success) {
+            fetchUsers()
+        } else {
+            alert(result.message)
+        }
     }
 
     if (loading) {
@@ -180,8 +213,14 @@ export default function UsuariosPage() {
                                     <td>
                                         <div className={styles.actions}>
                                             <button
+                                                className={styles.editBtn}
+                                                onClick={() => handleEdit(user)}
+                                            >
+                                                ✏️ Editar
+                                            </button>
+                                            <button
                                                 className={`${styles.actionBtn} ${user.is_active ? styles.deactivate : styles.activate}`}
-                                                onClick={() => toggleUserStatus()}
+                                                onClick={() => toggleUserStatus(user)}
                                             >
                                                 {user.is_active ? 'Desativar' : 'Ativar'}
                                             </button>
@@ -285,6 +324,91 @@ export default function UsuariosPage() {
                                     </button>
                                     <button type="submit" className={styles.submitButton} disabled={isPending}>
                                         {isPending ? 'Criando...' : 'Criar Usuário'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                )
+            }
+
+            {/* Edit User Modal */}
+            {
+                showEditModal && selectedUser && (
+                    <div className={styles.modalOverlay} onClick={() => setShowEditModal(false)}>
+                        <div className={styles.modal} onClick={e => e.stopPropagation()}>
+                            <h2>Editar Usuário</h2>
+                            <p style={{ marginBottom: '1.5rem', color: '#666' }}>
+                                Atualize as informações do funcionário.
+                            </p>
+
+                            <form action={updateFormAction} className={styles.form}>
+                                <input type="hidden" name="userId" value={selectedUser.id} />
+                                <input type="hidden" name="isActive" value={selectedUser.is_active.toString()} />
+
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="editFullName" className={styles.label}>Nome Completo</label>
+                                    <input
+                                        id="editFullName"
+                                        name="fullName"
+                                        type="text"
+                                        className={styles.input}
+                                        defaultValue={selectedUser.full_name}
+                                        required
+                                    />
+                                </div>
+
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>Email (Não alterável)</label>
+                                    <input
+                                        type="email"
+                                        className={styles.input}
+                                        defaultValue={selectedUser.email}
+                                        disabled
+                                        style={{ backgroundColor: 'rgba(255, 255, 255, 0.02)', cursor: 'not-allowed' }}
+                                    />
+                                </div>
+
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="editRole" className={styles.label}>Nível de Acesso</label>
+                                    <select id="editRole" name="role" className={styles.select} required defaultValue={selectedUser.role}>
+                                        <option value="staff">Staff (Operacional)</option>
+                                        <option value="admin">Administrador</option>
+                                    </select>
+                                </div>
+
+                                <div className={styles.sectionDivider}>⏰ Horário de Trabalho</div>
+                                <div className={styles.row}>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label htmlFor="editWorkStartTime" className={styles.label}>Entrada</label>
+                                        <input id="editWorkStartTime" name="workStartTime" type="time" className={styles.input} defaultValue={selectedUser.work_start_time || "08:00"} required />
+                                    </div>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label htmlFor="editLunchStartTime" className={styles.label}>Início Almoço</label>
+                                        <input id="editLunchStartTime" name="lunchStartTime" type="time" className={styles.input} defaultValue={selectedUser.lunch_start_time || "12:00"} required />
+                                    </div>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label htmlFor="editLunchEndTime" className={styles.label}>Fim Almoço</label>
+                                        <input id="editLunchEndTime" name="lunchEndTime" type="time" className={styles.input} defaultValue={selectedUser.lunch_end_time || "13:00"} required />
+                                    </div>
+                                    <div className={styles.formGroup} style={{ flex: 1 }}>
+                                        <label htmlFor="editWorkEndTime" className={styles.label}>Saída</label>
+                                        <input id="editWorkEndTime" name="workEndTime" type="time" className={styles.input} defaultValue={selectedUser.work_end_time || "18:00"} required />
+                                    </div>
+                                </div>
+
+                                {updateState.message && !updateState.success && (
+                                    <p className={styles.errorMessage} style={{ color: 'red', marginBottom: '1rem' }}>
+                                        {updateState.message}
+                                    </p>
+                                )}
+
+                                <div className={styles.modalActions}>
+                                    <button type="button" className={styles.cancelBtn} onClick={() => setShowEditModal(false)} disabled={isUpdatePending}>
+                                        Cancelar
+                                    </button>
+                                    <button type="submit" className={styles.submitButton} disabled={isUpdatePending}>
+                                        {isUpdatePending ? 'Salvando...' : 'Salvar Alterações'}
                                     </button>
                                 </div>
                             </form>

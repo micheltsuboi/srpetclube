@@ -17,7 +17,7 @@ export default function DashboardLayout({
     const isOwner = pathname?.startsWith('/owner')
     const isMasterAdmin = pathname?.startsWith('/master-admin')
 
-    const [user, setUser] = useState<{ name: string; role: string } | null>(null)
+    const [user, setUser] = useState<{ name: string; role: string; org_id?: string | null } | null>(null)
     const [isSidebarOpen, setIsSidebarOpen] = useState(false)
     const supabase = createClient()
     const router = useRouter()
@@ -26,30 +26,27 @@ export default function DashboardLayout({
         { name: 'Dashboard', href: '/staff', icon: '📊' },
         { name: 'Agenda', href: '/owner/agenda', icon: '📅' },
         { name: 'Banho e Tosa', href: '/owner/banho-tosa', icon: '🛁' },
-        { name: 'Creche', href: '/owner/creche', icon: '🎾' },
+        { name: 'Creche', href: '/owner/creche', icon: '🐾' },
         { name: 'Hospedagem', href: '/owner/hospedagem', icon: '🏨' },
         { name: 'Tutores', href: '/owner/tutors', icon: '👤' },
         { name: 'Pets', href: '/owner/pets', icon: '🐾' },
         { name: 'Serviços', href: '/owner/services', icon: '✂️' },
         { name: 'Petshop', href: '/owner/petshop', icon: '🛍️' },
-        { name: 'Vacinas', href: '/owner/vaccines', icon: '💉' },
+        { name: 'Usuários', href: '/owner/usuarios', icon: '👥' },
     ]
 
     const ownerNavigation = [
         { name: 'Dashboard', href: '/owner', icon: '📊' },
         { name: 'Agenda', href: '/owner/agenda', icon: '📅' },
         { name: 'Banho e Tosa', href: '/owner/banho-tosa', icon: '🛁' },
-        { name: 'Creche', href: '/owner/creche', icon: '🎾' },
+        { name: 'Creche', href: '/owner/creche', icon: '🐾' },
         { name: 'Hospedagem', href: '/owner/hospedagem', icon: '🏨' },
         { name: 'Financeiro', href: '/owner/financeiro', icon: '💰' },
         { name: 'Tutores', href: '/owner/tutors', icon: '👤' },
-        { name: 'Pets', href: '/owner/pets', icon: '🐾' },
+        { name: 'Pets', href: '/owner/pets', icon: '🐶' },
         { name: 'Serviços', href: '/owner/services', icon: '✂️' },
         { name: 'Petshop', href: '/owner/petshop', icon: '🛍️' },
-        { name: 'Vacinas', href: '/owner/vaccines', icon: '💉' },
-        { name: 'Ponto', href: '/owner/ponto', icon: '⏰' },
         { name: 'Usuários', href: '/owner/usuarios', icon: '👥' },
-        ...(user?.role === 'Super Admin' ? [{ name: 'Painel Master', href: '/master-admin', icon: '⚡' }] : []),
     ]
 
     const masterAdminNavigation = [
@@ -65,7 +62,7 @@ export default function DashboardLayout({
                 // Fetch profile
                 const { data: profile } = await supabase
                     .from('profiles')
-                    .select('full_name, role')
+                    .select('full_name, role, org_id')
                     .eq('id', user.id)
                     .single()
 
@@ -74,7 +71,8 @@ export default function DashboardLayout({
                         name: profile.full_name || user.email?.split('@')[0] || 'Usuário',
                         role: profile.role === 'superadmin' ? 'Super Admin' :
                             profile.role === 'admin' ? 'Administrador' :
-                                profile.role === 'staff' ? 'Staff' : 'Usuário'
+                                profile.role === 'staff' ? 'Staff' : 'Usuário',
+                        org_id: profile.org_id
                     })
                 }
             }
@@ -90,13 +88,16 @@ export default function DashboardLayout({
     // Determine target navigation based on role AND current path to prevent confusion
     let navigation = staffNavigation // Default
 
-    console.log('Layout logic - Current user role:', user?.role, 'Path:', pathname)
+    console.log('Layout logic - Current user role:', user?.role, 'Org:', user?.org_id, 'Path:', pathname)
 
-    if (user?.role === 'Super Admin' && isMasterAdmin) {
+    // SaaS Master Admin: role is Super Admin AND has NO org_id
+    const isSaaSMaster = user?.role === 'Super Admin' && !user?.org_id
+
+    if (isSaaSMaster && isMasterAdmin) {
         console.log('Layout: Using Master Admin Navigation')
         navigation = masterAdminNavigation
     } else if (user?.role === 'Super Admin' && isOwner) {
-        console.log('Layout: Using Owner Navigation for Super Admin')
+        console.log('Layout: Using Owner Navigation for Business Super Admin')
         navigation = ownerNavigation
     } else if (user?.role === 'Administrador' && isOwner) {
         console.log('Layout: Using Owner Navigation')
@@ -108,7 +109,7 @@ export default function DashboardLayout({
     } else {
         // Fallback based on path if role mismatches or is loading
         console.log('Layout: Using Fallback Navigation based on path')
-        navigation = isMasterAdmin ? masterAdminNavigation : (isOwner ? ownerNavigation : staffNavigation)
+        navigation = isMasterAdmin ? (isSaaSMaster ? masterAdminNavigation : ownerNavigation) : (isOwner ? ownerNavigation : staffNavigation)
     }
 
     return (

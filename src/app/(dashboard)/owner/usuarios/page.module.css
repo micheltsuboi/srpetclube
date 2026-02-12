@@ -231,6 +231,69 @@
     background: rgba(46, 204, 113, 0.3);
 }
 
+.editBtn {
+    padding: 0.4rem 0.75rem;
+    background: rgba(var(--primary-rgb), 0.1);
+    border: 1px solid rgba(var(--primary-rgb), 0.2);
+    border-radius: 6px;
+    color: var(--primary);
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.editBtn:hover {
+    background: rgba(var(--primary-rgb), 0.2);
+    transform: translateY(-1px);
+}
+
+.row {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-size: 0.95rem;
+    cursor: pointer;
+}
+
+.select option {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.submitButton {
+    flex: 1;
+    padding: 0.75rem;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--coral) 100%);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.submitButton:hover {
+    box-shadow: 0 4px 15px rgba(var(--primary-rgb), 0.3);
+}
+
+.submitButton:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Modal */
 .modalOverlay {
     position: fixed;
