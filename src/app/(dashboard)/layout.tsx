@@ -42,6 +42,7 @@ export default function DashboardLayout({
         { name: 'Serviços', href: '/owner/services', icon: '✂️' },
         { name: 'Petshop', href: '/owner/petshop', icon: '🛍️' },
         { name: 'Vacinas', href: '/owner/vaccines', icon: '💉' },
+        { name: 'Ponto', href: '/owner/ponto', icon: '⏰' },
         { name: 'Usuários', href: '/owner/usuarios', icon: '👥' },
     ]
 
