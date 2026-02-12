@@ -476,8 +476,11 @@ export default function AgendaPage() {
                     })
 
                     const slotBlocks = blocks.filter(b => {
-                        const start = new Date(b.start_at).getHours()
-                        return start === h
+                        const bStart = new Date(b.start_at)
+                        const bEnd = new Date(b.end_at)
+                        const dayStr = selectedDate // Use selectedDate for the day view
+                        const slotTime = new Date(`${dayStr}T${h.toString().padStart(2, '0')}:00:00-03:00`)
+                        return slotTime >= bStart && slotTime < bEnd
                     })
                     const isBlocked = slotBlocks.length > 0
 
@@ -538,8 +541,21 @@ export default function AgendaPage() {
                                     ad.getFullYear() === d.getFullYear()
                                 return sameDay && ad.getHours() === h
                             })
+                            const slotBlocks = blocks.filter(b => {
+                                const bStart = new Date(b.start_at)
+                                const bEnd = new Date(b.end_at)
+                                const slotTime = new Date(`${dateStr}T${h.toString().padStart(2, '0')}:00:00-03:00`)
+                                return slotTime >= bStart && slotTime < bEnd
+                            })
+                            const isBlocked = slotBlocks.length > 0
+
                             return (
-                                <div key={`${dateStr}-${h}`} className={styles.weekCell} onClick={() => { setSelectedDate(dateStr); setViewMode('day') }}>
+                                <div
+                                    key={`${dateStr}-${h}`}
+                                    className={`${styles.weekCell} ${isBlocked ? styles.blockedCell : ''}`}
+                                    onClick={() => { setSelectedDate(dateStr); setViewMode('day') }}
+                                >
+                                    {isBlocked && <div className={styles.weekBlockIndicator}>🔒</div>}
                                     {slotAppts.map(appt => {
                                         const serviceCategory = (appt.services as any)?.service_categories
                                         const categoryColor = serviceCategory?.color || (Array.isArray(serviceCategory) ? serviceCategory[0]?.color : '#3B82F6')

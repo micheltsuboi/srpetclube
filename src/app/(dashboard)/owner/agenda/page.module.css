@@ -125,6 +125,8 @@
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
 }
 
+
+
 .appointmentCard:hover {
     transform: translateY(-2px);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
@@ -856,4 +858,26 @@
     width: 16px;
     height: 16px;
     fill: currentColor;
+}
+
+.weekEventPill:hover {
+    transform: scale(1.05);
+    z-index: 10;
+}
+
+.blockedCell {
+    background: repeating-linear-gradient(45deg,
+            rgba(239, 68, 68, 0.05),
+            rgba(239, 68, 68, 0.05) 5px,
+            rgba(239, 68, 68, 0.08) 5px,
+            rgba(239, 68, 68, 0.08) 10px) !important;
+}
+
+.weekBlockIndicator {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    font-size: 0.7rem;
+    color: #ef4444;
+    opacity: 0.6;
 }
