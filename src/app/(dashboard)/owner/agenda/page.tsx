@@ -298,17 +298,8 @@ export default function AgendaPage() {
         let finalSvcId = serviceId || ''
         let finalPetId = petId || ''
 
-        // Check for blocks if hour is provided
-        if (hour) {
-            const isBlocked = blocks.some(b => {
-                const bStart = new Date(b.start_at)
-                return bStart.getHours() === hour && b.start_at.startsWith(finalDate)
-            })
-            if (isBlocked) {
-                alert('Este horário está bloqueado.')
-                return
-            }
-        }
+        // Check for blocks only for Banho e Tosa or if we want stricter blocking
+        // For now, let's allow opening the modal to pick service
 
         setSelectedDate(finalDate)
         if (hour) setSelectedHourSlot(hour.toString().padStart(2, '0'))
@@ -469,9 +460,10 @@ export default function AgendaPage() {
                     const timeStr = `${h.toString().padStart(2, '0')}:00`
                     const slotAppts = appointments.filter(a => {
                         const isMultiday = !!(a.check_in_date && a.check_out_date)
+                        const apptDateStr = new Date(a.scheduled_at).toLocaleDateString('en-CA')
                         const matchesDay = isMultiday
                             ? (selectedDate >= a.check_in_date! && selectedDate <= a.check_out_date!)
-                            : a.scheduled_at.startsWith(selectedDate)
+                            : apptDateStr === selectedDate
 
                         // For multiday, we show them at a "check-in" hour (e.g., 14h) or spread them?
                         // User mentioned indicating them across all relevant days.
@@ -523,11 +515,9 @@ export default function AgendaPage() {
                                     </div>
                                 ))}
                                 {slotAppts.map(renderAppointmentCard)}
-                                {!isBlocked && (
-                                    <button className={styles.addSlotBtn} onClick={() => handleNewAppointment(selectedDate, h)}>
-                                        +
-                                    </button>
-                                )}
+                                <button className={styles.addSlotBtn} onClick={() => handleNewAppointment(selectedDate, h)}>
+                                    +
+                                </button>
                             </div>
                         </div>
                     )
@@ -564,9 +554,10 @@ export default function AgendaPage() {
                             const dateStr = d.toISOString().split('T')[0]
                             const slotAppts = appointments.filter(a => {
                                 const isMultiday = !!(a.check_in_date && a.check_out_date)
+                                const apptDateStr = new Date(a.scheduled_at).toLocaleDateString('en-CA')
                                 const matchesDay = isMultiday
                                     ? (dateStr >= a.check_in_date && dateStr <= a.check_out_date)
-                                    : a.scheduled_at.startsWith(dateStr)
+                                    : apptDateStr === dateStr
 
                                 const ad = new Date(a.scheduled_at)
                                 let hourMatches = ad.getHours() === h
@@ -633,9 +624,10 @@ export default function AgendaPage() {
                     const dateStr = `${year}-${(month + 1).toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`
                     const dayAppts = appointments.filter(a => {
                         const isMultiday = !!(a.check_in_date && a.check_out_date)
+                        const apptDateStr = new Date(a.scheduled_at).toLocaleDateString('en-CA')
                         return isMultiday
                             ? (dateStr >= a.check_in_date! && dateStr <= a.check_out_date!)
-                            : a.scheduled_at.startsWith(dateStr)
+                            : apptDateStr === dateStr
                     })
                     return (
                         <div key={day} className={styles.monthCell} onClick={() => { setSelectedDate(dateStr); setViewMode('day') }}>

@@ -105,7 +105,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
                 .lte('start_at', scheduledAt)
                 .gte('end_at', scheduledAt)
 
-            if (blocks && blocks.length > 0) {
+            if (blocks && blocks.length > 0 && !isCreche && !isHospedagem) {
                 return { message: `Este horário está bloqueado: ${blocks[0].reason}`, success: false }
             }
         } catch (_) { // unused e
@@ -127,7 +127,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             .lt('start_at', endAt)
             .gt('end_at', scheduledAt)
 
-        if (conflictBlocks && conflictBlocks.length > 0) {
+        if (conflictBlocks && conflictBlocks.length > 0 && !isCreche && !isHospedagem) {
             return { message: 'Este horário está bloqueado na agenda.', success: false }
         }
     }
