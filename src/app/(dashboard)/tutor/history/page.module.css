@@ -1,0 +1,181 @@
+.container {
+    padding: var(--space-6);
+    max-width: 600px;
+    margin: 0 auto;
+    padding-bottom: 100px;
+}
+
+.header {
+    margin-bottom: var(--space-8);
+}
+
+.title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin-bottom: var(--space-4);
+}
+
+.filters {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.petSelector {
+    width: 100%;
+    padding: var(--space-3);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.categoryTabs {
+    display: flex;
+    gap: var(--space-2);
+    overflow-x: auto;
+    padding-bottom: var(--space-2);
+}
+
+.categoryTabs::-webkit-scrollbar {
+    display: none;
+}
+
+.tab {
+    padding: var(--space-2) var(--space-4);
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all var(--transition-fast);
+}
+
+.tab.active {
+    background: var(--gradient-primary);
+    color: white;
+    border-color: transparent;
+    box-shadow: var(--shadow-glow-coral);
+}
+
+.historyList {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.serviceCard {
+    background: var(--bg-card);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    padding: var(--space-4);
+    display: flex;
+    gap: var(--space-4);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+}
+
+.serviceCard:hover {
+    background: var(--bg-card-hover);
+    transform: translateY(-2px);
+    border-color: var(--color-sky);
+}
+
+.cardIcon {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.cardInfo {
+    flex: 1;
+}
+
+.serviceName {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.serviceDate {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.serviceStatus {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+/* Status variants */
+.status_done {
+    background: rgba(122, 201, 160, 0.2);
+    color: var(--status-done);
+}
+
+.status_pending {
+    background: rgba(240, 160, 144, 0.2);
+    color: var(--status-pending);
+}
+
+.status_in_progress {
+    background: rgba(232, 130, 106, 0.2);
+    color: var(--status-in-progress);
+}
+
+.status_canceled {
+    background: rgba(212, 107, 107, 0.2);
+    color: var(--status-canceled);
+}
+
+.loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: var(--space-12);
+    gap: var(--space-4);
+    color: var(--text-secondary);
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top-color: var(--color-coral);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.emptyHistory {
+    text-align: center;
+    padding: var(--space-12);
+    background: var(--bg-card);
+    border-radius: var(--radius-xl);
+    border: 1px dashed var(--border);
+    color: var(--text-secondary);
+}

@@ -33,21 +33,24 @@
 .petHeader {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    margin-bottom: 1.5rem;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    position: relative;
+    padding: var(--space-4) 0;
 }
 
 .petAvatar {
-    width: 80px;
-    height: 80px;
+    width: 90px;
+    height: 90px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--coral) 100%);
+    background: var(--gradient-primary);
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 2.5rem;
     overflow: hidden;
-    box-shadow: 0 4px 20px rgba(var(--primary-rgb), 0.3);
+    box-shadow: var(--shadow-glow-coral);
+    border: 3px solid rgba(255, 255, 255, 0.2);
 }
 
 .petAvatar img {
@@ -61,16 +64,79 @@
 }
 
 .petName {
-    font-size: 1.75rem;
-    font-weight: 700;
+    font-size: 2rem;
+    font-weight: 800;
     color: var(--text-primary);
-    margin: 0 0 0.25rem 0;
+    margin: 0;
+    letter-spacing: -0.025em;
 }
 
 .petBreed {
-    font-size: 0.95rem;
+    font-size: 1rem;
     color: var(--text-secondary);
     margin: 0;
+}
+
+.petSelector {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: var(--space-1) var(--space-2);
+    font-size: 0.8rem;
+    cursor: pointer;
+    outline: none;
+}
+
+/* Status Cards & Empty States */
+.noServiceCard,
+.emptyState,
+.emptyTimeline {
+    background: var(--bg-card);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-2xl);
+    padding: var(--space-6);
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.emptyState {
+    min-height: 50vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+}
+
+.emptyState h1 {
+    font-size: 2.5rem;
+    font-weight: 800;
+}
+
+.emptyState p {
+    color: var(--text-secondary);
+    max-width: 300px;
+}
+
+.noServiceCard h3 {
+    margin-bottom: var(--space-2);
+    font-weight: 700;
+}
+
+.noServiceCard p {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+.emptyTimeline {
+    padding: var(--space-4);
+    font-style: italic;
+    color: var(--text-muted);
 }
 
 /* Status Card */

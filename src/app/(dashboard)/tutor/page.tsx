@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
 import styles from './page.module.css'
+import { createClient } from '@/lib/supabase/client'
 
-// Mock data para demonstração
 interface Pet {
     id: string
     name: string
@@ -16,10 +16,10 @@ interface Pet {
 
 interface TimelineEvent {
     id: string
-    type: 'photo' | 'status' | 'feeding' | 'activity' | 'health'
-    content: string
+    type: 'photo' | 'status' | 'feeding' | 'activity' | 'health' | 'bath_start' | 'bath_end' | 'general'
+    observation: string
     photo_url: string | null
-    timestamp: string
+    created_at: string
     staff_name: string
 }
 
@@ -30,58 +30,6 @@ interface CurrentAppointment {
     scheduled_at: string
     started_at: string | null
 }
-
-const mockPet: Pet = {
-    id: 'p1',
-    name: 'Thor',
-    species: 'dog',
-    breed: 'Golden Retriever',
-    photo_url: null,
-    weight_kg: 32
-}
-
-const mockAppointment: CurrentAppointment = {
-    id: 'a1',
-    service_name: 'Banho + Tosa',
-    status: 'in_progress',
-    scheduled_at: new Date().toISOString(),
-    started_at: new Date(Date.now() - 45 * 60 * 1000).toISOString() // 45 min atrás
-}
-
-const mockTimeline: TimelineEvent[] = [
-    {
-        id: '1',
-        type: 'status',
-        content: 'Thor chegou e foi recebido pela equipe! 🐾',
-        photo_url: null,
-        timestamp: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-        staff_name: 'Tainara'
-    },
-    {
-        id: '2',
-        type: 'photo',
-        content: 'Começando o banho! Olha que fofo 🛁',
-        photo_url: 'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=400',
-        timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-        staff_name: 'Tainara'
-    },
-    {
-        id: '3',
-        type: 'activity',
-        content: 'Thor adorou a massagem durante o banho! Muito tranquilo 😊',
-        photo_url: null,
-        timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-        staff_name: 'Tainara'
-    },
-    {
-        id: '4',
-        type: 'photo',
-        content: 'Secando com carinho 💨',
-        photo_url: 'https://images.unsplash.com/photo-1601758228041-f3b2795255f1?w=400',
-        timestamp: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
-        staff_name: 'Tainara'
-    }
-]
 
 const statusLabels: Record<string, string> = {
     pending: 'Aguardando',
@@ -102,25 +50,131 @@ const eventIcons: Record<string, string> = {
     status: '📋',
     feeding: '🍽️',
     activity: '🎾',
-    health: '💊'
+    health: '💊',
+    bath_start: '🚿',
+    bath_end: '✨',
+    general: '📝'
 }
 
 export default function TutorPage() {
-    const [pet] = useState<Pet>(mockPet)
-    const [appointment] = useState<CurrentAppointment | null>(mockAppointment)
+    const supabase = createClient()
+    const [pets, setPets] = useState<Pet[]>([])
+    const [selectedPet, setSelectedPet] = useState<Pet | null>(null)
+    const [appointment, setAppointment] = useState<CurrentAppointment | null>(null)
     const [timeline, setTimeline] = useState<TimelineEvent[]>([])
     const [loading, setLoading] = useState(true)
     const [elapsedTime, setElapsedTime] = useState('')
 
-    useEffect(() => {
-        // Simular carregamento
-        setTimeout(() => {
-            setTimeline(mockTimeline)
-            setLoading(false)
-        }, 500)
-    }, [])
+    const fetchData = useCallback(async () => {
+        try {
+            setLoading(true)
+            const { data: { user } } = await supabase.auth.getUser()
+            if (!user) return
 
-    // Calcular tempo decorrido do atendimento
+            // 1. Get Customer record linked to user
+            const { data: customer } = await supabase
+                .from('customers')
+                .select('id')
+                .eq('user_id', user.id)
+                .single()
+
+            if (!customer) {
+                setLoading(false)
+                return
+            }
+
+            // 2. Get Pets for this customer
+            const { data: petData } = await supabase
+                .from('pets')
+                .select('*')
+                .eq('customer_id', customer.id)
+                .eq('is_active', true)
+
+            if (petData && petData.length > 0) {
+                setPets(petData)
+                const currentPet = petData[0]
+                setSelectedPet(currentPet)
+
+                // 3. Get Today's Appointment for the first pet
+                const today = new Date().toISOString().split('T')[0]
+                const { data: apptData } = await supabase
+                    .from('appointments')
+                    .select('id, scheduled_at, status, started_at, services(name)')
+                    .eq('pet_id', currentPet.id)
+                    .gte('scheduled_at', `${today}T00:00:00`)
+                    .lte('scheduled_at', `${today}T23:59:59`)
+                    .order('scheduled_at', { ascending: false })
+                    .limit(1)
+                    .single()
+
+                if (apptData) {
+                    setAppointment({
+                        id: apptData.id,
+                        service_name: (apptData.services as any)?.name || 'Serviço',
+                        status: apptData.status as any,
+                        scheduled_at: apptData.scheduled_at,
+                        started_at: apptData.started_at
+                    })
+
+                    // 4. Get Timeline (Daily Reports) for this appointment
+                    const { data: reportData } = await supabase
+                        .from('daily_reports')
+                        .select('id, report_type, observation, photo_url, created_at, profiles(full_name)')
+                        .eq('appointment_id', apptData.id)
+                        .order('created_at', { ascending: false })
+
+                    if (reportData) {
+                        setTimeline(reportData.map(r => ({
+                            id: r.id,
+                            type: r.report_type as any,
+                            observation: r.observation || '',
+                            photo_url: r.photo_url,
+                            created_at: r.created_at,
+                            staff_name: (r.profiles as any)?.full_name || 'Equipe'
+                        })))
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching tutor data:', error)
+        } finally {
+            setLoading(false)
+        }
+    }, [supabase])
+
+    useEffect(() => {
+        fetchData()
+    }, [fetchData])
+
+    // Real-time updates subscription
+    useEffect(() => {
+        if (!appointment?.id) return
+
+        const channel = supabase
+            .channel('tutor-updates')
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'daily_reports',
+                filter: `appointment_id=eq.${appointment.id}`
+            }, () => {
+                fetchData() // Refresh on change
+            })
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'appointments',
+                filter: `id=eq.${appointment.id}`
+            }, () => {
+                fetchData()
+            })
+            .subscribe()
+
+        return () => {
+            supabase.removeChannel(channel)
+        }
+    }, [appointment?.id, fetchData, supabase])
+
     useEffect(() => {
         if (!appointment?.started_at) return
 
@@ -168,7 +222,21 @@ export default function TutorPage() {
         return (
             <div className={styles.loading}>
                 <div className={styles.spinner} />
-                <p>Carregando...</p>
+                <p>Carregando as novidades do seu pet...</p>
+            </div>
+        )
+    }
+
+    if (!selectedPet) {
+        return (
+            <div className={styles.container}>
+                <div className={styles.emptyState}>
+                    <h1>Olá! 👋</h1>
+                    <p>Parece que você ainda não tem pets cadastrados ou não foi vinculado a um pet. Entre em contato com a equipe da Sr Pet Clube para regularizar seu acesso.</p>
+                    <Link href="/tutor/profile" className={styles.actionButton}>
+                        Completar meu Perfil
+                    </Link>
+                </div>
             </div>
         )
     }
@@ -178,27 +246,39 @@ export default function TutorPage() {
             {/* Pet Header */}
             <div className={styles.petHeader}>
                 <div className={styles.petAvatar}>
-                    {pet.photo_url ? (
-                        <img src={pet.photo_url} alt={pet.name} />
+                    {selectedPet.photo_url ? (
+                        <img src={selectedPet.photo_url} alt={selectedPet.name} />
                     ) : (
-                        <span>{pet.species === 'dog' ? '🐕' : '🐈'}</span>
+                        <span>{selectedPet.species === 'dog' ? '🐕' : '🐈'}</span>
                     )}
                 </div>
                 <div className={styles.petInfo}>
-                    <h1 className={styles.petName}>{pet.name}</h1>
-                    <p className={styles.petBreed}>{pet.breed} • {pet.weight_kg}kg</p>
+                    <h1 className={styles.petName}>{selectedPet.name}</h1>
+                    <p className={styles.petBreed}>{selectedPet.breed} • {selectedPet.weight_kg}kg</p>
                 </div>
+                {pets.length > 1 && (
+                    <select
+                        className={styles.petSelector}
+                        value={selectedPet.id}
+                        onChange={(e) => {
+                            const pet = pets.find(p => p.id === e.target.value)
+                            if (pet) setSelectedPet(pet)
+                        }}
+                    >
+                        {pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                )}
             </div>
 
             {/* Current Status Card */}
-            {appointment && (
+            {appointment ? (
                 <div className={styles.statusCard}>
                     <div className={styles.statusHeader}>
                         <span className={`${styles.statusBadge} ${styles[statusColors[appointment.status]]}`}>
                             {appointment.status === 'in_progress' && '🛁 '}
                             {statusLabels[appointment.status]}
                         </span>
-                        {elapsedTime && (
+                        {appointment.status === 'in_progress' && elapsedTime && (
                             <span className={styles.elapsedTime}>⏱️ {elapsedTime}</span>
                         )}
                     </div>
@@ -218,55 +298,66 @@ export default function TutorPage() {
                         </div>
                     )}
                 </div>
+            ) : (
+                <div className={styles.noServiceCard}>
+                    <h3>Nenhum serviço para hoje</h3>
+                    <p>Que tal agendar um banho ou uma creche para {selectedPet.name}?</p>
+                </div>
             )}
 
             {/* Timeline */}
             <div className={styles.timelineSection}>
-                <h2 className={styles.sectionTitle}>📸 Timeline de Hoje</h2>
+                <h2 className={styles.sectionTitle}>📸 {appointment ? 'Timeline de Hoje' : 'Últimas Atualizações'}</h2>
 
-                <div className={styles.timeline}>
-                    {timeline.map((event, index) => (
-                        <div key={event.id} className={styles.timelineItem}>
-                            <div className={styles.timelineDot}>
-                                <span>{eventIcons[event.type]}</span>
-                            </div>
-                            {index < timeline.length - 1 && (
-                                <div className={styles.timelineLine} />
-                            )}
-
-                            <div className={styles.timelineContent}>
-                                <div className={styles.timelineHeader}>
-                                    <span className={styles.timelineTime}>
-                                        {formatRelativeTime(event.timestamp)}
-                                    </span>
-                                    <span className={styles.staffName}>por {event.staff_name}</span>
+                {timeline.length > 0 ? (
+                    <div className={styles.timeline}>
+                        {timeline.map((event, index) => (
+                            <div key={event.id} className={styles.timelineItem}>
+                                <div className={styles.timelineDot}>
+                                    <span>{eventIcons[event.type] || '📋'}</span>
                                 </div>
-                                <p className={styles.timelineText}>{event.content}</p>
-
-                                {event.photo_url && (
-                                    <div className={styles.timelinePhoto}>
-                                        <img src={event.photo_url} alt="Foto do atendimento" />
-                                    </div>
+                                {index < timeline.length - 1 && (
+                                    <div className={styles.timelineLine} />
                                 )}
+
+                                <div className={styles.timelineContent}>
+                                    <div className={styles.timelineHeader}>
+                                        <span className={styles.timelineTime}>
+                                            {formatRelativeTime(event.created_at)}
+                                        </span>
+                                        <span className={styles.staffName}>por {event.staff_name}</span>
+                                    </div>
+                                    <p className={styles.timelineText}>{event.observation}</p>
+
+                                    {event.photo_url && (
+                                        <div className={styles.timelinePhoto}>
+                                            <img src={event.photo_url} alt="Foto do atendimento" />
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    ))}
-                </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className={styles.emptyTimeline}>
+                        <p>Nenhuma atualização disponível no momento.</p>
+                    </div>
+                )}
             </div>
 
             {/* Quick Actions */}
             <div className={styles.quickActions}>
-                <button className={styles.actionButton}>
-                    <span>📞</span>
-                    <span>Ligar</span>
-                </button>
                 <Link href="/tutor/booking" className={styles.actionButton}>
                     <span>📅</span>
-                    <span>Agendar</span>
+                    <span>Novo Agendamento</span>
                 </Link>
-                <Link href="/tutor/gallery" className={styles.actionButton}>
-                    <span>🖼️</span>
-                    <span>Galeria</span>
+                <Link href="/tutor/history" className={styles.actionButton}>
+                    <span>📜</span>
+                    <span>Histórico de Serviços</span>
+                </Link>
+                <Link href="/tutor/profile" className={styles.actionButton}>
+                    <span>👤</span>
+                    <span>Meu Perfil</span>
                 </Link>
             </div>
         </div>

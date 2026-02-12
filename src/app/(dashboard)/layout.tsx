@@ -54,6 +54,14 @@ export default function DashboardLayout({
         { name: 'Painel Loja', href: '/owner', icon: '🏪' },
     ]
 
+    const tutorNavigation = [
+        { name: 'Início', href: '/tutor', icon: '🏠' },
+        { name: 'Histórico', href: '/tutor/history', icon: '📜' },
+        { name: 'Agendar', href: '/tutor/booking', icon: '📅' },
+        { name: 'Galeria', href: '/tutor/gallery', icon: '🖼️' },
+        { name: 'Perfil', href: '/tutor/profile', icon: '👤' },
+    ]
+
     useEffect(() => {
         const getUser = async () => {
             const { data: { user } } = await supabase.auth.getUser()
@@ -70,7 +78,8 @@ export default function DashboardLayout({
                         name: profile.full_name || user.email?.split('@')[0] || 'Usuário',
                         role: profile.role === 'superadmin' ? 'Super Admin' :
                             profile.role === 'admin' ? 'Administrador' :
-                                profile.role === 'staff' ? 'Staff' : 'Usuário',
+                                profile.role === 'staff' ? 'Staff' :
+                                    profile.role === 'customer' ? 'Tutor' : 'Usuário',
                         org_id: profile.org_id
                     })
                 }
@@ -94,10 +103,15 @@ export default function DashboardLayout({
 
     console.log('Layout logic - Current user role:', user?.role, 'Org:', user?.org_id, 'Path:', pathname)
 
+    const isTutorRoute = pathname?.startsWith('/tutor')
+
     // SaaS Master Admin: role is Super Admin AND has NO org_id
     const isSaaSMaster = user?.role === 'Super Admin' && !user?.org_id
 
-    if (isSaaSMaster && isMasterAdmin) {
+    if (isTutorRoute) {
+        console.log('Layout: Using Tutor Navigation')
+        navigation = tutorNavigation
+    } else if (isSaaSMaster && isMasterAdmin) {
         console.log('Layout: Using Master Admin Navigation')
         navigation = masterAdminNavigation
     } else if (user?.role === 'Super Admin' && isOwner) {
@@ -188,7 +202,7 @@ export default function DashboardLayout({
                             })}
                         </span>
                     </div>
-                    <Link href="/owner/profile" className={styles.headerRight} style={{ textDecoration: 'none', color: 'inherit' }}>
+                    <Link href={isTutorRoute ? "/tutor/profile" : "/owner/profile"} className={styles.headerRight} style={{ textDecoration: 'none', color: 'inherit' }}>
                         <div className={styles.userInfo}>
                             <span className={styles.userName}>{user?.name || 'Carregando...'}</span>
                             <span className={styles.userRole}>{user?.role || '...'}</span>
