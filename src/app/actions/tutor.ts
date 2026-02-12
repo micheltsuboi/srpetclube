@@ -118,12 +118,11 @@ export async function updateTutor(prevState: CreateTutorState, formData: FormDat
 
     const supabaseAdmin = createAdminClient()
 
-    // Extract ID (hidden input)
+    // Extract Data
     const id = formData.get('id') as string
-    if (!id) return { message: 'ID do tutor não fornecido.', success: false }
-
     const name = formData.get('name') as string
     const email = formData.get('email') as string
+    const password = formData.get('password') as string // Optional
     const phone = formData.get('phone') as string
     const birthDate = formData.get('birthDate') as string
     const address = formData.get('address') as string
@@ -131,7 +130,52 @@ export async function updateTutor(prevState: CreateTutorState, formData: FormDat
     const city = formData.get('city') as string
     const instagram = formData.get('instagram') as string
 
-    // Update Customer Record
+    if (!id) return { message: 'ID do tutor não fornecido.', success: false }
+
+    // 1. Get current tutor data to check user_id
+    const { data: currentTutor } = await supabaseAdmin
+        .from('customers')
+        .select('user_id, email')
+        .eq('id', id)
+        .single()
+
+    let userId = currentTutor?.user_id
+
+    // 2. Handle Portal Access / Password
+    if (password) {
+        if (!userId) {
+            // Create NEW Auth User for existing customer
+            const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+                email,
+                password,
+                email_confirm: true,
+                user_metadata: { full_name: name, phone: phone }
+            })
+
+            if (createError) {
+                return { message: `Erro ao criar acesso: ${createError.message}`, success: false }
+            }
+
+            userId = newUser.user?.id
+
+            // Sync Profile
+            await supabaseAdmin.from('profiles').update({
+                role: 'customer',
+                phone: phone,
+                full_name: name
+            }).eq('id', userId)
+        } else {
+            // Update existing user password
+            const { error: pwdError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+                password: password
+            })
+            if (pwdError) {
+                return { message: `Erro ao atualizar senha: ${pwdError.message}`, success: false }
+            }
+        }
+    }
+
+    // 3. Update Customer Record
     const customerData: Record<string, string | null> = {
         name,
         email,
@@ -140,6 +184,7 @@ export async function updateTutor(prevState: CreateTutorState, formData: FormDat
         neighborhood: neighborhood || null,
         city: city || 'São Paulo',
         instagram: instagram || null,
+        user_id: userId || currentTutor?.user_id // Keep or link new userId
     }
 
     if (birthDate) customerData.birth_date = birthDate
@@ -153,17 +198,13 @@ export async function updateTutor(prevState: CreateTutorState, formData: FormDat
         return { message: `Erro ao atualizar tutor: ${error.message}`, success: false }
     }
 
-    // Note: We are not updating auth.users password or email here for simplicity, nor profiles. 
-    // Ideally we should sync name changes to 'profiles' too if linked.
-
-    // Attempt to sync name/phone to profile if user_id exists
-    try {
-        const { data: customer } = await supabaseAdmin.from('customers').select('user_id').eq('id', id).single()
-        if (customer?.user_id) {
-            await supabaseAdmin.from('profiles').update({ full_name: name, phone: phone }).eq('id', customer.user_id)
-        }
-    } catch (e) {
-        // Ignore error if profile sync fails, main task is Customer update
+    // Sync Profile name/phone if connected
+    if (userId) {
+        await supabaseAdmin.from('profiles').update({
+            full_name: name,
+            phone: phone,
+            email: email
+        }).eq('id', userId)
     }
 
     revalidatePath('/owner/tutors')

@@ -16,6 +16,7 @@ interface Customer {
     city: string | null
     instagram: string | null
     birth_date: string | null
+    user_id: string | null
     created_at: string
 }
 
@@ -165,6 +166,7 @@ export default function TutorsPage() {
                             <th>Tutor</th>
                             <th>Contato</th>
                             <th>Endereço</th>
+                            <th>Portal</th>
                             <th>Desde</th>
                         </tr>
                     </thead>
@@ -200,6 +202,18 @@ export default function TutorsPage() {
                                             </div>
                                         )}
                                         {!tutor.address && !tutor.neighborhood && !tutor.city && '-'}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        {tutor.user_id ? (
+                                            <span style={{ color: '#2ecc71', fontSize: '1.2rem' }} title="Com acesso ao portal">✅</span>
+                                        ) : (
+                                            <span style={{ color: '#cbd5e1', fontSize: '1.2rem' }} title="Sem acesso ao portal">⚪</span>
+                                        )}
+                                        <span style={{ fontSize: '0.8rem', color: '#64748b' }}>
+                                            {tutor.user_id ? 'Ativo' : 'Inativo'}
+                                        </span>
                                     </div>
                                 </td>
                                 <td>
@@ -243,15 +257,22 @@ export default function TutorsPage() {
                                     />
                                 </div>
 
-                                {!selectedTutor && (
-                                    <div className={styles.formGroup}>
-                                        <label htmlFor="password" className={styles.label}>Senha de Acesso *</label>
-                                        <input
-                                            id="password" name="password" type="password" className={styles.input} required
-                                            placeholder="******" minLength={6}
-                                        />
-                                    </div>
-                                )}
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="password" className={styles.label}>
+                                        {selectedTutor ? 'Alterar Senha de Acesso' : 'Senha de Acesso *'}
+                                    </label>
+                                    <input
+                                        id="password" name="password" type="password" className={styles.input}
+                                        required={!selectedTutor}
+                                        placeholder={selectedTutor ? "Deixe em branco para não alterar" : "******"}
+                                        minLength={6}
+                                    />
+                                    {selectedTutor && !selectedTutor.user_id && (
+                                        <small style={{ color: 'var(--color-coral)', fontSize: '0.75rem' }}>
+                                            ⚠️ Este tutor ainda não tem acesso ao portal. Defina uma senha para criar o acesso.
+                                        </small>
+                                    )}
+                                </div>
 
                                 <div className={styles.formGroup}>
                                     <label htmlFor="phone" className={styles.label}>Telefone/WhatsApp *</label>
