@@ -118,17 +118,44 @@ export default function BookingPage() {
 
     // Generate time slots
     const generateTimeSlots = useCallback(() => {
+        if (!selectedPet || !selectedService) return
+
+        const pet = pets.find(p => p.id === selectedPet)
+        const service = services.find(s => s.id === selectedService)
+
+        if (!pet || !service) return
+
+        const petSpecies = pet.species === 'cat' ? 'cat' : 'dog'
+        const categoryName = (service.category || '').toLowerCase()
+        const isExempt = categoryName.includes('creche') || categoryName.includes('hospedagem') || categoryName.includes('hotel')
+
         const slots: TimeSlot[] = []
         for (let hour = 8; hour <= 17; hour++) {
             const timeString = `${hour.toString().padStart(2, '0')}:00`
             const timeDate = new Date(`${selectedDate}T${timeString}:00`)
 
-            // Check if this slot is blocked
-            const isBlocked = scheduleBlocks.some(block => {
-                const blockStart = new Date(block.start_at)
-                const blockEnd = new Date(block.end_at)
-                return timeDate >= blockStart && timeDate < blockEnd
-            })
+            let isBlocked = false
+
+            if (!isExempt) {
+                const conflictingBlock = scheduleBlocks.find(block => {
+                    const blockStart = new Date(block.start_at)
+                    const blockEnd = new Date(block.end_at)
+                    return timeDate >= blockStart && timeDate < blockEnd
+                })
+
+                if (conflictingBlock) {
+                    // Check if block allows this species
+                    if (conflictingBlock.allowed_species && conflictingBlock.allowed_species.length > 0) {
+                        if (conflictingBlock.allowed_species.includes(petSpecies)) {
+                            isBlocked = false // Allowed!
+                        } else {
+                            isBlocked = true // Species not allowed
+                        }
+                    } else {
+                        isBlocked = true // Blocked for everyone (null/empty allowed_species)
+                    }
+                }
+            }
 
             slots.push({ time: timeString, available: !isBlocked })
 
@@ -136,17 +163,33 @@ export default function BookingPage() {
                 const halfHourString = `${hour.toString().padStart(2, '0')}:30`
                 const halfHourDate = new Date(`${selectedDate}T${halfHourString}:00`)
 
-                const isHalfBlocked = scheduleBlocks.some(block => {
-                    const blockStart = new Date(block.start_at)
-                    const blockEnd = new Date(block.end_at)
-                    return halfHourDate >= blockStart && halfHourDate < blockEnd
-                })
+                let isHalfBlocked = false
+
+                if (!isExempt) {
+                    const conflictingHalfBlock = scheduleBlocks.find(block => {
+                        const blockStart = new Date(block.start_at)
+                        const blockEnd = new Date(block.end_at)
+                        return halfHourDate >= blockStart && halfHourDate < blockEnd
+                    })
+
+                    if (conflictingHalfBlock) {
+                        if (conflictingHalfBlock.allowed_species && conflictingHalfBlock.allowed_species.length > 0) {
+                            if (conflictingHalfBlock.allowed_species.includes(petSpecies)) {
+                                isHalfBlocked = false
+                            } else {
+                                isHalfBlocked = true
+                            }
+                        } else {
+                            isHalfBlocked = true
+                        }
+                    }
+                }
 
                 slots.push({ time: halfHourString, available: !isHalfBlocked })
             }
         }
         setTimeSlots(slots)
-    }, [selectedDate, scheduleBlocks])
+    }, [selectedDate, scheduleBlocks, selectedPet, selectedService, pets, services])
 
     useEffect(() => {
         if (selectedDate) generateTimeSlots()

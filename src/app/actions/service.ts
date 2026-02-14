@@ -72,6 +72,10 @@ export async function createService(prevState: CreateServiceState, formData: For
         console.error('Error parsing checklist template', e)
     }
 
+    // Target Species Logic
+    let target_species = formData.get('target_species') as string
+    if (!['dog', 'cat', 'both'].includes(target_species)) target_species = 'both'
+
     const { error } = await supabase.from('services').insert({
         org_id: profile.org_id,
         name,
@@ -79,6 +83,7 @@ export async function createService(prevState: CreateServiceState, formData: For
         base_price,
         category: legacyCategory, // Legacy support
         category_id,
+        target_species,
         duration_minutes,
         scheduling_rules,
         checklist_template
@@ -124,6 +129,10 @@ export async function updateService(prevState: CreateServiceState, formData: For
         duration_minutes = (h * 60) + m
     }
 
+    // Target Species Logic
+    let target_species = formData.get('target_species') as string
+    if (!['dog', 'cat', 'both'].includes(target_species)) target_species = 'both'
+
     // Parse scheduling rules
     const schedulingRulesRaw = formData.get('scheduling_rules') as string
     let scheduling_rules = []
@@ -153,6 +162,7 @@ export async function updateService(prevState: CreateServiceState, formData: For
         base_price,
         category: legacyCategory,
         category_id,
+        target_species,
         duration_minutes,
         scheduling_rules,
         checklist_template

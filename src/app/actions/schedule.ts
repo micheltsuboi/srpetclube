@@ -37,6 +37,18 @@ export async function createScheduleBlock(prevState: any, formData: FormData): P
         const start_at = formData.get('start_at') as string
         const end_at = formData.get('end_at') as string
 
+        // Allowed Species Logic
+        const allowedSpeciesRaw = formData.getAll('allowed_species') as string[]
+        // If empty or contains 'both' (though UI might send explicit array), we treat as NULL (block all)
+        // OR better: if user selects specific species, we save them. If user selects "Block Everything", we save NULL.
+        // Let's check how the UI will send it.
+        // Assuming checkboxes: allowed_species=['dog'] or allowed_species=['dog', 'cat']
+
+        // If NO allowed_species provided, it means it's a FULL BLOCK (default behavior).
+        // If allowed_species provided, checking logic applies.
+        let allowed_species: string[] | null = allowedSpeciesRaw.length > 0 ? allowedSpeciesRaw : null
+
+
         if (!reason || !start_at || !end_at) {
             return { message: 'Preencha todos os campos.', success: false }
         }
@@ -56,13 +68,14 @@ export async function createScheduleBlock(prevState: any, formData: FormData): P
         const finalStart = formatTS(start_at)
         const finalEnd = formatTS(end_at)
 
-        console.log('[CreateScheduleBlock] Executing for Org:', profile.org_id, 'Dates:', { finalStart, finalEnd })
+        console.log('[CreateScheduleBlock] Executing for Org:', profile.org_id, 'Dates:', { finalStart, finalEnd }, 'Allowed:', allowed_species)
 
         const { error } = await supabase.from('schedule_blocks').insert({
             org_id: profile.org_id,
             start_at: finalStart,
             end_at: finalEnd,
             reason,
+            allowed_species,
             created_by: user.id
         })
 
