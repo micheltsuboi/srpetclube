@@ -70,191 +70,20 @@ export default function ServicesPage() {
 
     // Form Action States
     const [createState, createAction, isCreatePending] = useActionState(createService, initialState)
-        // ... (rest of hook definitions)
+    // ... (rest of hook definitions)
 
-        // ... (fetchData implementation)
+    // ... (fetchData implementation)
 
-        // ... (rest of component logic)
+    // ... (rest of component logic)
 
-        < div className = { styles.inputGroup } >
-                                        <label className={styles.label}>Categoria</label>
-                                        <select
-                                            name="category_id"
-                                            className={styles.select}
-                                            defaultValue={selectedService?.category_id || categories.find(c => c.name === 'Banho e Tosa')?.id || ''}
-                                            required
-                                            onChange={(e) => {
-                                                const cat = categories.find(c => c.id === e.target.value)
-                                                const input = document.getElementById('category_name_input') as HTMLInputElement
-                                                if (input && cat) input.value = cat.name
-                                            }}
-                                        >
-                                            <option value="" disabled>Selecione...</option>
-                                            {categories.map(cat => (
-                                                <option key={cat.id} value={cat.id}>
-                                                    {cat.icon} {cat.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                        <input
-                                            type="hidden"
-                                            name="category_name"
-                                            id="category_name_input"
-                                            defaultValue={selectedService?.service_categories?.name || 'Banho e Tosa'}
-                                        />
-                                    </div >
-                                    <div className={styles.inputGroup}>
-                                        <label className={styles.label}>Espécie Alvo</label>
-                                        <select
-                                            name="target_species"
-                                            className={styles.select}
-                                            defaultValue={selectedService?.target_species || 'both'}
-                                        >
-                                            <option value="both">🐶 e 🐱 (Ambos)</option>
-                                            <option value="dog">🐶 Cães Apenas</option>
-                                            <option value="cat">🐱 Gatos Apenas</option>
-                                        </select>
-                                    </div>
-                                    <div className={styles.inputGroup}>
-                                        <label className={styles.label}>Espécie Alvo</label>
-                                        <select
-                                            name="target_species"
-                                            className={styles.select}
-                                            defaultValue={selectedService?.target_species || 'both'}
-                                        >
-                                            <option value="both">🐶 e 🐱 (Ambos)</option>
-                                            <option value="dog">🐶 Cães Apenas</option>
-                                            <option value="cat">🐱 Gatos Apenas</option>
-                                        </select>
-                                    </div>
-                                    <div className={styles.inputGroup}>
-                                        <label className={styles.label}>Preço Base (R$)</label>
-                                        <input name="base_price" type="number" step="0.01" className={styles.input} defaultValue={selectedService?.base_price} required />
-                                    </div>
-    {/* ... rest of inputs */ }
-                                    <div className={styles.inputGroup}>
-                                        <label className={styles.label}>Duração</label>
-                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            <input
-                                                name="duration_hours"
-                                                type="number"
-                                                min="0"
-                                                placeholder="Horas"
-                                                className={styles.input}
-                                                defaultValue={selectedService?.duration_minutes ? Math.floor(selectedService.duration_minutes / 60) : ''}
-                                            />
-                                            <input
-                                                name="duration_minutes_part"
-                                                type="number"
-                                                min="0"
-                                                max="59"
-                                                placeholder="Min"
-                                                className={styles.input}
-                                                defaultValue={selectedService?.duration_minutes ? selectedService.duration_minutes % 60 : ''}
-                                            />
-                                        </div>
-                                    </div>
-                                    <div className={styles.inputGroup} style={{ gridColumn: '1/-1' }}>
-                                        <label className={styles.label}>Descrição</label>
-                                        <input name="description" className={styles.input} defaultValue={selectedService?.description || ''} />
-                                    </div>
-                                </div >
-
-        {/* Scheduling Rules Section */ }
-        < div style = {{ marginBottom: '1.5rem', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px' }
-}>
-                                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: '#666' }}>🕒 Restrições de Agendamento (Dia x Espécie)</h4>
-
-                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'end', marginBottom: '0.5rem' }}>
-                                        <div style={{ flex: 1 }}>
-                                            <label className={styles.label} style={{ fontSize: '0.8rem' }}>Dia da Semana</label>
-                                            <select
-                                                className={styles.select}
-                                                value={newRuleDay}
-                                                onChange={(e) => setNewRuleDay(e.target.value)}
-                                            >
-                                                <option value="">Selecione...</option>
-                                                <option value="0">Domingo</option>
-                                                <option value="1">Segunda</option>
-                                                <option value="2">Terça</option>
-                                                <option value="3">Quarta</option>
-                                                <option value="4">Quinta</option>
-                                                <option value="5">Sexta</option>
-                                                <option value="6">Sábado</option>
-                                            </select>
-                                        </div>
-                                        <div style={{ flex: 2 }}>
-                                            <label className={styles.label} style={{ fontSize: '0.8rem' }}>Permitir Apenas:</label>
-                                            <div style={{ display: 'flex', gap: '1rem', padding: '0.5rem 0' }}>
-                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem' }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={newRuleSpecies.includes('dog')}
-                                                        onChange={() => toggleSpecies('dog')}
-                                                    /> Cães
-                                                </label>
-                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem' }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={newRuleSpecies.includes('cat')}
-                                                        onChange={() => toggleSpecies('cat')}
-                                                    /> Gatos
-                                                </label>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            className={styles.addBtnSmall}
-                                            onClick={handleAddSchedulingRule}
-                                            style={{ height: '36px' }}
-                                        >
-                                            + Regra
-                                        </button>
-                                    </div>
-
-{
-    schedulingRules.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-            {schedulingRules.map((rule, idx) => (
-                <div key={idx} style={{ background: '#f1f5f9', padding: '0.3rem 0.6rem', borderRadius: '4px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <strong>{['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][rule.day]}:</strong>
-                    <span>{rule.species.map(s => s === 'dog' ? 'Cães' : 'Gatos').join(', ')}</span>
-                    <button
-                        type="button"
-                        onClick={() => handleRemoveSchedulingRule(idx)}
-                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: '#ef4444', fontWeight: 'bold' }}
-                    >×</button>
-                </div>
-            ))}
-        </div>
-    )
+    className = { styles.addBtnSmall }
+    onClick = { handleAddChecklistItem }
+    style = {{ height: 'auto' }
 }
-                                </div >
-
-    {/* Checklist Template Section */ }
-    < div style = {{ marginBottom: '1.5rem', border: '1px solid var(--border)', padding: '1rem', borderRadius: '8px', background: '#f8fafc' }}>
-                                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: '#475569', fontWeight: 600 }}>📋 Checklist Padrão (Procedimentos)</h4>
-                                    <input type="hidden" name="checklist_template" value={JSON.stringify(checklistTemplate)} />
-
-                                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                                        <input
-                                            type="text"
-                                            placeholder="Adicionar item (ex: Cortar unhas, Lavar)..."
-                                            className={styles.input}
-                                            value={newItemText}
-                                            onChange={(e) => setNewItemText(e.target.value)}
-                                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddChecklistItem(); } }}
-                                            style={{ background: 'white' }}
-                                        />
-                                        <button
-                                            type="button"
-                                            className={styles.addBtnSmall}
-                                            onClick={handleAddChecklistItem}
-                                            style={{ height: 'auto' }}
                                         >
-                                            + Adicionar
-                                        </button>
-                                    </div>
+    + Adicionar
+                                        </button >
+                                    </div >
 
 {
     checklistTemplate.length > 0 ? (
