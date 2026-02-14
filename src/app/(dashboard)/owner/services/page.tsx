@@ -70,92 +70,24 @@ export default function ServicesPage() {
 
     // Form Action States
     const [createState, createAction, isCreatePending] = useActionState(createService, initialState)
-    // ... (rest of hook definitions)
+        // ... (rest of hook definitions)
 
-    // ... (fetchData implementation)
+        // ... (fetchData implementation)
 
-    // ... (rest of component logic)
+        // ... (rest of component logic)
 
-    className = { styles.addBtnSmall }
-    onClick = { handleAddChecklistItem }
-    style = {{ height: 'auto' }
-}
-                                        >
-    + Adicionar
-                                        </button >
-                                    </div >
 
-{
-    checklistTemplate.length > 0 ? (
-        <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {checklistTemplate.map((item, idx) => (
-                <li key={idx} style={{
-                    background: 'white',
-                    padding: '0.6rem 0.8rem',
-                    borderRadius: '6px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    border: '1px solid #e2e8f0',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-                    color: '#334155'
-                }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <span style={{
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            width: '20px', height: '20px', borderRadius: '50%',
-                            background: '#e2e8f0', color: '#64748b', fontSize: '0.7rem', fontWeight: 'bold'
-                        }}>
-                            {idx + 1}
-                        </span>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{item}</span>
-                    </div>
-                    <button
-                        type="button"
-                        onClick={() => handleRemoveChecklistItem(idx)}
-                        style={{
-                            border: 'none',
-                            background: 'transparent',
-                            cursor: 'pointer',
-                            color: '#94a3b8',
-                            padding: '4px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            transition: 'color 0.2s'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.color = '#ef4444'}
-                        onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
-                        title="Remover item"
-                    >
-                        ✕
-                    </button>
-                </li>
-            ))}
-        </ul>
-    ) : (
-        <div style={{
-            textAlign: 'center',
-            padding: '1.5rem',
-            color: '#94a3b8',
-            fontSize: '0.85rem',
-            border: '1px dashed #cbd5e1',
-            borderRadius: '6px'
-        }}>
-            Nenhum item adicionado ao checklist ainda.
-        </div>
-    )
-}
-                                </div >
 
-    <div className={styles.modalActions} style={{ marginTop: 0, marginBottom: '2rem' }}>
-        {isEditing && (
-            <button type="button" className={styles.deleteServiceBtn} onClick={handleDeleteService}>Excluir Serviço</button>
-        )}
+        < div className = { styles.modalActions } style = {{ marginTop: 0, marginBottom: '2rem' }
+}>
+    { isEditing && (
+        <button type="button" className={styles.deleteServiceBtn} onClick={handleDeleteService}>Excluir Serviço</button>
+    )}
         <button type="button" className={styles.cancelBtn} onClick={() => setShowModal(false)}>Cancelar</button>
         <button type="submit" form="serviceForm" className={styles.submitBtn} disabled={isCreatePending || isUpdatePending}>
             {isEditing ? 'Salvar Alterações' : 'Criar Serviço'}
         </button>
-    </div>
+    </div >
                             </form >
 
     {/* Pricing Matrix Section - Only in Edit Mode */ }
