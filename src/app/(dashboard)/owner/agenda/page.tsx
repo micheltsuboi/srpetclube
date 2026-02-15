@@ -1054,6 +1054,28 @@ export default function AgendaPage() {
                                     <input name="end_at" type="datetime-local" className={styles.input} required defaultValue={`${selectedDate}T18:00`} />
                                 </div>
                             </div>
+
+                            <div className={styles.formGroup} style={{ marginTop: '1rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '4px' }}>
+                                <label className={styles.label} style={{ marginBottom: '0.5rem', display: 'block' }}>Restrição de Espécie (Opcional)</label>
+                                <div style={{ display: 'flex', gap: '1rem' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                        <input type="checkbox" name="allowed_species[]" value="dog" /> 🐶 Permitir Cães
+                                    </label>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                        <input type="checkbox" name="allowed_species[]" value="cat" /> 🐱 Permitir Gatos
+                                    </label>
+                                </div>
+                                <small style={{ display: 'block', marginTop: '0.3rem', color: '#64748b', fontSize: '0.75rem' }}>
+                                    Se ambos estiverem desmarcados, bloqueia TUDO. Se marcar um, APENAS esse será permitido.
+                                </small>
+                            </div>
+
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label className={styles.label}>Fim</label>
+                                    <input name="end_at" type="datetime-local" className={styles.input} required defaultValue={`${selectedDate}T18:00`} />
+                                </div>
+                            </div>
                             <div className={styles.modalActions}>
                                 <button type="button" className={styles.cancelBtn} onClick={() => setShowBlockModal(false)}>Cancelar</button>
                                 <button type="submit" className={styles.submitBtn} disabled={isBlockPending}>
@@ -1061,9 +1083,10 @@ export default function AgendaPage() {
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            )}
-        </div>
+                    </div >
+                </div >
+            )
+}
+        </div >
     )
 }
