@@ -38,11 +38,8 @@ export async function createScheduleBlock(prevState: any, formData: FormData): P
         const end_at = formData.get('end_at') as string
 
         // Allowed Species Logic
-        const allowedSpeciesRaw = formData.getAll('allowed_species') as string[]
-        // If empty or contains 'both' (though UI might send explicit array), we treat as NULL (block all)
-        // OR better: if user selects specific species, we save them. If user selects "Block Everything", we save NULL.
-        // Let's check how the UI will send it.
-        // Assuming checkboxes: allowed_species=['dog'] or allowed_species=['dog', 'cat']
+        // Frontend uses name="allowed_species[]", so we must fetch that exactly.
+        const allowedSpeciesRaw = formData.getAll('allowed_species[]') as string[]
 
         // If NO allowed_species provided, it means it's a FULL BLOCK (default behavior).
         // If allowed_species provided, checking logic applies.

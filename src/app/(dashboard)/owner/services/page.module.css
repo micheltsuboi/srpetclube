@@ -214,6 +214,25 @@
     cursor: pointer;
 }
 
+.editBtn {
+    background: transparent;
+    border: 1px solid var(--border);
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    width: 100%;
+    margin-top: 1rem;
+    transition: all 0.2s;
+}
+
+.editBtn:hover {
+    background: var(--bg-tertiary);
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
 /* New classes from reconstructed ServicesPage */
 .addBtn {
     background: var(--primary);
