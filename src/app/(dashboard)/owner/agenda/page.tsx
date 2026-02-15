@@ -1070,12 +1070,7 @@ export default function AgendaPage() {
                                 </small>
                             </div>
 
-                                </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Fim</label>
-                                    <input name="end_at" type="datetime-local" className={styles.input} required defaultValue={`${selectedDate}T18:00`} />
-                                </div>
-                            </div>
+
                             <div className={styles.modalActions}>
                                 <button type="button" className={styles.cancelBtn} onClick={() => setShowBlockModal(false)}>Cancelar</button>
                                 <button type="submit" className={styles.submitBtn} disabled={isBlockPending}>
@@ -1086,7 +1081,7 @@ export default function AgendaPage() {
                     </div >
                 </div >
             )
-}
+            }
         </div >
     )
 }
