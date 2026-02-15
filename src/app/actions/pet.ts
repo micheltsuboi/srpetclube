@@ -60,6 +60,8 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
         return { message: 'Tutor inválido ou não pertence à sua organização.', success: false }
     }
 
+    const photo_url = formData.get('photo_url') as string
+
     const { error } = await supabaseAdmin
         .from('pets')
         .insert({
@@ -73,7 +75,8 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
             birth_date: birthDateStr ? new Date(birthDateStr).toISOString() : null,
             is_neutered: isNeutered,
             existing_conditions: existing_conditions || null,
-            vaccination_up_to_date: vaccination_up_to_date
+            vaccination_up_to_date: vaccination_up_to_date,
+            photo_url: photo_url || null
         })
 
     if (error) {
@@ -105,6 +108,7 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
     const customerId = formData.get('customerId') as string
     const existing_conditions = formData.get('existing_conditions') as string
     const vaccination_up_to_date = formData.get('vaccination_up_to_date') === 'on'
+    const photo_url = formData.get('photo_url') as string
 
     const supabaseAdmin = createAdminClient()
 
@@ -122,7 +126,8 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
             is_neutered: isNeutered,
             customer_id: customerId,
             existing_conditions: existing_conditions || null,
-            vaccination_up_to_date: vaccination_up_to_date
+            vaccination_up_to_date: vaccination_up_to_date,
+            photo_url: photo_url || null
         })
         .eq('id', id)
 
