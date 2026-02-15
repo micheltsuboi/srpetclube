@@ -1055,18 +1055,18 @@ export default function AgendaPage() {
                                 </div>
                             </div>
 
-                            <div className={styles.formGroup} style={{ marginTop: '1rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '4px' }}>
-                                <label className={styles.label} style={{ marginBottom: '0.5rem', display: 'block' }}>Restrição de Espécie (Opcional)</label>
-                                <div style={{ display: 'flex', gap: '1rem' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-                                        <input type="checkbox" name="allowed_species[]" value="dog" /> 🐶 Permitir Cães
+                            <div className={styles.formGroup} style={{ marginTop: '1rem', padding: '1rem', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', background: 'rgba(0,0,0,0.2)' }}>
+                                <label className={styles.label} style={{ marginBottom: '0.8rem', display: 'block', color: '#e2e8f0' }}>Restrição de Espécie (Opcional)</label>
+                                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', color: '#f1f5f9', cursor: 'pointer' }}>
+                                        <input type="checkbox" name="allowed_species[]" value="dog" style={{ accentColor: 'var(--primary)', width: '18px', height: '18px' }} /> 🐶 Permitir Cães
                                     </label>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-                                        <input type="checkbox" name="allowed_species[]" value="cat" /> 🐱 Permitir Gatos
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem', color: '#f1f5f9', cursor: 'pointer' }}>
+                                        <input type="checkbox" name="allowed_species[]" value="cat" style={{ accentColor: 'var(--primary)', width: '18px', height: '18px' }} /> 🐱 Permitir Gatos
                                     </label>
                                 </div>
-                                <small style={{ display: 'block', marginTop: '0.3rem', color: '#64748b', fontSize: '0.75rem' }}>
-                                    Se ambos estiverem desmarcados, bloqueia TUDO. Se marcar um, APENAS esse será permitido.
+                                <small style={{ display: 'block', marginTop: '0.8rem', color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                                    ℹ️ Se ambos estiverem desmarcados, bloqueia TUDO. Se marcar um, APENAS esse será permitido.
                                 </small>
                             </div>
 
