@@ -61,7 +61,7 @@ export default function TutorPage() {
     const supabase = createClient()
     const [pets, setPets] = useState<Pet[]>([])
     const [selectedPet, setSelectedPet] = useState<Pet | null>(null)
-    const [appointment, setAppointment] = useState<CurrentAppointment | null>(null)
+    const [appointments, setAppointments] = useState<CurrentAppointment[]>([])
     const [timeline, setTimeline] = useState<TimelineEvent[]>([])
     const [loading, setLoading] = useState(true)
 
@@ -115,67 +115,73 @@ export default function TutorPage() {
         if (!selectedPet?.id) return
         try {
             // Reset appointment and timeline before fetching new one
-            setAppointment(null)
+            setAppointments([])
             setTimeline([])
 
-            // 3. Get Today's Appointment for the selected pet
-            const today = new Date().toISOString().split('T')[0]
+            // 3. Get Upcoming Appointments for the selected pet
+            const today = new Date()
+            today.setHours(0, 0, 0, 0)
+            const todayIso = today.toISOString()
             const { data: apptData } = await supabase
                 .from('appointments')
                 .select('id, scheduled_at, status, started_at, services(name)')
                 .eq('pet_id', selectedPet.id)
-                .gte('scheduled_at', `${today}T00:00:00`)
-                .lte('scheduled_at', `${today}T23:59:59`)
-                .order('scheduled_at', { ascending: false })
-                .limit(1)
-                .single()
+                .gte('scheduled_at', todayIso)
+                .neq('status', 'cancelled')
+                .order('scheduled_at', { ascending: true })
+                .limit(10)
 
-            if (apptData) {
-                setAppointment({
-                    id: apptData.id,
-                    service_name: (apptData.services as any)?.name || 'Serviço',
-                    status: apptData.status as any,
-                    scheduled_at: apptData.scheduled_at,
-                    started_at: apptData.started_at
-                })
+            if (apptData && apptData.length > 0) {
+                const formattedAppts = apptData.map(a => ({
+                    id: a.id,
+                    service_name: (a.services as any)?.name || 'Serviço',
+                    status: a.status as any,
+                    scheduled_at: a.scheduled_at,
+                    started_at: a.started_at
+                }))
+                setAppointments(formattedAppts)
 
-                // 4. Get Daily Report Summary for this appointment
-                const { data: reportData } = await supabase
-                    .from('appointment_daily_reports')
-                    .select('id, report_text, photos, created_at')
-                    .eq('appointment_id', apptData.id)
-                    .single()
+                // 4. Get Daily Report Summary for the first appointment or the active one
+                const activeAppt = formattedAppts.find(a => a.status === 'in_progress') || formattedAppts[0]
 
-                if (reportData) {
-                    const events: TimelineEvent[] = []
+                if (activeAppt) {
+                    const { data: reportData } = await supabase
+                        .from('appointment_daily_reports')
+                        .select('id, report_text, photos, created_at')
+                        .eq('appointment_id', activeAppt.id)
+                        .single()
 
-                    // Add report text as a general event if it exists
-                    if (reportData.report_text) {
-                        events.push({
-                            id: reportData.id + '_text',
-                            type: 'general',
-                            observation: reportData.report_text,
-                            photo_url: null,
-                            created_at: reportData.created_at,
-                            staff_name: 'Equipe'
-                        })
-                    }
+                    if (reportData) {
+                        const events: TimelineEvent[] = []
 
-                    // Add each photo as a photo event
-                    if (reportData.photos && reportData.photos.length > 0) {
-                        reportData.photos.forEach((url: string, idx: number) => {
+                        // Add report text as a general event if it exists
+                        if (reportData.report_text) {
                             events.push({
-                                id: reportData.id + '_photo_' + idx,
-                                type: 'photo',
-                                observation: idx === 0 ? 'Registro fotográfico do atendimento' : '',
-                                photo_url: url,
+                                id: reportData.id + '_text',
+                                type: 'general',
+                                observation: reportData.report_text,
+                                photo_url: null,
                                 created_at: reportData.created_at,
                                 staff_name: 'Equipe'
                             })
-                        })
-                    }
+                        }
 
-                    setTimeline(events)
+                        // Add each photo as a photo event
+                        if (reportData.photos && reportData.photos.length > 0) {
+                            reportData.photos.forEach((url: string, idx: number) => {
+                                events.push({
+                                    id: reportData.id + '_photo_' + idx,
+                                    type: 'photo',
+                                    observation: idx === 0 ? 'Registro fotográfico do atendimento' : '',
+                                    photo_url: url,
+                                    created_at: reportData.created_at,
+                                    staff_name: 'Equipe'
+                                })
+                            })
+                        }
+
+                        setTimeline(events)
+                    }
                 }
             }
         } catch (error) {
@@ -193,7 +199,8 @@ export default function TutorPage() {
 
     // Real-time updates subscription
     useEffect(() => {
-        if (!appointment?.id) return
+        const activeAppt = appointments.find(a => a.status === 'in_progress') || appointments[0]
+        if (!activeAppt?.id) return
 
         const channel = supabase
             .channel('tutor-updates')
@@ -201,7 +208,7 @@ export default function TutorPage() {
                 event: '*',
                 schema: 'public',
                 table: 'appointment_daily_reports',
-                filter: `appointment_id=eq.${appointment.id}`
+                filter: `appointment_id=eq.${activeAppt.id}`
             }, () => {
                 fetchAppointmentData() // Refresh on change
             })
@@ -209,7 +216,7 @@ export default function TutorPage() {
                 event: 'UPDATE',
                 schema: 'public',
                 table: 'appointments',
-                filter: `id=eq.${appointment.id}`
+                filter: `id=eq.${activeAppt.id}`
             }, () => {
                 fetchAppointmentData()
             })
@@ -218,13 +225,14 @@ export default function TutorPage() {
         return () => {
             supabase.removeChannel(channel)
         }
-    }, [appointment?.id, fetchAppointmentData, supabase])
+    }, [appointments, fetchAppointmentData, supabase])
 
     useEffect(() => {
-        if (!appointment?.started_at) return
+        const inProgress = appointments.find(a => a.status === 'in_progress' && a.started_at)
+        if (!inProgress) return
 
         const calculateElapsed = () => {
-            const start = new Date(appointment.started_at!)
+            const start = new Date(inProgress.started_at!)
             const now = new Date()
             const diff = now.getTime() - start.getTime()
 
@@ -241,7 +249,7 @@ export default function TutorPage() {
         calculateElapsed()
         const timer = setInterval(calculateElapsed, 60000)
         return () => clearInterval(timer)
-    }, [appointment])
+    }, [appointments])
 
     const formatTime = (dateString: string) => {
         return new Date(dateString).toLocaleTimeString('pt-BR', {
@@ -327,44 +335,48 @@ export default function TutorPage() {
                 )}
             </div>
 
-            {/* Current Status Card */}
-            {appointment ? (
-                <div className={styles.statusCard}>
-                    <div className={styles.statusHeader}>
-                        <span className={`${styles.statusBadge} ${styles[statusColors[appointment.status]]}`}>
-                            {appointment.status === 'in_progress' && '🛁 '}
-                            {statusLabels[appointment.status]}
-                        </span>
-                        {appointment.status === 'in_progress' && elapsedTime && (
-                            <span className={styles.elapsedTime}>⏱️ {elapsedTime}</span>
-                        )}
-                    </div>
-                    <h2 className={styles.serviceName}>{appointment.service_name}</h2>
-                    <p className={styles.scheduledTime}>
-                        Agendado para hoje às {formatTime(appointment.scheduled_at)}
-                    </p>
-
-                    {appointment.status === 'in_progress' && (
-                        <div className={styles.progressIndicator}>
-                            <div className={styles.progressDots}>
-                                <span className={styles.dot} />
-                                <span className={styles.dot} />
-                                <span className={styles.dot} />
+            {/* Current Status Cards */}
+            {appointments.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {appointments.map(appt => (
+                        <div key={appt.id} className={styles.statusCard}>
+                            <div className={styles.statusHeader}>
+                                <span className={`${styles.statusBadge} ${styles[statusColors[appt.status]]}`}>
+                                    {appt.status === 'in_progress' && '🛁 '}
+                                    {statusLabels[appt.status]}
+                                </span>
+                                {appt.status === 'in_progress' && elapsedTime && (
+                                    <span className={styles.elapsedTime}>⏱️ {elapsedTime}</span>
+                                )}
                             </div>
-                            <p>Seu pet está sendo cuidado com muito carinho!</p>
+                            <h2 className={styles.serviceName}>{appt.service_name}</h2>
+                            <p className={styles.scheduledTime}>
+                                Agendado para {new Date(appt.scheduled_at).toLocaleDateString('pt-BR')} às {formatTime(appt.scheduled_at)}
+                            </p>
+
+                            {appt.status === 'in_progress' && (
+                                <div className={styles.progressIndicator}>
+                                    <div className={styles.progressDots}>
+                                        <span className={styles.dot} />
+                                        <span className={styles.dot} />
+                                        <span className={styles.dot} />
+                                    </div>
+                                    <p>Seu pet está sendo cuidado com muito carinho!</p>
+                                </div>
+                            )}
                         </div>
-                    )}
+                    ))}
                 </div>
             ) : (
                 <div className={styles.noServiceCard}>
-                    <h3>Nenhum serviço para hoje</h3>
+                    <h3>Nenhum serviço agendado</h3>
                     <p>Que tal agendar um banho ou uma creche para {selectedPet.name}?</p>
                 </div>
             )}
 
             {/* Timeline */}
             <div className={styles.timelineSection}>
-                <h2 className={styles.sectionTitle}>📸 {appointment ? 'Timeline de Hoje' : 'Últimas Atualizações'}</h2>
+                <h2 className={styles.sectionTitle}>📸 {appointments.length > 0 ? (appointments.find(a => a.status === 'in_progress') || appointments[0]).scheduled_at.startsWith(new Date().toISOString().split('T')[0]) ? 'Timeline de Hoje' : 'Últimas Atualizações' : 'Últimas Atualizações'}</h2>
 
                 {timeline.length > 0 ? (
                     <div className={styles.timeline}>
