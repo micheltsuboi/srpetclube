@@ -10,7 +10,7 @@ DECLARE
   v_org_id UUID;
   v_user_id UUID;
   v_email TEXT := 'contato@srpetclube.com.br';
-  v_password TEXT := '123456'; -- Senha inicial simples
+  v_password TEXT := '@Srpet135'; -- Senha inicial simples
   v_name TEXT := 'Alessandra Rigon';
   v_subdomain TEXT := 'srpetclube';
 BEGIN

@@ -68,7 +68,7 @@ export default function TutorPage() {
     const [elapsedTime, setElapsedTime] = useState('')
     const [showPetModal, setShowPetModal] = useState(false)
 
-    const fetchData = useCallback(async () => {
+    const fetchTutorAndPets = useCallback(async () => {
         try {
             setLoading(true)
             const { data: { user } } = await supabase.auth.getUser()
@@ -95,69 +95,14 @@ export default function TutorPage() {
 
             if (petData && petData.length > 0) {
                 setPets(petData)
-                const currentPet = petData[0]
-                setSelectedPet(currentPet)
-
-                // 3. Get Today's Appointment for the first pet
-                const today = new Date().toISOString().split('T')[0]
-                const { data: apptData } = await supabase
-                    .from('appointments')
-                    .select('id, scheduled_at, status, started_at, services(name)')
-                    .eq('pet_id', currentPet.id)
-                    .gte('scheduled_at', `${today}T00:00:00`)
-                    .lte('scheduled_at', `${today}T23:59:59`)
-                    .order('scheduled_at', { ascending: false })
-                    .limit(1)
-                    .single()
-
-                if (apptData) {
-                    setAppointment({
-                        id: apptData.id,
-                        service_name: (apptData.services as any)?.name || 'Serviço',
-                        status: apptData.status as any,
-                        scheduled_at: apptData.scheduled_at,
-                        started_at: apptData.started_at
-                    })
-
-                    // 4. Get Daily Report Summary for this appointment
-                    const { data: reportData } = await supabase
-                        .from('appointment_daily_reports')
-                        .select('id, report_text, photos, created_at')
-                        .eq('appointment_id', apptData.id)
-                        .single()
-
-                    if (reportData) {
-                        const events: TimelineEvent[] = []
-
-                        // Add report text as a general event if it exists
-                        if (reportData.report_text) {
-                            events.push({
-                                id: reportData.id + '_text',
-                                type: 'general',
-                                observation: reportData.report_text,
-                                photo_url: null,
-                                created_at: reportData.created_at,
-                                staff_name: 'Equipe'
-                            })
-                        }
-
-                        // Add each photo as a photo event
-                        if (reportData.photos && reportData.photos.length > 0) {
-                            reportData.photos.forEach((url: string, idx: number) => {
-                                events.push({
-                                    id: reportData.id + '_photo_' + idx,
-                                    type: 'photo',
-                                    observation: idx === 0 ? 'Registro fotográfico do atendimento' : '',
-                                    photo_url: url,
-                                    created_at: reportData.created_at,
-                                    staff_name: 'Equipe'
-                                })
-                            })
-                        }
-
-                        setTimeline(events)
+                // Only set selected pet if it's not already set
+                // or if the current selected pet is not in the list anymore
+                setSelectedPet(prev => {
+                    if (prev && petData.find(p => p.id === prev.id)) {
+                        return prev;
                     }
-                }
+                    return petData[0];
+                })
             }
         } catch (error) {
             console.error('Error fetching tutor data:', error)
@@ -166,9 +111,85 @@ export default function TutorPage() {
         }
     }, [supabase])
 
+    const fetchAppointmentData = useCallback(async () => {
+        if (!selectedPet?.id) return
+        try {
+            // Reset appointment and timeline before fetching new one
+            setAppointment(null)
+            setTimeline([])
+
+            // 3. Get Today's Appointment for the selected pet
+            const today = new Date().toISOString().split('T')[0]
+            const { data: apptData } = await supabase
+                .from('appointments')
+                .select('id, scheduled_at, status, started_at, services(name)')
+                .eq('pet_id', selectedPet.id)
+                .gte('scheduled_at', `${today}T00:00:00`)
+                .lte('scheduled_at', `${today}T23:59:59`)
+                .order('scheduled_at', { ascending: false })
+                .limit(1)
+                .single()
+
+            if (apptData) {
+                setAppointment({
+                    id: apptData.id,
+                    service_name: (apptData.services as any)?.name || 'Serviço',
+                    status: apptData.status as any,
+                    scheduled_at: apptData.scheduled_at,
+                    started_at: apptData.started_at
+                })
+
+                // 4. Get Daily Report Summary for this appointment
+                const { data: reportData } = await supabase
+                    .from('appointment_daily_reports')
+                    .select('id, report_text, photos, created_at')
+                    .eq('appointment_id', apptData.id)
+                    .single()
+
+                if (reportData) {
+                    const events: TimelineEvent[] = []
+
+                    // Add report text as a general event if it exists
+                    if (reportData.report_text) {
+                        events.push({
+                            id: reportData.id + '_text',
+                            type: 'general',
+                            observation: reportData.report_text,
+                            photo_url: null,
+                            created_at: reportData.created_at,
+                            staff_name: 'Equipe'
+                        })
+                    }
+
+                    // Add each photo as a photo event
+                    if (reportData.photos && reportData.photos.length > 0) {
+                        reportData.photos.forEach((url: string, idx: number) => {
+                            events.push({
+                                id: reportData.id + '_photo_' + idx,
+                                type: 'photo',
+                                observation: idx === 0 ? 'Registro fotográfico do atendimento' : '',
+                                photo_url: url,
+                                created_at: reportData.created_at,
+                                staff_name: 'Equipe'
+                            })
+                        })
+                    }
+
+                    setTimeline(events)
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching appointment:', error)
+        }
+    }, [selectedPet?.id, supabase])
+
     useEffect(() => {
-        fetchData()
-    }, [fetchData])
+        fetchTutorAndPets()
+    }, [fetchTutorAndPets])
+
+    useEffect(() => {
+        fetchAppointmentData()
+    }, [fetchAppointmentData])
 
     // Real-time updates subscription
     useEffect(() => {
@@ -182,7 +203,7 @@ export default function TutorPage() {
                 table: 'appointment_daily_reports',
                 filter: `appointment_id=eq.${appointment.id}`
             }, () => {
-                fetchData() // Refresh on change
+                fetchAppointmentData() // Refresh on change
             })
             .on('postgres_changes', {
                 event: 'UPDATE',
@@ -190,14 +211,14 @@ export default function TutorPage() {
                 table: 'appointments',
                 filter: `id=eq.${appointment.id}`
             }, () => {
-                fetchData()
+                fetchAppointmentData()
             })
             .subscribe()
 
         return () => {
             supabase.removeChannel(channel)
         }
-    }, [appointment?.id, fetchData, supabase])
+    }, [appointment?.id, fetchAppointmentData, supabase])
 
     useEffect(() => {
         if (!appointment?.started_at) return
@@ -268,7 +289,7 @@ export default function TutorPage() {
                     <PetRegistrationModal
                         onClose={() => setShowPetModal(false)}
                         onSuccess={() => {
-                            fetchData()
+                            fetchTutorAndPets()
                             setShowPetModal(false)
                         }}
                     />
@@ -386,7 +407,7 @@ export default function TutorPage() {
                 <PetRegistrationModal
                     onClose={() => setShowPetModal(false)}
                     onSuccess={() => {
-                        fetchData()
+                        fetchTutorAndPets()
                         setShowPetModal(false)
                     }}
                 />
