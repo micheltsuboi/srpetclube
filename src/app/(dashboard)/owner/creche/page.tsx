@@ -450,6 +450,14 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
 
         const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
 
+        // Validate year
+        const year = parseInt(selectedDate.split('-')[0], 10)
+        if (year < 2024) {
+            setLoading(false)
+            alert('Ano inválido. Por favor, digite o ano com 4 dígitos (ex: 2026).')
+            return
+        }
+
         const { error } = await supabase.from('appointments').insert({
             org_id: profile?.org_id,
             pet_id: selectedPetId,

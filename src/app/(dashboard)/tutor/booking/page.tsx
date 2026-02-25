@@ -305,6 +305,10 @@ export default function BookingPage() {
 
             if (!customerData) throw new Error('Dados do tutor não encontrados.')
 
+            // Validate year
+            const year = parseInt(selectedDate.split('-')[0], 10)
+            if (year < 2024) throw new Error('Ano inválido. Por favor, verifique se digitou o ano com 4 dígitos (ex: 2026).')
+
             const scheduledAt = new Date(`${selectedDate}T${selectedTime}:00-03:00`).toISOString()
 
             const { error: insertError } = await supabase
