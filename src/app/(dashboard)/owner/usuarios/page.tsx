@@ -49,6 +49,7 @@ const STAFF_MODULES = [
     { id: 'banho_tosa', label: '🛁 Banho e Tosa' },
     { id: 'creche', label: '🐕 Creche' },
     { id: 'hospedagem', label: '🏨 Hospedagem' },
+    { id: 'pacotes', label: '📦 Pacotes' },
     { id: 'tutores', label: '👤 Tutores' },
     { id: 'pets', label: '🐾 Pets' },
     { id: 'petshop', label: '🛍️ Petshop' },

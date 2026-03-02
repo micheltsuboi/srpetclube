@@ -160,6 +160,7 @@ export default function DashboardLayout({
             if (item.name === 'Pets') return perms.includes('pets')
             if (item.name === 'Petshop') return perms.includes('petshop')
             if (item.name === 'Serviços') return perms.includes('servicos')
+            if (item.name === 'Pacotes') return perms.includes('pacotes')
             if (item.name === 'Questionário') return perms.includes('pets') // Tie access to pets permission
             if (item.name === 'Ponto') return perms.includes('ponto')
             return false // Hide everything else (such as Usuários, Financeiro)
