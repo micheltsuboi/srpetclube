@@ -25,6 +25,7 @@ interface Service {
     name: string
     base_price: number
     category: string
+    service_categories?: { name: string }
     target_species?: 'dog' | 'cat' | 'both'
 }
 
@@ -86,11 +87,21 @@ export default function BookingPage() {
             if (customer.org_id) {
                 const { data: serviceData } = await supabase
                     .from('services')
-                    .select('id, name, base_price, category, target_species')
+                    .select('id, name, base_price, category, target_species, service_categories(name)')
                     .eq('org_id', customer.org_id)
                     .eq('is_active', true)
 
-                if (serviceData) setServices(serviceData)
+                if (serviceData) {
+                    const formatted = serviceData.map((s: any) => ({
+                        id: s.id,
+                        name: s.name,
+                        base_price: s.base_price,
+                        category: s.category,
+                        target_species: s.target_species,
+                        service_categories: Array.isArray(s.service_categories) ? s.service_categories[0] : s.service_categories
+                    }))
+                    setServices(formatted)
+                }
             }
 
         } catch (error) {
@@ -138,7 +149,7 @@ export default function BookingPage() {
         if (!pet || !service) return
 
         const petSpecies = pet.species === 'cat' ? 'cat' : 'dog'
-        const categoryName = (service.category || '').toLowerCase()
+        const categoryName = (service.service_categories?.name || service.category || '').toLowerCase()
         const isExempt = categoryName.includes('creche') || categoryName.includes('hospedagem') || categoryName.includes('hotel')
 
         const slots: TimeSlot[] = []
@@ -221,7 +232,7 @@ export default function BookingPage() {
 
         if (selectedPet) {
             setLoadingPrices(true)
-            const catServices = availableServices.filter(s => (s.category || 'Outros') === category)
+            const catServices = availableServices.filter(s => (s.service_categories?.name || s.category || 'Outros') === category)
             const pricePromises = catServices.map(async (s) => {
                 // Use today as proxy for price if date not selected yet
                 const today = new Date().toISOString().split('T')[0]
@@ -245,7 +256,7 @@ export default function BookingPage() {
         const service = services.find(s => s.id === serviceId)
         if (!service || !selectedPet) return
 
-        const category = (service.category || '').toLowerCase()
+        const category = (service.service_categories?.name || service.category || '').toLowerCase()
         const sensitiveCategories = ['creche', 'hospedagem', 'hotel', 'day care']
         const isSensitive = sensitiveCategories.some(c => category.includes(c))
 
@@ -351,7 +362,7 @@ export default function BookingPage() {
 
         // 2. Fallback for null target_species: Check name for keywords
         const lowerName = service.name.toLowerCase()
-        const lowerCategory = (service.category || '').toLowerCase()
+        const lowerCategory = (service.service_categories?.name || service.category || '').toLowerCase()
 
         if (selectedPetData.species === 'dog') {
             // If dog, exclude if name contains 'gato', 'felino'
@@ -365,10 +376,10 @@ export default function BookingPage() {
     })
 
     // Group available services by category
-    const categories = Array.from(new Set(availableServices.map(s => s.category || 'Outros'))).sort()
+    const categories = Array.from(new Set(availableServices.map(s => s.service_categories?.name || s.category || 'Outros'))).sort()
 
     // Filter services by selected category
-    const filteredServices = availableServices.filter(s => (s.category || 'Outros') === selectedCategory)
+    const filteredServices = availableServices.filter(s => (s.service_categories?.name || s.category || 'Outros') === selectedCategory)
 
     if (bookingComplete) {
         return (
