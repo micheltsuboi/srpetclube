@@ -118,19 +118,32 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
                 .lte('start_at', scheduledAt)
                 .gte('end_at', scheduledAt)
 
-            // Filter blocks based on species restriction
+            // Filter blocks based on species and category restrictions
             const blockingBlocks = blocks?.filter(block => {
-                // If allowed_species is empty/null, it blocks everyone.
-                if (!block.allowed_species || block.allowed_species.length === 0) return true;
+                const blockTags: string[] = block.allowed_species || [];
+                const allowedSpecies = blockTags.filter(t => !t.startsWith('blocked_cat_'));
+                const blockedCategories = blockTags.filter(t => t.startsWith('blocked_cat_')).map(t => t.replace('blocked_cat_', ''));
 
-                // If allowed_species has values, check if current pet species is in listed allowed species.
-                // If pet species is NOT in allowed list, it is BLOCKED.
-                // e.g. allowed=['cat'], pet='dog' -> blocked (true)
-                // e.g. allowed=['cat'], pet='cat' -> allowed (false)
+                let blockApplies = false;
 
-                // Need to cast petData to any or ensure type has species
-                const species = (petData as any).species || 'dog'
-                return !block.allowed_species.includes(species)
+                if (blockedCategories.length > 0) {
+                    if (blockedCategories.includes(categoryName || '')) {
+                        blockApplies = true;
+                    }
+                } else {
+                    blockApplies = true;
+                }
+
+                if (blockApplies) {
+                    if (allowedSpecies.length > 0) {
+                        const species = (petData as any).species || 'dog';
+                        return !allowedSpecies.includes(species);
+                    } else {
+                        return true; // Block applies to everyone
+                    }
+                }
+
+                return false; // Block doesn't apply to this category
             })
 
             if (blockingBlocks && blockingBlocks.length > 0 && !isCreche && !isHospedagem) {
@@ -161,9 +174,30 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
 
         // Same filtering logic for duration blocks
         const blockingConflicts = conflictBlocks?.filter(block => {
-            if (!block.allowed_species || block.allowed_species.length === 0) return true;
-            const species = (petData as any).species || 'dog'
-            return !block.allowed_species.includes(species)
+            const blockTags: string[] = block.allowed_species || [];
+            const allowedSpecies = blockTags.filter(t => !t.startsWith('blocked_cat_'));
+            const blockedCategories = blockTags.filter(t => t.startsWith('blocked_cat_')).map(t => t.replace('blocked_cat_', ''));
+
+            let blockApplies = false;
+
+            if (blockedCategories.length > 0) {
+                if (blockedCategories.includes(categoryName || '')) {
+                    blockApplies = true;
+                }
+            } else {
+                blockApplies = true;
+            }
+
+            if (blockApplies) {
+                if (allowedSpecies.length > 0) {
+                    const species = (petData as any).species || 'dog';
+                    return !allowedSpecies.includes(species);
+                } else {
+                    return true;
+                }
+            }
+
+            return false;
         })
 
         if (blockingConflicts && blockingConflicts.length > 0 && !isCreche && !isHospedagem) {

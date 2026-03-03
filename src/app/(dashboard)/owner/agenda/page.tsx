@@ -340,17 +340,34 @@ export default function AgendaPage() {
                 })
 
                 if (conflictingBlock) {
-                    // Check allowed species
-                    if (conflictingBlock.allowed_species && conflictingBlock.allowed_species.length > 0) {
-                        if (!conflictingBlock.allowed_species.includes(petSpecies)) {
-                            const allowed = conflictingBlock.allowed_species.map((s: string) => s === 'dog' ? 'Cães' : 'Gatos').join(' e ')
-                            setBookingError(`Horário reservado exclusivamente para ${allowed}.`)
-                            return false
+                    const blockTags: string[] = conflictingBlock.allowed_species || []
+                    const allowedSpecies = blockTags.filter(t => !t.startsWith('blocked_cat_'))
+                    const blockedCategories = blockTags.filter(t => t.startsWith('blocked_cat_')).map(t => t.replace('blocked_cat_', ''))
+
+                    let blockApplies = false
+
+                    if (blockedCategories.length > 0) {
+                        // Block only applies if the service's category is in the blocked list
+                        if (blockedCategories.includes(categoryName)) {
+                            blockApplies = true
                         }
                     } else {
-                        // General block (no species allowance)
-                        setBookingError(`Horário bloqueado: ${conflictingBlock.reason}`)
-                        return false
+                        // General block applies to all non-exempt services
+                        blockApplies = true
+                    }
+
+                    if (blockApplies) {
+                        if (allowedSpecies.length > 0) {
+                            if (!allowedSpecies.includes(petSpecies)) {
+                                const allowed = allowedSpecies.map(s => s === 'dog' ? 'Cães' : 'Gatos').join(' e ')
+                                setBookingError(`Horário reservado exclusivamente para ${allowed}.`)
+                                return false
+                            }
+                        } else {
+                            // General block (no species allowance)
+                            setBookingError(`Horário bloqueado: ${conflictingBlock.reason}`)
+                            return false
+                        }
                     }
                 }
             }
@@ -1120,6 +1137,24 @@ export default function AgendaPage() {
                                 </small>
                             </div>
 
+                            <div className={styles.formGroup} style={{ marginTop: '1rem', padding: '1rem', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', background: 'rgba(0,0,0,0.2)' }}>
+                                <label className={styles.label} style={{ marginBottom: '0.8rem', display: 'block', color: '#e2e8f0' }}>Serviços a Bloquear (Opcional)</label>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.8rem' }}>
+                                    {Array.from(new Set(services.flatMap(s => {
+                                        const sc = (s as any).service_categories
+                                        const name = Array.isArray(sc) ? sc[0]?.name : sc?.name
+                                        return name ? [name] : []
+                                    }))).map(catName => (
+                                        <label key={catName} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', color: '#f1f5f9', cursor: 'pointer' }}>
+                                            <input type="checkbox" name="blocked_categories[]" value={catName} style={{ accentColor: 'var(--primary)', width: '16px', height: '16px' }} />
+                                            {catName}
+                                        </label>
+                                    ))}
+                                </div>
+                                <small style={{ display: 'block', marginTop: '0.8rem', color: '#94a3b8', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                                    ℹ️ Deixe desmarcado para bloquear TODOS os serviços. Marque categorias específicas para bloquear APENAS elas.
+                                </small>
+                            </div>
 
                             <div className={styles.modalActions}>
                                 <button type="button" className={styles.cancelBtn} onClick={() => setShowBlockModal(false)}>Cancelar</button>

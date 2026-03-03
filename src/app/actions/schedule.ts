@@ -37,13 +37,18 @@ export async function createScheduleBlock(prevState: any, formData: FormData): P
         const start_at = formData.get('start_at') as string
         const end_at = formData.get('end_at') as string
 
-        // Allowed Species Logic
-        // Frontend uses name="allowed_species[]", so we must fetch that exactly.
         const allowedSpeciesRaw = formData.getAll('allowed_species[]') as string[]
+        const blockedCategoriesRaw = formData.getAll('blocked_categories[]') as string[]
 
-        // If NO allowed_species provided, it means it's a FULL BLOCK (default behavior).
-        // If allowed_species provided, checking logic applies.
-        let allowed_species: string[] | null = allowedSpeciesRaw.length > 0 ? allowedSpeciesRaw : null
+        // We use allowed_species array to store both species restrictions and blocked categories
+        // Blocked categories are prefixed with blocked_cat_ to distinguish them
+        const dbValues = [
+            ...allowedSpeciesRaw,
+            ...blockedCategoriesRaw.map(id => `blocked_cat_${id}`)
+        ]
+
+        // If nothing is provided, it means it's a FULL BLOCK for EVERYTHING
+        let allowed_species: string[] | null = dbValues.length > 0 ? dbValues : null
 
 
         if (!reason || !start_at || !end_at) {

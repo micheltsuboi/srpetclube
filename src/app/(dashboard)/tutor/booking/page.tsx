@@ -167,15 +167,32 @@ export default function BookingPage() {
                 })
 
                 if (conflictingBlock) {
-                    // Check if block allows this species
-                    if (conflictingBlock.allowed_species && conflictingBlock.allowed_species.length > 0) {
-                        if (conflictingBlock.allowed_species.includes(petSpecies)) {
-                            isBlocked = false // Allowed!
-                        } else {
-                            isBlocked = true // Species not allowed
+                    const blockTags: string[] = conflictingBlock.allowed_species || []
+                    const allowedSpecies = blockTags.filter((t: string) => !t.startsWith('blocked_cat_'))
+                    const blockedCategories = blockTags.filter((t: string) => t.startsWith('blocked_cat_')).map((t: string) => t.replace('blocked_cat_', ''))
+
+                    let blockApplies = false
+
+                    if (blockedCategories.length > 0) {
+                        if (blockedCategories.includes(service.service_categories?.name || service.category || '')) {
+                            blockApplies = true
                         }
                     } else {
-                        isBlocked = true // Blocked for everyone (null/empty allowed_species)
+                        blockApplies = true
+                    }
+
+                    if (blockApplies) {
+                        if (allowedSpecies.length > 0) {
+                            if (allowedSpecies.includes(petSpecies)) {
+                                isBlocked = false // Allowed!
+                            } else {
+                                isBlocked = true // Species not allowed
+                            }
+                        } else {
+                            isBlocked = true // Blocked for everyone
+                        }
+                    } else {
+                        isBlocked = false // Block is for another category
                     }
                 }
             }
@@ -196,14 +213,32 @@ export default function BookingPage() {
                     })
 
                     if (conflictingHalfBlock) {
-                        if (conflictingHalfBlock.allowed_species && conflictingHalfBlock.allowed_species.length > 0) {
-                            if (conflictingHalfBlock.allowed_species.includes(petSpecies)) {
-                                isHalfBlocked = false
+                        const blockTags: string[] = conflictingHalfBlock.allowed_species || []
+                        const allowedSpecies = blockTags.filter((t: string) => !t.startsWith('blocked_cat_'))
+                        const blockedCategories = blockTags.filter((t: string) => t.startsWith('blocked_cat_')).map((t: string) => t.replace('blocked_cat_', ''))
+
+                        let blockApplies = false
+
+                        if (blockedCategories.length > 0) {
+                            if (blockedCategories.includes(service.service_categories?.name || service.category || '')) {
+                                blockApplies = true
+                            }
+                        } else {
+                            blockApplies = true
+                        }
+
+                        if (blockApplies) {
+                            if (allowedSpecies.length > 0) {
+                                if (allowedSpecies.includes(petSpecies)) {
+                                    isHalfBlocked = false
+                                } else {
+                                    isHalfBlocked = true
+                                }
                             } else {
                                 isHalfBlocked = true
                             }
                         } else {
-                            isHalfBlocked = true
+                            isHalfBlocked = false // Block is for another category
                         }
                     }
                 }
