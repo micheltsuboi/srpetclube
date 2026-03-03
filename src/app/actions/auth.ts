@@ -15,6 +15,11 @@ export async function registerClient(prevState: RegisterState, formData: FormDat
     const email = formData.get('email') as string
     const password = formData.get('password') as string
     const phone = formData.get('phone') as string
+    const birthDate = formData.get('birthDate') as string
+    const address = formData.get('address') as string
+    const neighborhood = formData.get('neighborhood') as string
+    const city = formData.get('city') as string
+    const instagram = formData.get('instagram') as string
 
     if (!name || !email || !password || !phone) {
         return { message: 'Todos os campos são obrigatórios.', success: false }
@@ -80,7 +85,11 @@ export async function registerClient(prevState: RegisterState, formData: FormDat
             name: name,
             email: email,
             phone_1: phone,
-            city: 'São Paulo' // Default
+            birth_date: birthDate ? new Date(birthDate).toISOString() : null,
+            address: address || null,
+            neighborhood: neighborhood || null,
+            city: city || 'São Paulo',
+            instagram: instagram || null
         })
 
     if (customerError) {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import styles from './page.module.css'
+import { updateOwnTutorProfile } from '@/app/actions/tutor'
 import ImageUpload from '@/components/ImageUpload'
 
 interface Profile {
@@ -22,7 +23,12 @@ export default function TutorProfilePage() {
     const [formData, setFormData] = useState({
         full_name: '',
         phone: '',
-        avatar_url: '' as string | null
+        avatar_url: '' as string | null,
+        address: '',
+        neighborhood: '',
+        city: 'São Paulo',
+        instagram: '',
+        birth_date: ''
     })
     const [passwordData, setPasswordData] = useState({
         new: '',
@@ -46,10 +52,22 @@ export default function TutorProfilePage() {
 
                 if (data) {
                     setProfile(data)
+
+                    const { data: customerData } = await supabase
+                        .from('customers')
+                        .select('address, neighborhood, city, instagram, birth_date')
+                        .eq('user_id', user.id)
+                        .single()
+
                     setFormData({
                         full_name: data.full_name || '',
                         phone: data.phone || '',
-                        avatar_url: data.avatar_url || null
+                        avatar_url: data.avatar_url || null,
+                        address: customerData?.address || '',
+                        neighborhood: customerData?.neighborhood || '',
+                        city: customerData?.city || 'São Paulo',
+                        instagram: customerData?.instagram || '',
+                        birth_date: customerData?.birth_date || ''
                     })
                 }
             } catch (error) {
@@ -68,19 +86,24 @@ export default function TutorProfilePage() {
 
         try {
             setSaving(true)
-            const { error } = await supabase
-                .from('profiles')
-                .update({
-                    full_name: formData.full_name,
-                    phone: formData.phone,
-                    avatar_url: formData.avatar_url,
-                    updated_at: new Date().toISOString()
-                })
-                .eq('id', profile.id)
 
-            if (error) throw error
+            const submitData = new FormData()
+            submitData.append('full_name', formData.full_name)
+            submitData.append('phone', formData.phone)
+            submitData.append('address', formData.address)
+            submitData.append('neighborhood', formData.neighborhood)
+            submitData.append('city', formData.city)
+            submitData.append('instagram', formData.instagram)
+            submitData.append('birth_date', formData.birth_date)
+            if (formData.avatar_url) submitData.append('avatar_url', formData.avatar_url)
 
-            alert('Perfil atualizado com sucesso!')
+            const res = await updateOwnTutorProfile({ message: '', success: false }, submitData)
+
+            if (res.success) {
+                alert('Perfil atualizado com sucesso!')
+            } else {
+                alert(res.message)
+            }
         } catch (error) {
             console.error('Error updating profile:', error)
             alert('Erro ao atualizar perfil.')
@@ -174,12 +197,65 @@ export default function TutorProfilePage() {
                     </div>
 
                     <div className={styles.formGroup}>
+                        <label>Data de Nascimento</label>
+                        <input
+                            type="date"
+                            value={formData.birth_date}
+                            onChange={e => setFormData({ ...formData, birth_date: e.target.value })}
+                            className={styles.input}
+                        />
+                    </div>
+
+                    <div className={styles.formGroup}>
                         <label>Email</label>
                         <input
                             type="text"
                             value={profile?.email}
                             disabled
                             className={`${styles.input} ${styles.disabled}`}
+                        />
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label>Endereço</label>
+                        <input
+                            type="text"
+                            placeholder="Sua rua, número"
+                            value={formData.address}
+                            onChange={e => setFormData({ ...formData, address: e.target.value })}
+                            className={styles.input}
+                        />
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label>Bairro</label>
+                        <input
+                            type="text"
+                            placeholder="Seu bairro"
+                            value={formData.neighborhood}
+                            onChange={e => setFormData({ ...formData, neighborhood: e.target.value })}
+                            className={styles.input}
+                        />
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label>Cidade</label>
+                        <input
+                            type="text"
+                            value={formData.city}
+                            onChange={e => setFormData({ ...formData, city: e.target.value })}
+                            className={styles.input}
+                        />
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label>Instagram</label>
+                        <input
+                            type="text"
+                            placeholder="@seuusuario"
+                            value={formData.instagram}
+                            onChange={e => setFormData({ ...formData, instagram: e.target.value })}
+                            className={styles.input}
                         />
                     </div>
 

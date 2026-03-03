@@ -236,3 +236,59 @@ export async function deleteTutor(id: string) {
     revalidatePath('/owner/tutors')
     return { message: 'Tutor excluído com sucesso!', success: true }
 }
+
+export async function updateOwnTutorProfile(prevState: { message: string, success: boolean }, formData: FormData) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { message: 'Não autorizado.', success: false }
+
+    const fullName = formData.get('full_name') as string
+    const phone = formData.get('phone') as string
+    const address = formData.get('address') as string
+    const neighborhood = formData.get('neighborhood') as string
+    const city = formData.get('city') as string
+    const instagram = formData.get('instagram') as string
+    const birthDate = formData.get('birth_date') as string
+    const avatarUrl = formData.get('avatar_url') as string
+
+    const supabaseAdmin = createAdminClient()
+
+    // 1. Update Profile
+    const { error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .update({
+            full_name: fullName,
+            phone: phone,
+            avatar_url: avatarUrl || null,
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id)
+
+    if (profileError) {
+        return { message: `Erro ao atualizar perfil: ${profileError.message}`, success: false }
+    }
+
+    // 2. Update Customer Record
+    const customerData: Record<string, string | null> = {
+        name: fullName,
+        phone_1: phone,
+        address: address || null,
+        neighborhood: neighborhood || null,
+        city: city || 'São Paulo',
+        instagram: instagram || null,
+    }
+
+    if (birthDate) customerData.birth_date = birthDate
+
+    const { error: customerError } = await supabaseAdmin
+        .from('customers')
+        .update(customerData)
+        .eq('user_id', user.id)
+
+    if (customerError) {
+        return { message: `Erro ao atualizar dados adicionais: ${customerError.message}`, success: false }
+    }
+
+    revalidatePath('/tutor/profile')
+    return { message: 'Perfil atualizado com sucesso!', success: true }
+}

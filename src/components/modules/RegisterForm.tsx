@@ -61,6 +61,31 @@ export default function RegisterForm() {
                 </div>
 
                 <div className={styles.field}>
+                    <label>Data de Nascimento</label>
+                    <input name="birthDate" type="date" className={styles.input} />
+                </div>
+
+                <div className={styles.field}>
+                    <label>Endereço</label>
+                    <input name="address" type="text" placeholder="Sua rua, número" className={styles.input} />
+                </div>
+
+                <div className={styles.field}>
+                    <label>Bairro</label>
+                    <input name="neighborhood" type="text" placeholder="Seu bairro" className={styles.input} />
+                </div>
+
+                <div className={styles.field}>
+                    <label>Cidade</label>
+                    <input name="city" type="text" defaultValue="São Paulo" className={styles.input} />
+                </div>
+
+                <div className={styles.field}>
+                    <label>Instagram</label>
+                    <input name="instagram" type="text" placeholder="@seuusuario" className={styles.input} />
+                </div>
+
+                <div className={styles.field}>
                     <label>Senha</label>
                     <input name="password" type="password" required placeholder="Crie uma senha" className={styles.input} minLength={6} />
                 </div>
