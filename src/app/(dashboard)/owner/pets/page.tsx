@@ -90,7 +90,7 @@ function PetsContent() {
     }
 
     // Accordion State
-    const [accordions, setAccordions] = useState({ details: true, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
+    const [accordions, setAccordions] = useState({ details: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
 
     const toggleAccordion = async (key: keyof typeof accordions) => {
         setAccordions(prev => {
@@ -293,7 +293,7 @@ function PetsContent() {
         setSelectedPet(pet)
         setIsViewingAssessment(false)
         setIsEditingAssessment(false)
-        setAccordions({ details: true, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
+        setAccordions({ details: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
 
         // Eagerly fetch assessment BEFORE showing modal
         try {
