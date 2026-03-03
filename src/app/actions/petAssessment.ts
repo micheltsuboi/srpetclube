@@ -351,7 +351,8 @@ export async function createPetAssessment(petId: string, formData: FormData) {
         }
 
         if (answersToInsert.length > 0) {
-            const { error: answersError } = await supabase
+            const adminClient = createAdminClient()
+            const { error: answersError } = await adminClient
                 .from('assessment_answers')
                 .upsert(answersToInsert, { onConflict: 'pet_id, question_id' })
 
@@ -381,8 +382,9 @@ export async function getPetAssessment(petId: string) {
             .eq('pet_id', petId)
             .single()
 
-        // 2. Get dynamic answers (if any exist)
-        const { data: answers, error: answersError } = await supabase
+        // 2. Get dynamic answers (if any exist) with admin client to bypass RLS issues for Owner view
+        const adminClient = createAdminClient()
+        const { data: answers, error: answersError } = await adminClient
             .from('assessment_answers')
             .select('*')
             .eq('pet_id', petId)
