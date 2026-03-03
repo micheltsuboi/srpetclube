@@ -65,6 +65,8 @@ function PetsContent() {
 
     // Assessment State
     const [petAssessment, setPetAssessment] = useState<any>(null)
+    const [isViewingAssessment, setIsViewingAssessment] = useState(false)
+    const [isEditingAssessment, setIsEditingAssessment] = useState(false)
 
     // Server Action State
     const [createState, createAction, isCreatePending] = useActionState(createPet, initialState)
@@ -289,6 +291,8 @@ function PetsContent() {
 
     const handleRowClick = async (pet: Pet) => {
         setSelectedPet(pet)
+        setIsViewingAssessment(false)
+        setIsEditingAssessment(false)
         setAccordions({ details: true, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
 
         // Eagerly fetch assessment BEFORE showing modal
@@ -308,6 +312,8 @@ function PetsContent() {
     const handleNewPet = () => {
         setSelectedPet(null)
         setPetAssessment(null)
+        setIsViewingAssessment(false)
+        setIsEditingAssessment(false)
         setAccordions({ details: true, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
         setShowModal(true)
     }
@@ -898,30 +904,58 @@ function PetsContent() {
                                     <div style={{ padding: '1rem' }}>
                                         {selectedPet ? (
                                             <>
-                                                {petAssessment ? (
+                                                {petAssessment && !isViewingAssessment && !isEditingAssessment ? (
                                                     <div style={{ padding: '1rem', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '8px', marginBottom: '1rem' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10B981', fontWeight: '600', marginBottom: '0.5rem' }}>
                                                             ✓ Avaliação preenchida
                                                         </div>
                                                         <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: 0 }}>
-                                                            Pet avaliado em {new Date(petAssessment.created_at).toLocaleDateString('pt-BR')}
+                                                            Pet avaliado em {new Date(petAssessment.created_at || petAssessment.declaration_accepted_at || Date.now()).toLocaleDateString('pt-BR')}
                                                         </p>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setPetAssessment(null)}
-                                                            style={{ marginTop: '1rem', padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                                                        >
-                                                            Editar Avaliação
-                                                        </button>
+                                                        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsViewingAssessment(true)}
+                                                                style={{ padding: '0.5rem 1rem', background: 'transparent', color: 'var(--primary)', border: '1px solid var(--primary)', borderRadius: '6px', cursor: 'pointer' }}
+                                                            >
+                                                                Visualizar Respostas
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setIsEditingAssessment(true)}
+                                                                style={{ padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                                                            >
+                                                                Editar Avaliação
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 ) : null}
 
-                                                {!petAssessment && (
+                                                {isViewingAssessment && petAssessment && (
+                                                    <div style={{ marginBottom: '1rem' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                                            <h3 style={{ margin: 0, fontSize: '1.1rem' }}>Respostas da Avaliação</h3>
+                                                            <button type="button" onClick={() => setIsViewingAssessment(false)} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer' }}>Voltar</button>
+                                                        </div>
+                                                        <PetAssessmentForm
+                                                            petId={selectedPet.id}
+                                                            existingData={petAssessment}
+                                                            readOnly={true}
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {(!petAssessment || isEditingAssessment) && !isViewingAssessment && (
                                                     <>
-                                                        <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '8px', marginBottom: '1rem' }}>
-                                                            <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: 0 }}>
-                                                                ℹ️ Para poder agendar serviços de <strong>Creche</strong> ou <strong>Hospedagem</strong>, é necessário preencher a avaliação comportamental e de saúde do pet.
-                                                            </p>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                                            <div style={{ padding: '1rem', background: 'rgba(59, 130, 246, 0.05)', border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '8px', flex: 1 }}>
+                                                                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                                                    ℹ️ Para poder agendar serviços de <strong>Creche</strong> ou <strong>Hospedagem</strong>, é necessário preencher a avaliação comportamental e de saúde do pet.
+                                                                </p>
+                                                            </div>
+                                                            {isEditingAssessment && (
+                                                                <button type="button" onClick={() => setIsEditingAssessment(false)} style={{ marginLeft: '1rem', background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer' }}>Cancelar Edição</button>
+                                                            )}
                                                         </div>
                                                         <PetAssessmentForm
                                                             petId={selectedPet.id}
@@ -930,6 +964,7 @@ function PetsContent() {
                                                                 // Force update parent state immediately
                                                                 const data = await getPetAssessment(selectedPet.id)
                                                                 setPetAssessment(data)
+                                                                setIsEditingAssessment(false)
                                                             }}
                                                         />
                                                     </>

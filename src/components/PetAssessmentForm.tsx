@@ -8,6 +8,7 @@ interface AssessmentFormProps {
     petId: string
     existingData?: any
     onSuccess?: () => void
+    readOnly?: boolean
 }
 
 const initialState = {
@@ -15,7 +16,7 @@ const initialState = {
     success: false
 }
 
-export default function PetAssessmentForm({ petId, existingData, onSuccess }: AssessmentFormProps) {
+export default function PetAssessmentForm({ petId, existingData, onSuccess, readOnly = false }: AssessmentFormProps) {
     const [currentStepIndex, setCurrentStepIndex] = useState(0)
     const [declarationAccepted, setDeclarationAccepted] = useState(existingData?.owner_declaration_accepted || false)
 
@@ -93,6 +94,18 @@ export default function PetAssessmentForm({ petId, existingData, onSuccess }: As
         }
 
         if (question.question_type === 'boolean') {
+            if (readOnly) {
+                return (
+                    <div className={styles.fieldGroup}>
+                        <label style={{ fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
+                            {question.question_text}
+                        </label>
+                        <div style={{ color: 'var(--text-secondary)', padding: '0.5rem', background: 'var(--bg-secondary)', borderRadius: '6px' }}>
+                            {exBoolean === true ? 'Sim' : exBoolean === false ? 'Não' : 'Não respondido'}
+                        </div>
+                    </div>
+                )
+            }
             return (
                 <div className={styles.fieldGroup}>
                     <label style={{ fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>
@@ -125,6 +138,16 @@ export default function PetAssessmentForm({ petId, existingData, onSuccess }: As
         }
 
         if (question.question_type === 'text') {
+            if (readOnly) {
+                return (
+                    <div className={styles.fieldGroup}>
+                        <label style={{ fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{question.question_text}</label>
+                        <div style={{ color: 'var(--text-secondary)', padding: '0.5rem', background: 'var(--bg-secondary)', borderRadius: '6px', whiteSpace: 'pre-wrap' }}>
+                            {exText || 'Não respondido'}
+                        </div>
+                    </div>
+                )
+            }
             return (
                 <div className={styles.fieldGroup}>
                     <label style={{ fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{question.question_text}</label>
@@ -140,6 +163,16 @@ export default function PetAssessmentForm({ petId, existingData, onSuccess }: As
 
         if (question.question_type === 'select') {
             const options = Array.isArray(question.options) ? question.options : []
+            if (readOnly) {
+                return (
+                    <div className={styles.fieldGroup}>
+                        <label style={{ fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{question.question_text}</label>
+                        <div style={{ color: 'var(--text-secondary)', padding: '0.5rem', background: 'var(--bg-secondary)', borderRadius: '6px' }}>
+                            {exText || 'Não respondido'}
+                        </div>
+                    </div>
+                )
+            }
             return (
                 <div className={styles.fieldGroup}>
                     <label style={{ fontWeight: 600, display: 'block', marginBottom: '0.5rem', color: 'var(--text-primary)' }}>{question.question_text}</label>
@@ -210,11 +243,11 @@ export default function PetAssessmentForm({ petId, existingData, onSuccess }: As
                     </div>
 
                     {categoryKeys.map((catKey, index) => {
-                        if (index !== currentStepIndex) return null
+                        if (!readOnly && index !== currentStepIndex) return null
                         return renderSection(catKey, categories[catKey].title)
                     })}
 
-                    {isConfirmationStep && (
+                    {!readOnly && isConfirmationStep && (
                         <div className={styles.section}>
                             <div className={styles.sectionHeader} style={{ cursor: 'default' }}>
                                 <span>Declaração de Veracidade</span>
@@ -242,23 +275,25 @@ export default function PetAssessmentForm({ petId, existingData, onSuccess }: As
                         </div>
                     )}
 
-                    <div className={styles.actions}>
-                        {currentStepIndex > 0 && (
-                            <button type="button" onClick={handlePrev} className="btn btn-secondary">
-                                Anterior
-                            </button>
-                        )}
+                    {!readOnly && (
+                        <div className={styles.actions}>
+                            {currentStepIndex > 0 && (
+                                <button type="button" onClick={handlePrev} className="btn btn-secondary">
+                                    Anterior
+                                </button>
+                            )}
 
-                        {currentStepIndex < categoryKeys.length ? (
-                            <button type="button" onClick={handleNext} className="btn btn-primary">
-                                Próximo
-                            </button>
-                        ) : (
-                            <button type="submit" disabled={!declarationAccepted || isPending} className="btn btn-primary">
-                                {isEditing ? 'Atualizar Avaliação' : 'Salvar Avaliação'}
-                            </button>
-                        )}
-                    </div>
+                            {currentStepIndex < categoryKeys.length ? (
+                                <button type="button" onClick={handleNext} className="btn btn-primary">
+                                    Próximo
+                                </button>
+                            ) : (
+                                <button type="submit" disabled={!declarationAccepted || isPending} className="btn btn-primary">
+                                    {isEditing ? 'Atualizar Avaliação' : 'Salvar Avaliação'}
+                                </button>
+                            )}
+                        </div>
+                    )}
                 </>
             )}
 
