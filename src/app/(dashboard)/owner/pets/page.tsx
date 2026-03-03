@@ -160,7 +160,7 @@ function PetsContent() {
                 .from('pets')
                 .select(`
                     id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
-                    existing_conditions, vaccination_up_to_date, customer_id, photo_url,
+                    existing_conditions, vaccination_up_to_date, customer_id, photo_url, is_adapted,
                     customers ( id, name )
                 `)
                 .order('name')
