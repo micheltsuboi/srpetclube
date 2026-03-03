@@ -398,8 +398,8 @@ export async function getPetAssessment(petId: string) {
             })
         }
 
-        // Only return if at least the base exists, or maybe return empty structure 
-        if (!assessment && !answers) return null
+        // Only return if at least the base exists
+        if (!assessment && (!answers || answers.length === 0)) return null
 
         return {
             ...assessment,
