@@ -772,34 +772,19 @@ function PetsContent() {
                                     <div style={{ padding: '1rem' }}>
                                         {selectedPet ? (
                                             <>
-                                                {/* Check Assessment */}
-                                                {!petAssessment ? (
-                                                    <div style={{ padding: '1rem', background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: '8px', marginBottom: '1rem', color: '#92400E' }}>
-                                                        <strong>⚠️ Avaliação Pendente</strong>
-                                                        <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>É necessário preencher a Avaliação Comportamental antes de agendar creche.</p>
-                                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '0.5rem' }}>
-                                                            <button
-                                                                onClick={() => toggleAccordion('assessment')}
-                                                                style={{ background: 'none', border: 'none', color: '#D97706', textDecoration: 'underline', cursor: 'pointer' }}>
-                                                                Ir para Avaliação
-                                                            </button>
-                                                            <button
-                                                                onClick={manualCheckAssessment}
-                                                                style={{ padding: '0.25rem 0.5rem', background: '#F59E0B', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
-                                                                🔄 Verificar Novamente
-                                                            </button>
+                                                <div style={{ marginBottom: '1rem' }}>
+                                                    {!petAssessment && (
+                                                        <div style={{ padding: '0.75rem', background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: '8px', marginBottom: '1rem', color: '#92400E', fontSize: '0.85rem' }}>
+                                                            <strong>💡 Avaliação Pendente:</strong> Este pet ainda não possui avaliação, mas você pode agendar assim mesmo.
                                                         </div>
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ marginBottom: '1rem' }}>
-                                                        <button
-                                                            onClick={() => router.push(`/owner/agenda?petId=${selectedPet.id}&category=Creche&mode=new`)}
-                                                            className={styles.submitButton}
-                                                            style={{ width: '100%' }}>
-                                                            + Novo Agendamento de Creche
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                    <button
+                                                        onClick={() => router.push(`/owner/agenda?petId=${selectedPet.id}&category=Creche&mode=new`)}
+                                                        className={styles.submitButton}
+                                                        style={{ width: '100%' }}>
+                                                        + Novo Agendamento de Creche
+                                                    </button>
+                                                </div>
 
                                                 <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Histórico Recente</h4>
                                                 {crecheHistory.length === 0 ? (
@@ -835,34 +820,19 @@ function PetsContent() {
                                     <div style={{ padding: '1rem' }}>
                                         {selectedPet ? (
                                             <>
-                                                {/* Check Assessment */}
-                                                {!petAssessment ? (
-                                                    <div style={{ padding: '1rem', background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: '8px', marginBottom: '1rem', color: '#92400E' }}>
-                                                        <strong>⚠️ Avaliação Pendente</strong>
-                                                        <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem' }}>É necessário preencher a Avaliação Comportamental antes de agendar hospedagem.</p>
-                                                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', marginTop: '0.5rem' }}>
-                                                            <button
-                                                                onClick={() => toggleAccordion('assessment')}
-                                                                style={{ background: 'none', border: 'none', color: '#D97706', textDecoration: 'underline', cursor: 'pointer' }}>
-                                                                Ir para Avaliação
-                                                            </button>
-                                                            <button
-                                                                onClick={manualCheckAssessment}
-                                                                style={{ padding: '0.25rem 0.5rem', background: '#F59E0B', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>
-                                                                🔄 Verificar Novamente
-                                                            </button>
+                                                <div style={{ marginBottom: '1rem' }}>
+                                                    {!petAssessment && (
+                                                        <div style={{ padding: '0.75rem', background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: '8px', marginBottom: '1rem', color: '#92400E', fontSize: '0.85rem' }}>
+                                                            <strong>💡 Avaliação Pendente:</strong> Este pet ainda não possui avaliação, mas você pode agendar assim mesmo.
                                                         </div>
-                                                    </div>
-                                                ) : (
-                                                    <div style={{ marginBottom: '1rem' }}>
-                                                        <button
-                                                            onClick={() => router.push(`/owner/agenda?petId=${selectedPet.id}&category=Hospedagem&mode=new`)}
-                                                            className={styles.submitButton}
-                                                            style={{ width: '100%' }}>
-                                                            + Novo Agendamento de Hospedagem
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                    <button
+                                                        onClick={() => router.push(`/owner/agenda?petId=${selectedPet.id}&category=Hospedagem&mode=new`)}
+                                                        className={styles.submitButton}
+                                                        style={{ width: '100%' }}>
+                                                        + Novo Agendamento de Hospedagem
+                                                    </button>
+                                                </div>
 
                                                 <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Histórico Recente</h4>
                                                 {hotelHistory.length === 0 ? (

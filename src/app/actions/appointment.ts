@@ -70,8 +70,8 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     const isCreche = categoryName === 'Creche'
     const isHospedagem = categoryName === 'Hospedagem'
 
-    // Validate Assessment for Creche/Hospedagem
-    if (isCreche || isHospedagem) {
+    // Validate Assessment for Creche/Hospedagem (Only for CUSTOMERS)
+    if ((isCreche || isHospedagem) && isCustomer) {
         const { data: assessment } = await supabase
             .from('pet_assessments')
             .select('status')
