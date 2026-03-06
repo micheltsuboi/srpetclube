@@ -253,6 +253,30 @@ export default function BookingPage() {
         if (selectedDate) generateTimeSlots()
     }, [selectedDate, generateTimeSlots])
 
+    useEffect(() => {
+        const updateAllPrices = async () => {
+            if (!selectedPet || availableServices.length === 0) return
+
+            setLoadingPrices(true)
+            const dateToUse = selectedDate || new Date().toISOString().split('T')[0]
+
+            const pricePromises = availableServices.map(async (s) => {
+                const dynPrice = await calculateDynamicPrice(selectedPet, s.id, dateToUse)
+                return { id: s.id, price: dynPrice ?? s.base_price }
+            })
+
+            const results = await Promise.all(pricePromises)
+            const newPrices: Record<string, number> = {}
+            results.forEach(r => {
+                newPrices[r.id] = r.price
+            })
+            setDynamicPrices(newPrices)
+            setLoadingPrices(false)
+        }
+
+        updateAllPrices()
+    }, [selectedPet, selectedDate]) // Recalculate if pet OR date changes
+
     const handlePetSelect = (petId: string) => {
         setSelectedPet(petId)
         setSelectedCategory(null)
@@ -261,29 +285,9 @@ export default function BookingPage() {
         setStep(2)
     }
 
-    const handleCategorySelect = async (category: string) => {
+    const handleCategorySelect = (category: string) => {
         setSelectedCategory(category)
         setSelectedService(null)
-
-        if (selectedPet) {
-            setLoadingPrices(true)
-            const catServices = availableServices.filter(s => (s.service_categories?.name || s.category || 'Outros') === category)
-            const pricePromises = catServices.map(async (s) => {
-                // Use today as proxy for price if date not selected yet
-                const today = new Date().toISOString().split('T')[0]
-                const dynPrice = await calculateDynamicPrice(selectedPet, s.id, today)
-                return { id: s.id, price: dynPrice ?? s.base_price }
-            })
-
-            const results = await Promise.all(pricePromises)
-            const newPrices = { ...dynamicPrices }
-            results.forEach(r => {
-                newPrices[r.id] = r.price
-            })
-            setDynamicPrices(newPrices)
-            setLoadingPrices(false)
-        }
-
         setStep(3) // Move to service selection
     }
 
@@ -432,6 +436,10 @@ export default function BookingPage() {
                         <div className={styles.confirmRow}>
                             <span>Serviço:</span>
                             <strong>{selectedServiceData?.name}</strong>
+                        </div>
+                        <div className={styles.confirmRow}>
+                            <span>Preço Final:</span>
+                            <strong className={styles.servicePrice}>R$ {(dynamicPrices[selectedService!] ?? selectedServiceData?.base_price ?? 0).toFixed(2)}</strong>
                         </div>
                         <div className={styles.confirmRow}>
                             <span>Data:</span>
@@ -600,6 +608,8 @@ export default function BookingPage() {
                         <span>{selectedPetData?.name}</span>
                         <span>•</span>
                         <span>{selectedServiceData?.name}</span>
+                        <span>•</span>
+                        <span className={styles.servicePrice}>R$ {(dynamicPrices[selectedService] ?? selectedServiceData?.base_price ?? 0).toFixed(2)}</span>
                         <span>•</span>
                         <span>{selectedTime}</span>
                     </div>
