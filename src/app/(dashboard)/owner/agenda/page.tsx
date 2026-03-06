@@ -142,7 +142,7 @@ export default function AgendaPage() {
     // Validation State
     const [bookingError, setBookingError] = useState<string | null>(null)
     const [loadingDynamicPrice, setLoadingDynamicPrice] = useState(false)
-    const [modalDynamicPrice, setModalDynamicPrice] = useState<number | null>(null)
+    const [modalDynamicPrices, setModalDynamicPrices] = useState<Record<string, number>>({})
 
     // Actions
     const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
@@ -379,27 +379,42 @@ export default function AgendaPage() {
         return true
     }
 
-    // Recalculate dynamic price for the modal
+    // Recalculate dynamic prices for all visible services in the modal
     useEffect(() => {
-        const fetchModalPrice = async () => {
-            if (showNewModal && preSelectedPetId && selectedServiceId && selectedDate) {
+        const fetchModalPrices = async () => {
+            if (showNewModal && preSelectedPetId && selectedDate) {
+                // Filter services first to avoid unnecessary RPC calls
+                const pet = pets.find(p => p.id === preSelectedPetId);
+                if (!pet) return;
+                const petSpecies = pet.species.toLowerCase() === 'cão' || pet.species.toLowerCase() === 'dog' ? 'dog' : 'cat';
+                const eligibleServices = services.filter(s => !s.target_species || s.target_species === 'both' || s.target_species === petSpecies);
+
                 setLoadingDynamicPrice(true)
                 try {
                     const { calculateDynamicPrice } = await import('@/app/actions/pricing')
-                    const price = await calculateDynamicPrice(preSelectedPetId, selectedServiceId, selectedDate)
-                    setModalDynamicPrice(price)
+                    const pricePromises = eligibleServices.map(async (s) => {
+                        const price = await calculateDynamicPrice(preSelectedPetId, s.id, selectedDate)
+                        return { id: s.id, price: price ?? s.base_price }
+                    })
+
+                    const results = await Promise.all(pricePromises)
+                    const newPrices: Record<string, number> = {}
+                    results.forEach(r => {
+                        newPrices[r.id] = r.price
+                    })
+                    setModalDynamicPrices(newPrices)
                 } catch (err) {
-                    console.error('Error fetching modal dynamic price:', err)
-                    setModalDynamicPrice(null)
+                    console.error('Error fetching modal dynamic prices:', err)
+                    setModalDynamicPrices({})
                 } finally {
                     setLoadingDynamicPrice(false)
                 }
             } else {
-                setModalDynamicPrice(null)
+                setModalDynamicPrices({})
             }
         }
-        fetchModalPrice()
-    }, [showNewModal, preSelectedPetId, selectedServiceId, selectedDate])
+        fetchModalPrices()
+    }, [showNewModal, preSelectedPetId, selectedDate, services, pets])
 
     const handleNewAppointment = (date?: string, hour?: number, petId?: string, serviceId?: string) => {
         let finalDate = date || selectedDate
@@ -944,7 +959,7 @@ export default function AgendaPage() {
                                             <optgroup key={category} label={category}>
                                                 {catServices.map(s => (
                                                     <option key={s.id} value={s.id}>
-                                                        {s.name} (R$ {s.base_price.toFixed(2)})
+                                                        {s.name} (R$ {(modalDynamicPrices[s.id] ?? s.base_price).toFixed(2)})
                                                     </option>
                                                 ))}
                                             </optgroup>
@@ -953,9 +968,9 @@ export default function AgendaPage() {
                                 {selectedServiceId && (
                                     <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--primary)', fontWeight: '600' }}>
                                         {loadingDynamicPrice ? (
-                                            <span>Calculando preço real...</span>
-                                        ) : modalDynamicPrice !== null ? (
-                                            <span>Preço para este pet: R$ {modalDynamicPrice.toFixed(2)}</span>
+                                            <span>Atualizando preços...</span>
+                                        ) : modalDynamicPrices[selectedServiceId] !== undefined ? (
+                                            <span>Preço para este pet: R$ {modalDynamicPrices[selectedServiceId].toFixed(2)}</span>
                                         ) : (
                                             <span>Preço base: R$ {services.find(s => s.id === selectedServiceId)?.base_price.toFixed(2)}</span>
                                         )}
