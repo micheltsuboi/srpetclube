@@ -391,21 +391,17 @@ export default function AgendaPage() {
 
                 setLoadingDynamicPrice(true)
                 try {
-                    const { calculateDynamicPrice } = await import('@/app/actions/pricing')
-                    const pricePromises = eligibleServices.map(async (s) => {
-                        const price = await calculateDynamicPrice(preSelectedPetId, s.id, selectedDate)
-                        return { id: s.id, price: price ?? s.base_price }
-                    })
+                    const { calculateManyDynamicPrices } = await import('@/app/actions/pricing')
+                    const serviceIds = eligibleServices.map(s => s.id)
+                    const results = await calculateManyDynamicPrices(preSelectedPetId, serviceIds, selectedDate)
 
-                    const results = await Promise.all(pricePromises)
                     const newPrices: Record<string, number> = {}
-                    results.forEach(r => {
-                        newPrices[r.id] = r.price
+                    eligibleServices.forEach(s => {
+                        newPrices[s.id] = results[s.id] ?? s.base_price
                     })
                     setModalDynamicPrices(newPrices)
                 } catch (err) {
-                    console.error('Error fetching modal dynamic prices:', err)
-                    setModalDynamicPrices({})
+                    console.error('Error fetching modal prices:', err)
                 } finally {
                     setLoadingDynamicPrice(false)
                 }

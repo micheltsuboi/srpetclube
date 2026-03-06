@@ -249,9 +249,9 @@ export default function TutorsPage() {
                                 </div>
 
                                 <div className={styles.formGroup}>
-                                    <label htmlFor="email" className={styles.label}>Email *</label>
+                                    <label htmlFor="email" className={styles.label}>Email (Opcional)</label>
                                     <input
-                                        id="email" name="email" type="email" className={styles.input} required
+                                        id="email" name="email" type="email" className={styles.input}
                                         placeholder="maria@email.com"
                                         defaultValue={selectedTutor?.email || ''}
                                     />
@@ -259,12 +259,11 @@ export default function TutorsPage() {
 
                                 <div className={styles.formGroup}>
                                     <label htmlFor="password" className={styles.label}>
-                                        {selectedTutor ? 'Alterar Senha de Acesso' : 'Senha de Acesso *'}
+                                        {selectedTutor ? 'Alterar Senha' : 'Senha (Opcional)'}
                                     </label>
                                     <input
                                         id="password" name="password" type="password" className={styles.input}
-                                        required={!selectedTutor}
-                                        placeholder={selectedTutor ? "Deixe em branco para não alterar" : "******"}
+                                        placeholder={selectedTutor ? "Deixe em branco para não alterar" : "Mínimo 6 caracteres"}
                                         minLength={6}
                                     />
                                     {selectedTutor && !selectedTutor.user_id && (

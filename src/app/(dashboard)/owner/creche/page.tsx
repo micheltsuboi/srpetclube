@@ -444,14 +444,14 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
             if (selectedPetId) {
                 setLoadingPrices(true)
                 try {
-                    const { calculateDynamicPrice } = await import('@/app/actions/pricing')
-                    const pricePromises = services.map(async (s) => {
-                        const price = await calculateDynamicPrice(selectedPetId, s.id, selectedDate)
-                        return { id: s.id, price: price ?? s.base_price }
-                    })
-                    const results = await Promise.all(pricePromises)
+                    const { calculateManyDynamicPrices } = await import('@/app/actions/pricing')
+                    const serviceIds = services.map(s => s.id)
+                    const results = await calculateManyDynamicPrices(selectedPetId, serviceIds, selectedDate)
+
                     const newPrices: Record<string, number> = {}
-                    results.forEach(r => { newPrices[r.id] = r.price })
+                    services.forEach(s => {
+                        newPrices[s.id] = results[s.id] ?? s.base_price
+                    })
                     setDynamicPrices(newPrices)
                 } catch (err) {
                     console.error(err)

@@ -142,15 +142,15 @@ export default function BanhoTosaPage() {
             if (showNewModal && selectedPetId) {
                 setLoadingPrices(true)
                 try {
-                    const { calculateDynamicPrice } = await import('@/app/actions/pricing')
+                    const { calculateManyDynamicPrices } = await import('@/app/actions/pricing')
                     const date = new Date().toISOString().split('T')[0]
-                    const pricePromises = services.map(async (s) => {
-                        const price = await calculateDynamicPrice(selectedPetId, s.id, date)
-                        return { id: s.id, price: price ?? s.base_price }
-                    })
-                    const results = await Promise.all(pricePromises)
+                    const serviceIds = services.map(s => s.id)
+                    const results = await calculateManyDynamicPrices(selectedPetId, serviceIds, date)
+
                     const newPrices: Record<string, number> = {}
-                    results.forEach(r => { newPrices[r.id] = r.price })
+                    services.forEach(s => {
+                        newPrices[s.id] = results[s.id] ?? s.base_price
+                    })
                     setDynamicPrices(newPrices)
                 } catch (err) {
                     console.error(err)

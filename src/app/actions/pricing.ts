@@ -29,3 +29,37 @@ export async function calculateDynamicPrice(petId: string, serviceId: string, da
         return null
     }
 }
+
+export async function calculateManyDynamicPrices(
+    petId: string,
+    serviceIds: string[],
+    date: string
+): Promise<Record<string, number | null>> {
+    try {
+        const supabase = await createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return {}
+
+        // We run all calculations in parallel on the server side
+        // This is much faster than multiple round-trips from the client
+        const promises = serviceIds.map(async (id) => {
+            const { data } = await supabase.rpc('get_price', {
+                p_pet_id: petId,
+                p_service_id: id,
+                p_date: date
+            })
+            return { id, price: typeof data === 'number' ? data : null }
+        })
+
+        const results = await Promise.all(promises)
+        const priceMap: Record<string, number | null> = {}
+        results.forEach(res => {
+            priceMap[res.id] = res.price
+        })
+
+        return priceMap
+    } catch (err) {
+        console.error('Action error calculating many dynamic prices:', err)
+        return {}
+    }
+}
