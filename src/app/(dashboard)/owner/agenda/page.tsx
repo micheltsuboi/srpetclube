@@ -141,6 +141,8 @@ export default function AgendaPage() {
 
     // Validation State
     const [bookingError, setBookingError] = useState<string | null>(null)
+    const [loadingDynamicPrice, setLoadingDynamicPrice] = useState(false)
+    const [modalDynamicPrice, setModalDynamicPrice] = useState<number | null>(null)
 
     // Actions
     const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
@@ -376,6 +378,28 @@ export default function AgendaPage() {
         setBookingError(null)
         return true
     }
+
+    // Recalculate dynamic price for the modal
+    useEffect(() => {
+        const fetchModalPrice = async () => {
+            if (showNewModal && preSelectedPetId && selectedServiceId && selectedDate) {
+                setLoadingDynamicPrice(true)
+                try {
+                    const { calculateDynamicPrice } = await import('@/app/actions/pricing')
+                    const price = await calculateDynamicPrice(preSelectedPetId, selectedServiceId, selectedDate)
+                    setModalDynamicPrice(price)
+                } catch (err) {
+                    console.error('Error fetching modal dynamic price:', err)
+                    setModalDynamicPrice(null)
+                } finally {
+                    setLoadingDynamicPrice(false)
+                }
+            } else {
+                setModalDynamicPrice(null)
+            }
+        }
+        fetchModalPrice()
+    }, [showNewModal, preSelectedPetId, selectedServiceId, selectedDate])
 
     const handleNewAppointment = (date?: string, hour?: number, petId?: string, serviceId?: string) => {
         let finalDate = date || selectedDate
@@ -903,22 +927,40 @@ export default function AgendaPage() {
                                     }}
                                 >
                                     <option value="" disabled>Selecione...</option>
-                                    {Object.entries(services.reduce((acc, s) => {
-                                        const cat = s.service_categories?.name || 'Outros'
-                                        if (!acc[cat]) acc[cat] = []
-                                        acc[cat].push(s)
-                                        return acc
-                                    }, {} as Record<string, typeof services>)).map(([category, catServices]) => (
-                                        <optgroup key={category} label={category}>
-                                            {catServices.map(s => (
-                                                <option key={s.id} value={s.id}>
-                                                    {s.name} (R$ {s.base_price.toFixed(2)})
-                                                </option>
-                                            ))}
-                                        </optgroup>
-                                    ))}
+                                    {Object.entries(services
+                                        .filter(s => {
+                                            if (!preSelectedPetId) return true;
+                                            const pet = pets.find(p => p.id === preSelectedPetId);
+                                            if (!pet) return true;
+                                            const petSpecies = pet.species.toLowerCase() === 'cão' || pet.species.toLowerCase() === 'dog' ? 'dog' : 'cat';
+                                            return !s.target_species || s.target_species === 'both' || s.target_species === petSpecies;
+                                        })
+                                        .reduce((acc, s) => {
+                                            const cat = s.service_categories?.name || 'Outros'
+                                            if (!acc[cat]) acc[cat] = []
+                                            acc[cat].push(s)
+                                            return acc
+                                        }, {} as Record<string, typeof services>)).map(([category, catServices]) => (
+                                            <optgroup key={category} label={category}>
+                                                {catServices.map(s => (
+                                                    <option key={s.id} value={s.id}>
+                                                        {s.name} (R$ {s.base_price.toFixed(2)})
+                                                    </option>
+                                                ))}
+                                            </optgroup>
+                                        ))}
                                 </select>
-                                {/* Preset Category hidden field if needed for logic, but usually we just need serviceId */}
+                                {selectedServiceId && (
+                                    <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--primary)', fontWeight: '600' }}>
+                                        {loadingDynamicPrice ? (
+                                            <span>Calculando preço real...</span>
+                                        ) : modalDynamicPrice !== null ? (
+                                            <span>Preço para este pet: R$ {modalDynamicPrice.toFixed(2)}</span>
+                                        ) : (
+                                            <span>Preço base: R$ {services.find(s => s.id === selectedServiceId)?.base_price.toFixed(2)}</span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             <div className={styles.row}>
                                 <div className={styles.formGroup}>
