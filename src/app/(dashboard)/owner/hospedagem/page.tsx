@@ -458,6 +458,8 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
 
     const [notes, setNotes] = useState('')
     const [loading, setLoading] = useState(false)
+    const [dynamicPrices, setDynamicPrices] = useState<Record<string, number>>({})
+    const [loadingPrices, setLoadingPrices] = useState(false)
 
     useEffect(() => {
         const loadData = async () => {
@@ -485,6 +487,31 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
         }
         loadData()
     }, [])
+
+    // Fetch dynamic prices when pet changes or service interaction
+    useEffect(() => {
+        const fetchPrices = async () => {
+            if (selectedPetId) {
+                setLoadingPrices(true)
+                try {
+                    const { calculateDynamicPrice } = await import('@/app/actions/pricing')
+                    const pricePromises = services.map(async (s) => {
+                        const price = await calculateDynamicPrice(selectedPetId, s.id, checkInDate)
+                        return { id: s.id, price: price ?? s.base_price }
+                    })
+                    const results = await Promise.all(pricePromises)
+                    const newPrices: Record<string, number> = {}
+                    results.forEach(r => { newPrices[r.id] = r.price })
+                    setDynamicPrices(newPrices)
+                } catch (err) {
+                    console.error(err)
+                } finally {
+                    setLoadingPrices(false)
+                }
+            }
+        }
+        fetchPrices()
+    }, [selectedPetId, services, checkInDate])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -555,8 +582,13 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
                         <select required value={selectedServiceId} onChange={e => setSelectedServiceId(e.target.value)}
                             style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }}>
                             <option value="">Selecione...</option>
-                            {services.map(s => <option key={s.id} value={s.id}>{s.name} - R$ {s.base_price?.toFixed(2)}/dia</option>)}
+                            {services.map(s => <option key={s.id} value={s.id}>{s.name} - R$ {(dynamicPrices[s.id] ?? s.base_price)?.toFixed(2)}/dia</option>)}
                         </select>
+                        {selectedServiceId && dynamicPrices[selectedServiceId] !== undefined && (
+                            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#F97316', fontWeight: 600 }}>
+                                {loadingPrices ? 'Calculando...' : `Preço real diário: R$ ${dynamicPrices[selectedServiceId].toFixed(2)}`}
+                            </div>
+                        )}
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                         <div>

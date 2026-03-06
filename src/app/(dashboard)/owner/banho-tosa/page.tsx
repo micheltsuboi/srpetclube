@@ -54,6 +54,10 @@ export default function BanhoTosaPage() {
     const [submitting, setSubmitting] = useState(false)
     const [pets, setPets] = useState<any[]>([])
     const [services, setServices] = useState<any[]>([])
+    const [selectedPetId, setSelectedPetId] = useState('')
+    const [selectedServiceId, setSelectedServiceId] = useState('')
+    const [dynamicPrices, setDynamicPrices] = useState<Record<string, number>>({})
+    const [loadingPrices, setLoadingPrices] = useState(false)
 
     const fetchBanhoTosaData = useCallback(async (isBackground = false) => {
         try {
@@ -131,6 +135,32 @@ export default function BanhoTosaPage() {
             if (!isBackground) setLoading(false)
         }
     }, [supabase, dateRange, viewMode, pets.length, services.length])
+
+    // Fetch dynamic prices when pet changes
+    useEffect(() => {
+        const fetchPrices = async () => {
+            if (showNewModal && selectedPetId) {
+                setLoadingPrices(true)
+                try {
+                    const { calculateDynamicPrice } = await import('@/app/actions/pricing')
+                    const date = new Date().toISOString().split('T')[0]
+                    const pricePromises = services.map(async (s) => {
+                        const price = await calculateDynamicPrice(selectedPetId, s.id, date)
+                        return { id: s.id, price: price ?? s.base_price }
+                    })
+                    const results = await Promise.all(pricePromises)
+                    const newPrices: Record<string, number> = {}
+                    results.forEach(r => { newPrices[r.id] = r.price })
+                    setDynamicPrices(newPrices)
+                } catch (err) {
+                    console.error(err)
+                } finally {
+                    setLoadingPrices(false)
+                }
+            }
+        }
+        fetchPrices()
+    }, [showNewModal, selectedPetId, services])
 
     useEffect(() => {
         fetchBanhoTosaData()
@@ -441,7 +471,13 @@ export default function BanhoTosaPage() {
                         }}>
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Pet *</label>
-                                <select name="petId" className={styles.select} required>
+                                <select
+                                    name="petId"
+                                    className={styles.select}
+                                    required
+                                    value={selectedPetId}
+                                    onChange={(e) => setSelectedPetId(e.target.value)}
+                                >
                                     <option value="">Selecione...</option>
                                     {pets.map(p => (
                                         <option key={p.id} value={p.id}>
@@ -452,14 +488,25 @@ export default function BanhoTosaPage() {
                             </div>
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Serviço *</label>
-                                <select name="serviceId" className={styles.select} required>
+                                <select
+                                    name="serviceId"
+                                    className={styles.select}
+                                    required
+                                    value={selectedServiceId}
+                                    onChange={(e) => setSelectedServiceId(e.target.value)}
+                                >
                                     <option value="">Selecione...</option>
                                     {services.map(s => (
                                         <option key={s.id} value={s.id}>
-                                            {s.name} - R$ {(s.base_price || 0).toFixed(2)}
+                                            {s.name} - R$ {(dynamicPrices[s.id] ?? (s.base_price || 0)).toFixed(2)}
                                         </option>
                                     ))}
                                 </select>
+                                {selectedServiceId && dynamicPrices[selectedServiceId] !== undefined && (
+                                    <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#60a5fa', fontWeight: 600 }}>
+                                        {loadingPrices ? 'Calculando...' : `Preço real para este pet: R$ ${dynamicPrices[selectedServiceId].toFixed(2)}`}
+                                    </div>
+                                )}
                             </div>
                             <div className={styles.row}>
                                 <div className={styles.formGroup}>

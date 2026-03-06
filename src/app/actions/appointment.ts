@@ -227,25 +227,24 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     const weight = (petData as any).weight_kg ?? (petData as any).weight
 
     if (weight !== null && weight !== undefined) {
-        const { data: rules, error: rErr } = await supabase
+        const { data: rules } = await supabase
             .from('pricing_matrix')
             .select('*')
             .eq('service_id', serviceId)
             .eq('is_active', true)
             .lte('weight_min', weight)
             .gte('weight_max', weight)
-            .order('fixed_price', { ascending: false }) // Initial sort
 
         if (rules && rules.length > 0) {
-            // Find the most specific rule (smallest range)
-            const specificRule = rules.sort((a, b) => {
-                const rangeA = a.max_weight - a.min_weight
-                const rangeB = b.max_weight - b.min_weight
-                return rangeA - rangeB
-            })[0]
-
-            calculatedPrice = specificRule.fixed_price
-            console.log('[CreateAppointment] Selected Specific Rule:', specificRule)
+            calculatedPrice = rules[0].fixed_price
+        } else {
+            // SECOND TRY: Use get_price RPC to ensure we follow the same logic as the frontend
+            const { data: rpcPrice } = await supabase.rpc('get_price', {
+                p_pet_id: petId,
+                p_service_id: serviceId,
+                p_date: date || checkInDate || new Date().toISOString().split('T')[0]
+            })
+            if (rpcPrice) calculatedPrice = rpcPrice
         }
     }
 
