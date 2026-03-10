@@ -32,7 +32,7 @@ interface Pet {
     responsible2_phone: string | null
     // vaccination_up_to_date: boolean (remodelado: removido da UI)
     customer_id: string
-    customers: { id: string, name: string } | null
+    customers: { id: string, name: string, phone_1: string | null } | null
     photo_url?: string | null
     is_adapted?: boolean
 }
@@ -40,6 +40,7 @@ interface Pet {
 interface Customer {
     id: string
     name: string
+    phone_1: string | null
 }
 
 const initialState = {
@@ -75,6 +76,7 @@ function PetsContent() {
     const [createState, createAction, isCreatePending] = useActionState(createPet, initialState)
     const [updateState, updateAction, isUpdatePending] = useActionState(updatePet, initialState)
     const [responsible2Phone, setResponsible2Phone] = useState('')
+    const [selectedCustomerId, setSelectedCustomerId] = useState('')
 
     const isPending = isCreatePending || isUpdatePending
 
@@ -165,7 +167,7 @@ function PetsContent() {
                 .select(`
                     id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
                     existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, is_adapted,
-                    customers ( id, name )
+                    customers ( id, name, phone_1 )
                 `)
                 .order('name')
 
@@ -182,7 +184,7 @@ function PetsContent() {
             // Fetch Customers for select
             const { data: customersData, error: customersError } = await supabase
                 .from('customers')
-                .select('id, name')
+                .select('id, name, phone_1')
                 .eq('org_id', profile.org_id)
                 .order('name')
 
@@ -310,6 +312,7 @@ function PetsContent() {
             setPetAssessment(null)
         }
 
+        setSelectedCustomerId(pet.customer_id)
         setResponsible2Phone(pet.responsible2_phone || '')
         setShowModal(true)
     }
@@ -321,6 +324,7 @@ function PetsContent() {
         setIsEditingAssessment(false)
         setAccordions({ details: true, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
         setResponsible2Phone('')
+        setSelectedCustomerId('')
         setShowModal(true)
     }
 
@@ -505,10 +509,22 @@ function PetsContent() {
 
                                                 <div className={`${styles.formGroup} ${styles.fullWidth}`}>
                                                     <label htmlFor="customerId" className={styles.label}>Responsável 1 (puxa do cadastro) *</label>
-                                                    <select id="customerId" name="customerId" className={styles.select} required defaultValue={selectedPet?.customer_id || ''}>
-                                                        <option value="">Selecione um responsável...</option>
-                                                        {customers.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
-                                                    </select>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                                        <select
+                                                            id="customerId"
+                                                            name="customerId"
+                                                            className={styles.select}
+                                                            required
+                                                            value={selectedCustomerId}
+                                                            onChange={(e) => setSelectedCustomerId(e.target.value)}
+                                                        >
+                                                            <option value="">Selecione um responsável...</option>
+                                                            {customers.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
+                                                        </select>
+                                                        <div className={styles.input} style={{ backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', opacity: 0.8 }}>
+                                                            📞 {customers.find(c => c.id === selectedCustomerId)?.phone_1 || 'Sem telefone'}
+                                                        </div>
+                                                    </div>
                                                 </div>
 
                                                 <div className={styles.formGroup}>
