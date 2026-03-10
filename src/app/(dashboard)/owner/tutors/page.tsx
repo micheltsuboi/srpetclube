@@ -308,7 +308,7 @@ export default function TutorsPage() {
                                 <div className={styles.formGroup}>
                                     <label htmlFor="city" className={styles.label}>Cidade</label>
                                     <input
-                                        id="city" name="city" type="text" className={styles.input} defaultValue={selectedTutor?.city || 'São Paulo'}
+                                        id="city" name="city" type="text" className={styles.input} defaultValue={selectedTutor?.city || ''}
                                     />
                                 </div>
 
