@@ -105,10 +105,14 @@ export default function PetRegistrationModal({ onClose, onSuccess }: { onClose: 
                         </label>
                     </div>
 
-                    <div className={`${styles.formGroup} ${styles.fullWidth}`}>
-                        <label className={styles.label} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                            <input type="checkbox" name="vaccination_up_to_date" /> Vacinação em dia?
-                        </label>
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Responsável 2 (Nome)</label>
+                        <input name="responsible2_name" className={styles.input} placeholder="Ex: Maria" />
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Responsável 2 (Celular)</label>
+                        <input name="responsible2_phone" className={styles.input} placeholder="Ex: (11) 99999-9999" />
                     </div>
 
                     <div className={`${styles.formGroup} ${styles.fullWidth}`}>

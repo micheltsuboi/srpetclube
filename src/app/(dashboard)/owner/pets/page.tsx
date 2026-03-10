@@ -27,7 +27,9 @@ interface Pet {
     weight_kg: number | null
     is_neutered: boolean
     existing_conditions: string | null
-    vaccination_up_to_date: boolean
+    responsible2_name: string | null
+    responsible2_phone: string | null
+    // vaccination_up_to_date: boolean (remodelado: removido da UI)
     customer_id: string
     customers: { id: string, name: string } | null
     photo_url?: string | null
@@ -160,7 +162,7 @@ function PetsContent() {
                 .from('pets')
                 .select(`
                     id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
-                    existing_conditions, vaccination_up_to_date, customer_id, photo_url, is_adapted,
+                    existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, is_adapted,
                     customers ( id, name )
                 `)
                 .order('name')
@@ -395,7 +397,7 @@ function PetsContent() {
                     <thead>
                         <tr>
                             <th>Pet</th>
-                            <th>Tutor</th>
+                            <th>Responsável 1</th>
                             <th>Características</th>
                             <th>Idade</th>
                         </tr>
@@ -424,7 +426,7 @@ function PetsContent() {
                                 </td>
                                 <td>
                                     <div className={styles.itemName} style={{ fontSize: '0.9rem' }}>
-                                        {pet.customers?.name || 'Tutor não encontrado'}
+                                        {pet.customers?.name || 'Responsável não encontrado'}
                                     </div>
                                 </td>
                                 <td>
@@ -498,11 +500,21 @@ function PetsContent() {
                                                 </div>
 
                                                 <div className={`${styles.formGroup} ${styles.fullWidth}`}>
-                                                    <label htmlFor="customerId" className={styles.label}>Tutor *</label>
+                                                    <label htmlFor="customerId" className={styles.label}>Responsável 1 (puxa do cadastro) *</label>
                                                     <select id="customerId" name="customerId" className={styles.select} required defaultValue={selectedPet?.customer_id || ''}>
-                                                        <option value="">Selecione um tutor...</option>
+                                                        <option value="">Selecione um responsável...</option>
                                                         {customers.map(c => (<option key={c.id} value={c.id}>{c.name}</option>))}
                                                     </select>
+                                                </div>
+
+                                                <div className={styles.formGroup}>
+                                                    <label htmlFor="responsible2_name" className={styles.label}>Responsável 2 (Nome)</label>
+                                                    <input id="responsible2_name" name="responsible2_name" type="text" className={styles.input} defaultValue={selectedPet?.responsible2_name || ''} placeholder="Ex: Maria" />
+                                                </div>
+
+                                                <div className={styles.formGroup}>
+                                                    <label htmlFor="responsible2_phone" className={styles.label}>Responsável 2 (Celular)</label>
+                                                    <input id="responsible2_phone" name="responsible2_phone" type="text" className={styles.input} defaultValue={selectedPet?.responsible2_phone || ''} placeholder="Ex: (11) 99999-9999" />
                                                 </div>
                                                 <div className={`${styles.formGroup} ${styles.fullWidth}`}>
                                                     <label htmlFor="name" className={styles.label}>Nome do Pet *</label>
@@ -545,14 +557,9 @@ function PetsContent() {
                                                     <label htmlFor="weight" className={styles.label}>Peso (kg)</label>
                                                     <input id="weight" name="weight" type="number" step="0.1" className={styles.input} defaultValue={selectedPet?.weight_kg?.toString() || ''} placeholder="0.0" />
                                                 </div>
-                                                <div className={`${styles.formGroup} ${styles.fullWidth}`}>
-                                                    <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                                        <input type="checkbox" name="isNeutered" defaultChecked={selectedPet?.is_neutered || false} /> É castrado?
-                                                    </label>
-                                                </div>
                                                 <div className={styles.formGroup}>
                                                     <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                                        <input type="checkbox" name="vaccination_up_to_date" defaultChecked={selectedPet?.vaccination_up_to_date} /> Vacinação em dia
+                                                        <input type="checkbox" name="isNeutered" defaultChecked={selectedPet?.is_neutered || false} /> É castrado?
                                                     </label>
                                                 </div>
                                                 <div className={`${styles.formGroup} ${styles.fullWidth}`}>

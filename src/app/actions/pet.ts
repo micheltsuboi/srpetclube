@@ -39,7 +39,9 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
     const birthDateStr = formData.get('birthDate') as string
     const isNeutered = formData.get('isNeutered') === 'on'
     const existing_conditions = formData.get('existing_conditions') as string
-    const vaccination_up_to_date = formData.get('vaccination_up_to_date') === 'on'
+    const responsible2_name = formData.get('responsible2_name') as string
+    const responsible2_phone = formData.get('responsible2_phone') as string
+    // const vaccination_up_to_date = formData.get('vaccination_up_to_date') === 'on' (Remover de UI)
 
     if (!customerId || !name || !species || !gender || !size) {
         return { message: 'Campos obrigatórios faltando (Tutor, Nome, Espécie, Sexo, Porte).', success: false }
@@ -76,7 +78,8 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
             birth_date: birthDateStr ? new Date(birthDateStr).toISOString() : null,
             is_neutered: isNeutered,
             existing_conditions: existing_conditions || null,
-            vaccination_up_to_date: vaccination_up_to_date,
+            responsible2_name: responsible2_name || null,
+            responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null,
             is_adapted: isAdapted
         })
@@ -109,7 +112,8 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
     const isNeutered = formData.get('isNeutered') === 'on'
     const customerId = formData.get('customerId') as string
     const existing_conditions = formData.get('existing_conditions') as string
-    const vaccination_up_to_date = formData.get('vaccination_up_to_date') === 'on'
+    const responsible2_name = formData.get('responsible2_name') as string
+    const responsible2_phone = formData.get('responsible2_phone') as string
     const photo_url = formData.get('photo_url') as string
     const isAdapted = formData.get('is_adapted') === 'on'
 
@@ -129,7 +133,8 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
             is_neutered: isNeutered,
             customer_id: customerId,
             existing_conditions: existing_conditions || null,
-            vaccination_up_to_date: vaccination_up_to_date,
+            responsible2_name: responsible2_name || null,
+            responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null,
             is_adapted: isAdapted
         })
@@ -199,7 +204,8 @@ export async function createPetByTutor(prevState: CreatePetState, formData: Form
     const birthDateStr = formData.get('birthDate') as string
     const isNeutered = formData.get('isNeutered') === 'on'
     const existing_conditions = formData.get('existing_conditions') as string
-    const vaccination_up_to_date = formData.get('vaccination_up_to_date') === 'on'
+    const responsible2_name = formData.get('responsible2_name') as string
+    const responsible2_phone = formData.get('responsible2_phone') as string
     const photo_url = formData.get('photo_url') as string
 
     if (!name || !species || !gender || !size) {
@@ -222,7 +228,8 @@ export async function createPetByTutor(prevState: CreatePetState, formData: Form
             birth_date: birthDateStr ? new Date(birthDateStr).toISOString() : null,
             is_neutered: isNeutered,
             existing_conditions: existing_conditions || null,
-            vaccination_up_to_date: vaccination_up_to_date,
+            responsible2_name: responsible2_name || null,
+            responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null
         })
 
