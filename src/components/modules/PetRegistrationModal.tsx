@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from 'react'
 import { createPetByTutor } from '@/app/actions/pet'
 import styles from './PetRegistrationModal.module.css'
 import ImageUpload from '@/components/ImageUpload'
+import { maskPhone } from '@/utils/mask'
 
 const initialState = {
     message: '',
@@ -13,6 +14,7 @@ const initialState = {
 export default function PetRegistrationModal({ onClose, onSuccess }: { onClose: () => void, onSuccess: () => void }) {
     const [state, formAction, isPending] = useActionState(createPetByTutor, initialState)
     const [photoUrl, setPhotoUrl] = useState<string | null>(null)
+    const [responsible2Phone, setResponsible2Phone] = useState('')
 
     useEffect(() => {
         if (state.success) {
@@ -112,7 +114,13 @@ export default function PetRegistrationModal({ onClose, onSuccess }: { onClose: 
 
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Responsável 2 (Celular)</label>
-                        <input name="responsible2_phone" className={styles.input} placeholder="Ex: (11) 99999-9999" />
+                        <input
+                            name="responsible2_phone"
+                            className={styles.input}
+                            value={responsible2Phone}
+                            onChange={(e) => setResponsible2Phone(maskPhone(e.target.value))}
+                            placeholder="Ex: (11) 99999-9999"
+                        />
                     </div>
 
                     <div className={`${styles.formGroup} ${styles.fullWidth}`}>

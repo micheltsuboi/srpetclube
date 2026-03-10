@@ -14,6 +14,7 @@ import { getPetshopHistory, payPetshopSale } from '@/app/actions/petshop'
 import { createVaccine, deleteVaccine, getPetVaccines } from '@/app/actions/vaccine'
 import PetAssessmentForm from '@/components/PetAssessmentForm'
 import ImageUpload from '@/components/ImageUpload'
+import { maskPhone } from '@/utils/mask'
 
 // Interfaces
 interface Pet {
@@ -73,6 +74,7 @@ function PetsContent() {
     // Server Action State
     const [createState, createAction, isCreatePending] = useActionState(createPet, initialState)
     const [updateState, updateAction, isUpdatePending] = useActionState(updatePet, initialState)
+    const [responsible2Phone, setResponsible2Phone] = useState('')
 
     const isPending = isCreatePending || isUpdatePending
 
@@ -308,6 +310,7 @@ function PetsContent() {
             setPetAssessment(null)
         }
 
+        setResponsible2Phone(pet.responsible2_phone || '')
         setShowModal(true)
     }
 
@@ -317,6 +320,7 @@ function PetsContent() {
         setIsViewingAssessment(false)
         setIsEditingAssessment(false)
         setAccordions({ details: true, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
+        setResponsible2Phone('')
         setShowModal(true)
     }
 
@@ -514,7 +518,15 @@ function PetsContent() {
 
                                                 <div className={styles.formGroup}>
                                                     <label htmlFor="responsible2_phone" className={styles.label}>Responsável 2 (Celular)</label>
-                                                    <input id="responsible2_phone" name="responsible2_phone" type="text" className={styles.input} defaultValue={selectedPet?.responsible2_phone || ''} placeholder="Ex: (11) 99999-9999" />
+                                                    <input
+                                                        id="responsible2_phone"
+                                                        name="responsible2_phone"
+                                                        type="text"
+                                                        className={styles.input}
+                                                        value={responsible2Phone}
+                                                        onChange={(e) => setResponsible2Phone(maskPhone(e.target.value))}
+                                                        placeholder="Ex: (11) 99999-9999"
+                                                    />
                                                 </div>
                                                 <div className={`${styles.formGroup} ${styles.fullWidth}`}>
                                                     <label htmlFor="name" className={styles.label}>Nome do Pet *</label>
