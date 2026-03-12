@@ -143,6 +143,7 @@ export default function AgendaPage() {
     const [bookingError, setBookingError] = useState<string | null>(null)
     const [loadingDynamicPrice, setLoadingDynamicPrice] = useState(false)
     const [modalDynamicPrices, setModalDynamicPrices] = useState<Record<string, number>>({})
+    const [petSearchTerm, setPetSearchTerm] = useState('')
 
     // Actions
     const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
@@ -426,13 +427,10 @@ export default function AgendaPage() {
         if (serviceId) setSelectedServiceId(serviceId)
         else setSelectedServiceId('')
 
-        // Trigger validation with potentially updated hour
-        validateScheduling(finalDate, finalSvcId, finalPetId) // Note: validateScheduling reads selectedHourSlot from state, which might be stale here if we just set it.
-        // Better to pass hour explicitly or useEffect.
-        // The simple fix for now is to rely on the fact that we might need to select service/pet in modal anyway.
-        // But if we have everything, we want instant validation.
-        // Let's rely on the useEffect or the user interaction in the modal.
+        // Trigger validation
+        validateScheduling(finalDate, finalSvcId, finalPetId)
 
+        setPetSearchTerm('') // Reset search when opening
         setShowNewModal(true)
     }
 
@@ -910,20 +908,51 @@ export default function AgendaPage() {
                         <form action={createAction}>
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Pet *</label>
-                                <select
-                                    name="petId"
-                                    className={styles.select}
-                                    required
-                                    defaultValue={preSelectedPetId || ""}
-                                    key={preSelectedPetId}
-                                    onChange={(e) => {
-                                        setPreSelectedPetId(e.target.value)
-                                        validateScheduling(selectedDate, selectedServiceId, e.target.value)
-                                    }}
-                                >
-                                    <option value="" disabled>Selecione...</option>
-                                    {pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                </select>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                    <input
+                                        type="text"
+                                        placeholder="🔍 Pesquisar pet ou tutor..."
+                                        className={styles.input}
+                                        value={petSearchTerm}
+                                        onChange={(e) => setPetSearchTerm(e.target.value)}
+                                        style={{ marginBottom: '0.25rem', fontSize: '0.85rem', padding: '0.4rem' }}
+                                    />
+                                    <select
+                                        name="petId"
+                                        className={styles.select}
+                                        required
+                                        defaultValue={preSelectedPetId || ""}
+                                        key={preSelectedPetId}
+                                        onChange={(e) => {
+                                            setPreSelectedPetId(e.target.value)
+                                            validateScheduling(selectedDate, selectedServiceId, e.target.value)
+                                        }}
+                                    >
+                                        <option value="" disabled>Selecione...</option>
+                                        {pets
+                                            .filter(p => {
+                                                if (!petSearchTerm) return true
+                                                const search = petSearchTerm.toLowerCase()
+                                                return p.name.toLowerCase().includes(search) ||
+                                                    p.customers?.name?.toLowerCase().includes(search) ||
+                                                    p.breed?.toLowerCase().includes(search)
+                                            })
+                                            .map(p => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.name} ({p.customers?.name || 'Sem tutor'})
+                                                </option>
+                                            ))
+                                        }
+                                    </select>
+                                    {petSearchTerm && pets.filter(p => {
+                                        const search = petSearchTerm.toLowerCase()
+                                        return p.name.toLowerCase().includes(search) ||
+                                            p.customers?.name?.toLowerCase().includes(search) ||
+                                            p.breed?.toLowerCase().includes(search)
+                                    }).length === 0 && (
+                                            <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>Nenhum pet encontrado.</span>
+                                        )}
+                                </div>
                             </div>
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Serviço *</label>
