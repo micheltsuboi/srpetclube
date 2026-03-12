@@ -35,6 +35,8 @@ interface Pet {
     customers: { id: string, name: string, phone_1: string | null } | null
     photo_url?: string | null
     is_adapted?: boolean
+    color?: string | null
+    characteristics?: string | null
 }
 
 interface Customer {
@@ -167,6 +169,7 @@ function PetsContent() {
                 .select(`
                     id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
                     existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, is_adapted,
+                    color, characteristics,
                     customers ( id, name, phone_1 )
                 `)
                 .order('name')
@@ -445,6 +448,12 @@ function PetsContent() {
                                                     pet.size === 'large' ? 'Grande' : 'Gigante'
                                         }
                                         {pet.is_neutered && ' • Castrado'}
+                                        {pet.color && ` • ${pet.color}`}
+                                        {pet.characteristics && (
+                                            <div style={{ fontSize: '0.75rem', marginTop: '4px', fontStyle: 'italic', opacity: 0.8 }}>
+                                                "{pet.characteristics}"
+                                            </div>
+                                        )}
                                     </div>
                                 </td>
                                 <td>
@@ -584,6 +593,14 @@ function PetsContent() {
                                                 <div className={styles.formGroup}>
                                                     <label htmlFor="weight" className={styles.label}>Peso (kg)</label>
                                                     <input id="weight" name="weight" type="number" step="0.1" className={styles.input} defaultValue={selectedPet?.weight_kg?.toString() || ''} placeholder="0.0" />
+                                                </div>
+                                                <div className={styles.formGroup}>
+                                                    <label htmlFor="color" className={styles.label}>Cor</label>
+                                                    <input id="color" name="color" type="text" className={styles.input} defaultValue={selectedPet?.color || ''} placeholder="Ex: Caramelo, Preto..." />
+                                                </div>
+                                                <div className={`${styles.formGroup} ${styles.fullWidth}`}>
+                                                    <label htmlFor="characteristics" className={styles.label}>Características</label>
+                                                    <textarea id="characteristics" name="characteristics" className={styles.input} defaultValue={selectedPet?.characteristics || ''} placeholder="Ex: Dócil, agitado, gosta de outros cães..." rows={2} style={{ resize: 'none' }} />
                                                 </div>
                                                 <div className={styles.formGroup}>
                                                     <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>

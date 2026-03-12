@@ -41,6 +41,8 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
     const existing_conditions = formData.get('existing_conditions') as string
     const responsible2_name = formData.get('responsible2_name') as string
     const responsible2_phone = formData.get('responsible2_phone') as string
+    const color = formData.get('color') as string
+    const characteristics = formData.get('characteristics') as string
     // const vaccination_up_to_date = formData.get('vaccination_up_to_date') === 'on' (Remover de UI)
 
     if (!customerId || !name || !species || !gender || !size) {
@@ -81,7 +83,9 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
             responsible2_name: responsible2_name || null,
             responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null,
-            is_adapted: isAdapted
+            is_adapted: isAdapted,
+            color: color || null,
+            characteristics: characteristics || null
         })
 
     if (error) {
@@ -116,6 +120,8 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
     const responsible2_phone = formData.get('responsible2_phone') as string
     const photo_url = formData.get('photo_url') as string
     const isAdapted = formData.get('is_adapted') === 'on'
+    const color = formData.get("color") as string;
+    const characteristics = formData.get("characteristics") as string;
 
     const supabaseAdmin = createAdminClient()
 
@@ -136,7 +142,9 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
             responsible2_name: responsible2_name || null,
             responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null,
-            is_adapted: isAdapted
+            is_adapted: isAdapted,
+            color: color || null,
+            characteristics: characteristics || null
         })
         .eq('id', id)
 
@@ -207,6 +215,8 @@ export async function createPetByTutor(prevState: CreatePetState, formData: Form
     const responsible2_name = formData.get('responsible2_name') as string
     const responsible2_phone = formData.get('responsible2_phone') as string
     const photo_url = formData.get('photo_url') as string
+    const color = formData.get("color") as string;
+    const characteristics = formData.get("characteristics") as string;
 
     if (!name || !species || !gender || !size) {
         return { message: 'Nome, Espécie, Sexo e Porte são obrigatórios.', success: false }
@@ -230,7 +240,9 @@ export async function createPetByTutor(prevState: CreatePetState, formData: Form
             existing_conditions: existing_conditions || null,
             responsible2_name: responsible2_name || null,
             responsible2_phone: responsible2_phone || null,
-            photo_url: photo_url || null
+            photo_url: photo_url || null,
+            color: color || null,
+            characteristics: characteristics || null
         })
 
     if (error) {
