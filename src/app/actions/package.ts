@@ -274,6 +274,22 @@ export async function deleteCustomerPackage(customerPackageId: string): Promise<
     return { message: 'Pacote e agendamentos futuros excluídos com sucesso.', success: true }
 }
 
+export async function updatePackagePaymentStatus(id: string, status: string, method?: string) {
+    const supabase = await createClient()
+    await supabase.from('customer_packages').update({ payment_status: status, payment_method: method }).eq('id', id)
+    revalidatePath('/owner/pets')
+    revalidatePath('/owner/packages')
+}
+
+export async function applyPackageDiscount(id: string, percent: number, basePrice: number) {
+    const supabase = await createClient()
+    const discountValue = (basePrice * percent) / 100
+    const finalPrice = basePrice - discountValue
+    await supabase.from('customer_packages').update({ discount_percent: percent, total_paid: finalPrice }).eq('id', id)
+    revalidatePath('/owner/pets')
+    revalidatePath('/owner/packages')
+}
+
 // Nova função para vender pacote direto para um pet (atalho)
 export async function sellPackageToPet(
     petId: string,
@@ -338,6 +354,8 @@ export async function sellPackageToPet(
             package_id: packageId,
             org_id: profile.org_id,
             total_paid: totalPaid,
+            calculated_price: totalPaid,
+            payment_status: 'pending',
             payment_method: paymentMethod,
             notes: `Pacote para ${petData.name}`,
             expires_at,

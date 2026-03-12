@@ -14,6 +14,7 @@ import { getPetshopHistory, payPetshopSale } from '@/app/actions/petshop'
 import { createVaccine, deleteVaccine, getPetVaccines } from '@/app/actions/vaccine'
 import PetAssessmentForm from '@/components/PetAssessmentForm'
 import ImageUpload from '@/components/ImageUpload'
+import PackagePaymentControls from '@/components/PackagePaymentControls'
 import { maskPhone } from '@/utils/mask'
 
 // Interfaces
@@ -920,27 +921,56 @@ function PetsContent() {
                                                     <div className={styles.emptyState}>Nenhum pacote ativo para este pet.</div>
                                                 ) : (
                                                     <div className={styles.packagesContainer} style={{ marginTop: '0' }}>
-                                                        {petPackages.map((pkg, index) => {
-                                                            const cpId = pkg.customer_package_id
+                                                        {Object.values(petPackages.reduce((acc: any, curr: any) => {
+                                                            if (!acc[curr.customer_package_id]) {
+                                                                acc[curr.customer_package_id] = {
+                                                                    id: curr.customer_package_id,
+                                                                    name: curr.package_name,
+                                                                    expires_at: curr.expires_at,
+                                                                    is_expired: curr.is_expired,
+                                                                    calculated_price: curr.calculated_price ?? 0,
+                                                                    total_paid: curr.total_paid ?? 0,
+                                                                    discount_percent: curr.discount_percent ?? 0,
+                                                                    payment_status: curr.payment_status,
+                                                                    payment_method: curr.payment_method,
+                                                                    services: []
+                                                                };
+                                                            }
+                                                            acc[curr.customer_package_id].services.push(curr);
+                                                            return acc;
+                                                        }, {})).map((pkgGroup: any, index: number) => {
+                                                            const cpId = pkgGroup.id
                                                             const slots = petSlots[cpId] || []
                                                             const isExpanded = expandedSlotPackage === cpId
 
-                                                            // Fallback: usar dados antigos se slots ainda não foram buscados
-                                                            const total = pkg.total_qty || 0
-                                                            const remaining = pkg.remaining_qty || 0
-
                                                             return (
-                                                                <div key={`${cpId}-${pkg.service_id}-${index}`} className={styles.packageCard} style={{ flexDirection: 'column', alignItems: 'stretch', backgroundColor: pkg.is_expired ? 'rgba(255,0,0,0.05)' : 'var(--bg-secondary)', opacity: pkg.is_expired ? 0.7 : 1 }}>
-                                                                    <div className={styles.packageHeader}>
-                                                                        <div className={styles.packageInfo}>
-                                                                            <h4>{pkg.service_name}</h4>
-                                                                            <span className={styles.packageName}>📦 {pkg.package_name}</span>
-                                                                            <div className={styles.packageDate}>Validade: {pkg.expires_at ? new Date(pkg.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}</div>
+                                                                <div key={`${cpId}-${index}`} className={styles.packageCard} style={{ flexDirection: 'column', alignItems: 'stretch', backgroundColor: pkgGroup.is_expired ? 'rgba(255,0,0,0.05)' : 'var(--bg-secondary)', opacity: pkgGroup.is_expired ? 0.7 : 1 }}>
+                                                                    <div className={styles.packageHeader} style={{ flexWrap: 'nowrap' }}>
+                                                                        <div className={styles.packageInfo} style={{ flex: 1 }}>
+                                                                            <h4 style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>📦 {pkgGroup.name}</h4>
+                                                                            <div className={styles.packageDate} style={{ marginTop: '0.2rem' }}>Validade: {pkgGroup.expires_at ? new Date(pkgGroup.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}</div>
                                                                         </div>
-                                                                        <div className={styles.creditsInfo} style={{ textAlign: 'right' }}>
-                                                                            <div className={styles.creditCount} style={{ color: remaining > 0 ? 'var(--primary)' : 'var(--text-secondary)' }}>{remaining}<span style={{ fontSize: '0.5em', fontWeight: '400', verticalAlign: 'middle', marginLeft: '2px' }}>restantes</span></div>
-                                                                            <span className={styles.creditLabel}>Total: {total}</span>
-                                                                        </div>
+                                                                        <PackagePaymentControls
+                                                                            customerPackageId={cpId}
+                                                                            calculatedPrice={pkgGroup.calculated_price}
+                                                                            totalPaid={pkgGroup.total_paid}
+                                                                            discountPercent={pkgGroup.discount_percent}
+                                                                            paymentStatus={pkgGroup.payment_status || 'paid'}
+                                                                            paymentMethod={pkgGroup.payment_method || 'other'}
+                                                                            onUpdate={fetchPetPackageSummary}
+                                                                            compact={true}
+                                                                        />
+                                                                    </div>
+
+                                                                    <div style={{ padding: '0.75rem', background: 'var(--bg-primary)', borderRadius: '6px', marginTop: '0.75rem', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                                        {pkgGroup.services.map((srv: any, sIdx: number) => (
+                                                                            <div key={sIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: sIdx < pkgGroup.services.length - 1 ? '0.5rem' : '0', borderBottom: sIdx < pkgGroup.services.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                                                                                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{srv.service_name}</span>
+                                                                                <div style={{ textAlign: 'right', fontSize: '0.8rem' }}>
+                                                                                    <span style={{ color: (srv.remaining_qty || 0) > 0 ? 'var(--primary)' : 'var(--text-secondary)', fontWeight: 'bold' }}>{(srv.remaining_qty || 0)}</span> restantes de {(srv.total_qty || 0)}
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
                                                                     </div>
 
                                                                     {/* Botões de Ação do Pacote */}
