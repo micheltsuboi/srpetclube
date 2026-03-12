@@ -98,7 +98,7 @@ function PetsContent() {
     }
 
     // Accordion State
-    const [accordions, setAccordions] = useState({ details: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
+    const [accordions, setAccordions] = useState({ details: false, bathGrooming: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
 
     const toggleAccordion = async (key: keyof typeof accordions) => {
         setAccordions(prev => {
@@ -146,6 +146,7 @@ function PetsContent() {
     // History State
     const [crecheHistory, setCrecheHistory] = useState<any[]>([])
     const [hotelHistory, setHotelHistory] = useState<any[]>([])
+    const [bathHistory, setBathHistory] = useState<any[]>([])
     const [petshopHistory, setPetshopHistory] = useState<any[]>([])
     const [searchTerm, setSearchTerm] = useState('')
 
@@ -243,10 +244,13 @@ function PetsContent() {
         if (accordions.hotel) {
             getPetAppointments(selectedPet.id, 'Hospedagem').then(setHotelHistory)
         }
+        if (accordions.bathGrooming) {
+            getPetAppointments(selectedPet.id, 'Banho e Tosa').then(setBathHistory)
+        }
         if (accordions.petshop) {
             getPetshopHistory(selectedPet.id).then(res => setPetshopHistory(res.data || []))
         }
-    }, [selectedPet, accordions.creche, accordions.hotel, accordions.petshop])
+    }, [selectedPet, accordions.creche, accordions.hotel, accordions.bathGrooming, accordions.petshop])
 
     useEffect(() => {
         fetchData()
@@ -276,7 +280,7 @@ function PetsContent() {
             const pet = pets.find(p => p.id === openPetId)
             if (pet) {
                 setSelectedPet(pet)
-                setAccordions({ details: true, packages: true, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false }) // Open packages when returning from agenda
+                setAccordions({ details: true, bathGrooming: false, packages: true, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false }) // Open packages when returning from agenda
                 setShowModal(true)
                 setShowModal(true)
                 // Clean URL
@@ -302,7 +306,7 @@ function PetsContent() {
         setSelectedPet(pet)
         setIsViewingAssessment(false)
         setIsEditingAssessment(false)
-        setAccordions({ details: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
+        setAccordions({ details: false, bathGrooming: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
 
         // Eagerly fetch assessment BEFORE showing modal
         try {
@@ -325,7 +329,7 @@ function PetsContent() {
         setPetAssessment(null)
         setIsViewingAssessment(false)
         setIsEditingAssessment(false)
-        setAccordions({ details: true, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
+        setAccordions({ details: true, bathGrooming: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
         setResponsible2Phone('')
         setSelectedCustomerId('')
         setShowModal(true)
@@ -725,8 +729,51 @@ function PetsContent() {
 
                             {/* 2. Banho e Tosa */}
                             <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
+                                <button type="button" onClick={() => toggleAccordion('bathGrooming')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                                    <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🚿 Banho e Tosa</span>
+                                    <span>{accordions.bathGrooming ? '−' : '+'}</span>
+                                </button>
+                                {accordions.bathGrooming && (
+                                    <div style={{ padding: '1rem' }}>
+                                        {selectedPet ? (
+                                            <>
+                                                <div style={{ marginBottom: '1rem' }}>
+                                                    <button
+                                                        onClick={() => router.push(`/owner/agenda?petId=${selectedPet.id}&category=Banho e Tosa&mode=new`)}
+                                                        className={styles.submitButton}
+                                                        style={{ width: '100%' }}>
+                                                        + Novo Agendamento de Banho e Tosa
+                                                    </button>
+                                                </div>
+
+                                                <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Histórico Recente</h4>
+                                                {bathHistory.length === 0 ? (
+                                                    <p style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Nenhum agendamento recente.</p>
+                                                ) : (
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                        {bathHistory.map((appt: any) => (
+                                                            <div key={appt.id} style={{ padding: '0.75rem', borderRadius: '6px', background: 'var(--bg-secondary)', borderLeft: `4px solid #3B82F6` }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                                                    <span style={{ fontWeight: 600 }}>{new Date(appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
+                                                                    <span style={{ fontSize: '0.85rem' }}>{appt.status}</span>
+                                                                </div>
+                                                                <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{new Date(appt.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} • {appt.services?.name}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Salve o pet primeiro.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 2.1 Pacotes */}
+                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
                                 <button type="button" onClick={() => toggleAccordion('packages')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
-                                    <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🚿 Banho e Tosa / Pacotes</span>
+                                    <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🎁 Pacotes de Serviços</span>
                                     <span>{accordions.packages ? '−' : '+'}</span>
                                 </button>
                                 {accordions.packages && (
