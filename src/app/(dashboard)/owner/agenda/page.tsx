@@ -144,6 +144,7 @@ export default function AgendaPage() {
     const [loadingDynamicPrice, setLoadingDynamicPrice] = useState(false)
     const [modalDynamicPrices, setModalDynamicPrices] = useState<Record<string, number>>({})
     const [petSearchTerm, setPetSearchTerm] = useState('')
+    const [showPetResults, setShowPetResults] = useState(false)
 
     // Actions
     const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
@@ -431,6 +432,7 @@ export default function AgendaPage() {
         validateScheduling(finalDate, finalSvcId, finalPetId)
 
         setPetSearchTerm('') // Reset search when opening
+        setShowPetResults(false) // Hide results initially
         setShowNewModal(true)
     }
 
@@ -908,50 +910,78 @@ export default function AgendaPage() {
                         <form action={createAction}>
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Pet *</label>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                     <input
                                         type="text"
                                         placeholder="🔍 Pesquisar pet ou tutor..."
                                         className={styles.input}
                                         value={petSearchTerm}
-                                        onChange={(e) => setPetSearchTerm(e.target.value)}
-                                        style={{ marginBottom: '0.25rem', fontSize: '0.85rem', padding: '0.4rem' }}
-                                    />
-                                    <select
-                                        name="petId"
-                                        className={styles.select}
-                                        required
-                                        defaultValue={preSelectedPetId || ""}
-                                        key={preSelectedPetId}
                                         onChange={(e) => {
-                                            setPreSelectedPetId(e.target.value)
-                                            validateScheduling(selectedDate, selectedServiceId, e.target.value)
+                                            setPetSearchTerm(e.target.value)
+                                            setShowPetResults(true)
                                         }}
-                                    >
-                                        <option value="" disabled>Selecione...</option>
-                                        {pets
-                                            .filter(p => {
-                                                if (!petSearchTerm) return true
+                                        onFocus={() => setShowPetResults(true)}
+                                        style={{ fontSize: '0.85rem', padding: '0.75rem' }}
+                                    />
+
+                                    {showPetResults && petSearchTerm.length > 0 && (
+                                        <div className={styles.searchResultsContainer}>
+                                            {pets
+                                                .filter(p => {
+                                                    const search = petSearchTerm.toLowerCase()
+                                                    return p.name.toLowerCase().includes(search) ||
+                                                        p.customers?.name?.toLowerCase().includes(search) ||
+                                                        p.breed?.toLowerCase().includes(search)
+                                                })
+                                                .slice(0, 8)
+                                                .map(p => (
+                                                    <div
+                                                        key={p.id}
+                                                        className={styles.searchResultItem}
+                                                        onClick={() => {
+                                                            setPreSelectedPetId(p.id)
+                                                            setPetSearchTerm(p.name)
+                                                            setShowPetResults(false)
+                                                            validateScheduling(selectedDate, selectedServiceId, p.id)
+                                                        }}
+                                                    >
+                                                        <span className={styles.resultPetName}>{p.name}</span>
+                                                        <span className={styles.resultTutorName}>
+                                                            👤 {p.customers?.name || 'Sem tutor'} • {p.breed || 'SRD'}
+                                                        </span>
+                                                    </div>
+                                                ))
+                                            }
+                                            {pets.filter(p => {
                                                 const search = petSearchTerm.toLowerCase()
                                                 return p.name.toLowerCase().includes(search) ||
                                                     p.customers?.name?.toLowerCase().includes(search) ||
                                                     p.breed?.toLowerCase().includes(search)
-                                            })
-                                            .map(p => (
-                                                <option key={p.id} value={p.id}>
-                                                    {p.name} ({p.customers?.name || 'Sem tutor'})
-                                                </option>
-                                            ))
-                                        }
+                                            }).length === 0 && (
+                                                    <div className={styles.searchResultItem} style={{ cursor: 'default', color: '#ef4444' }}>
+                                                        Nenhum pet encontrado.
+                                                    </div>
+                                                )}
+                                        </div>
+                                    )}
+
+                                    {/* Select oculto para manter compatibilidade com o form action */}
+                                    <select
+                                        name="petId"
+                                        required
+                                        value={preSelectedPetId || ""}
+                                        onChange={(e) => setPreSelectedPetId(e.target.value)}
+                                        style={{ display: 'none' }}
+                                    >
+                                        <option value="">Selecione...</option>
+                                        {pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                                     </select>
-                                    {petSearchTerm && pets.filter(p => {
-                                        const search = petSearchTerm.toLowerCase()
-                                        return p.name.toLowerCase().includes(search) ||
-                                            p.customers?.name?.toLowerCase().includes(search) ||
-                                            p.breed?.toLowerCase().includes(search)
-                                    }).length === 0 && (
-                                            <span style={{ fontSize: '0.75rem', color: '#ef4444' }}>Nenhum pet encontrado.</span>
-                                        )}
+
+                                    {preSelectedPetId && !showPetResults && (
+                                        <span style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: '600', marginTop: '2px' }}>
+                                            ✓ Selecionado: {pets.find(p => p.id === preSelectedPetId)?.name} ({pets.find(p => p.id === preSelectedPetId)?.customers?.name})
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                             <div className={styles.formGroup}>
