@@ -63,8 +63,8 @@ BEGIN
     cp.calculated_price,
     cp.total_paid,
     cp.discount_percent,
-    cp.payment_status,
-    cp.payment_method
+    cp.payment_status::TEXT,
+    cp.payment_method::TEXT
   FROM public.customer_packages cp
   JOIN public.service_packages sp ON sp.id = cp.package_id
   JOIN public.package_credits pc ON pc.customer_package_id = cp.id
