@@ -24,7 +24,9 @@ export async function createServicePackage(prevState: ActionState, formData: For
     const name = formData.get('name') as string
     const description = formData.get('description') as string
     const total_price = parseFloat(formData.get('total_price') as string)
-    const validity_days = formData.get('validity_days') ? parseInt(formData.get('validity_days') as string) : null
+    const validity_type = (formData.get('validity_type') as string) || 'none'
+    // Calcular validity_days a partir do type para retrocompatibilidade
+    const validity_days = validity_type === 'monthly' ? 30 : validity_type === 'weekly' ? 7 : null
 
     // Criar o pacote
     const { data: package_data, error: packageError } = await supabase
@@ -34,7 +36,8 @@ export async function createServicePackage(prevState: ActionState, formData: For
             name,
             description,
             total_price,
-            validity_days
+            validity_days,
+            validity_type
         })
         .select()
         .single()
@@ -54,11 +57,12 @@ export async function updateServicePackage(prevState: ActionState, formData: For
     const name = formData.get('name') as string
     const description = formData.get('description') as string
     const total_price = parseFloat(formData.get('total_price') as string)
-    const validity_days = formData.get('validity_days') ? parseInt(formData.get('validity_days') as string) : null
+    const validity_type = (formData.get('validity_type') as string) || 'none'
+    const validity_days = validity_type === 'monthly' ? 30 : validity_type === 'weekly' ? 7 : null
 
     const { error } = await supabase
         .from('service_packages')
-        .update({ name, description, total_price, validity_days })
+        .update({ name, description, total_price, validity_days, validity_type })
         .eq('id', id)
 
     if (error) return { message: error.message, success: false }
@@ -230,8 +234,16 @@ export async function sellPackageToCustomer(prevState: ActionState, formData: Fo
 }
 
 // Nova função para vender pacote direto para um pet (atalho)
-export async function sellPackageToPet(petId: string, packageId: string, totalPaid: number, paymentMethod: string): Promise<ActionState> {
-    console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod })
+export async function sellPackageToPet(
+    petId: string,
+    packageId: string,
+    totalPaid: number,
+    paymentMethod: string,
+    preferredWeekday?: number,
+    preferredTime?: string,
+    isAutoSchedule?: boolean
+): Promise<ActionState> {
+    console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekday, preferredTime, isAutoSchedule })
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -287,7 +299,10 @@ export async function sellPackageToPet(petId: string, packageId: string, totalPa
             total_paid: totalPaid,
             payment_method: paymentMethod,
             notes: `Pacote para ${petData.name}`,
-            expires_at
+            expires_at,
+            preferred_weekday: preferredWeekday ?? null,
+            preferred_time: preferredTime ?? null,
+            is_auto_schedule: isAutoSchedule ?? false
         })
         .select()
         .single()
@@ -316,10 +331,188 @@ export async function sellPackageToPet(petId: string, packageId: string, totalPa
         return { message: creditsError.message, success: false }
     }
 
+    // Se agendamento automático, gerar slots via RPC
+    if (isAutoSchedule && preferredWeekday !== undefined) {
+        try {
+            await supabase.rpc('generate_package_slots', {
+                p_customer_package_id: customerPackage.id
+            })
+        } catch (slotErr) {
+            console.warn('Slots não gerados (non-critical):', slotErr)
+        }
+    }
+
     revalidatePath('/owner/packages')
     revalidatePath('/owner/pets')
     revalidatePath('/staff')
+    revalidatePath('/owner/agenda')
     return { message: `Pacote "${packageData.name}" ativado para ${petData.name}!`, success: true }
+}
+
+// =====================================================
+// PACKAGE SLOTS - Geração e controle de sessões
+// =====================================================
+
+export async function generatePackageSlotsAction(customerPackageId: string): Promise<ActionState> {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { message: 'Não autorizado.', success: false }
+
+    const { data, error } = await supabase.rpc('generate_package_slots', {
+        p_customer_package_id: customerPackageId
+    })
+
+    if (error) return { message: error.message, success: false }
+
+    revalidatePath('/owner/pets')
+    revalidatePath('/owner/agenda')
+    return { message: `${data} sessão(ões) gerada(s) com sucesso!`, success: true, data }
+}
+
+export async function reschedulePackageSlot(
+    slotId: string,
+    newDate: string,
+    newTime: string
+): Promise<ActionState> {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { message: 'Não autorizado.', success: false }
+
+    // Buscar o slot atual
+    const { data: slot, error: slotError } = await supabase
+        .from('package_schedule_slots')
+        .select('*, customer_packages(org_id, preferred_time), services(id, name)')
+        .eq('id', slotId)
+        .single()
+
+    if (slotError || !slot) return { message: 'Sessão não encontrada.', success: false }
+
+    // Atualizar o slot
+    const { error: updateError } = await supabase
+        .from('package_schedule_slots')
+        .update({ slot_date: newDate, slot_time: newTime, status: 'pending', updated_at: new Date().toISOString() })
+        .eq('id', slotId)
+
+    if (updateError) return { message: updateError.message, success: false }
+
+    // Se tinha agendamento vinculado, atualizar também
+    if (slot.appointment_id) {
+        const scheduledAt = `${newDate}T${newTime}:00`
+        await supabase
+            .from('appointments')
+            .update({ scheduled_at: scheduledAt })
+            .eq('id', slot.appointment_id)
+    }
+
+    revalidatePath('/owner/pets')
+    revalidatePath('/owner/agenda')
+    return { message: 'Sessão reagendada com sucesso!', success: true }
+}
+
+export async function skipPackageSlot(slotId: string): Promise<ActionState> {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { message: 'Não autorizado.', success: false }
+
+    const { error } = await supabase
+        .from('package_schedule_slots')
+        .update({ status: 'skipped', updated_at: new Date().toISOString() })
+        .eq('id', slotId)
+
+    if (error) return { message: error.message, success: false }
+
+    revalidatePath('/owner/pets')
+    return { message: 'Sessão marcada como pulada.', success: true }
+}
+
+export async function getPackageSlotsHistory(customerPackageId: string) {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+        .from('package_schedule_slots')
+        .select(`
+            id, slot_date, slot_time, status, period_label,
+            appointment_id,
+            services (id, name, category)
+        `)
+        .eq('customer_package_id', customerPackageId)
+        .order('slot_date', { ascending: false })
+
+    if (error) {
+        console.error('Erro ao buscar histórico de slots:', error)
+        return []
+    }
+
+    return data || []
+}
+
+export async function schedulePackageSlot(
+    slotId: string,
+    petId: string,
+    serviceId: string,
+    date: string,
+    time: string,
+    customerPackageId: string
+): Promise<ActionState> {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { message: 'Não autorizado.', success: false }
+
+    const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+    if (!profile?.org_id) return { message: 'Erro de organização.', success: false }
+
+    // Buscar o credit_id para vincular ao appointment
+    const { data: credit } = await supabase
+        .from('package_credits')
+        .select('id')
+        .eq('customer_package_id', customerPackageId)
+        .eq('service_id', serviceId)
+        .single()
+
+    // Criar agendamento
+    const { data: appointment, error: apptError } = await supabase
+        .from('appointments')
+        .insert({
+            org_id: profile.org_id,
+            pet_id: petId,
+            service_id: serviceId,
+            scheduled_at: `${date}T${time}:00`,
+            status: 'confirmed',
+            package_slot_id: slotId,
+            package_credit_id: credit?.id || null
+        })
+        .select()
+        .single()
+
+    if (apptError || !appointment) return { message: apptError?.message || 'Erro ao criar agendamento.', success: false }
+
+    // Vincular slot ao agendamento e marcar como scheduled
+    const { error: slotError } = await supabase
+        .from('package_schedule_slots')
+        .update({
+            appointment_id: appointment.id,
+            slot_date: date,
+            slot_time: time,
+            status: 'scheduled',
+            updated_at: new Date().toISOString()
+        })
+        .eq('id', slotId)
+
+    if (slotError) return { message: slotError.message, success: false }
+
+    // Decrementar crédito
+    if (credit?.id) {
+        await supabase
+            .from('package_credits')
+            .update({
+                used_quantity: supabase.rpc as any, // handled by trigger or manual
+            })
+        await supabase.rpc('use_package_credit_for_pet', { p_pet_id: petId, p_service_id: serviceId })
+    }
+
+    revalidatePath('/owner/pets')
+    revalidatePath('/owner/agenda')
+    return { message: 'Agendamento criado e vinculado ao pacote!', success: true }
 }
 
 export async function renewCustomerPackage(customerPackageId: string): Promise<ActionState> {

@@ -33,6 +33,7 @@ interface ServicePackage {
     description: string | null
     total_price: number
     validity_days: number | null
+    validity_type: 'weekly' | 'monthly' | 'none' | null
     is_active: boolean
     package_items: PackageItem[]
 }
@@ -263,7 +264,9 @@ export default function PackagesPage() {
                             </div>
                         )}
                         <div className={styles.cardMeta}>
-                            {pkg.validity_days ? `Validade: ${pkg.validity_days} dias` : 'Sem expiração'}
+                            {pkg.validity_type === 'monthly' ? '🔄 Renovação Mensal' :
+                                pkg.validity_type === 'weekly' ? '🔄 Renovação Semanal' :
+                                    'Sem renovação automática'}
                         </div>
                         <div className={styles.servicesList}>
                             {pkg.package_items?.map(item => (
@@ -325,16 +328,19 @@ export default function PackagesPage() {
                                     />
                                 </div>
                                 <div className={styles.inputGroup}>
-                                    <label className={styles.label}>Validade (dias)</label>
-                                    <input
-                                        name="validity_days"
-                                        type="number"
-                                        className={styles.input}
-                                        defaultValue={selectedPackage?.validity_days || ''}
-                                        placeholder="Deixe vazio para sem expiração"
-                                    />
+                                    <label className={styles.label}>Validade / Renovação *</label>
+                                    <select
+                                        name="validity_type"
+                                        className={styles.select || styles.input}
+                                        defaultValue={selectedPackage?.validity_type || 'none'}
+                                        style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                                    >
+                                        <option value="none">Sem renovação automática</option>
+                                        <option value="monthly">Mensal — renova todo mês</option>
+                                        <option value="weekly">Semanal — renova toda semana</option>
+                                    </select>
                                     <small style={{ fontSize: '0.75rem', color: '#666' }}>
-                                        Deixe vazio para pacotes sem expiração
+                                        Pacotes mensais/semanais renovam automaticamente ao virar o período
                                     </small>
                                 </div>
                             </div>

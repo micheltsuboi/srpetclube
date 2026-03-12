@@ -38,6 +38,7 @@ export async function checkInAppointment(appointmentId: string) {
 
 /**
  * Check-out an appointment (mark actual departure time)
+ * Automatically marks any linked package slot as 'done'
  */
 export async function checkOutAppointment(appointmentId: string) {
     try {
@@ -52,7 +53,7 @@ export async function checkOutAppointment(appointmentId: string) {
             .from('appointments')
             .update({
                 actual_check_out: new Date().toISOString(),
-                status: 'done' // Auto-complete on checkout
+                status: 'done'
             })
             .eq('id', appointmentId)
 
@@ -61,9 +62,20 @@ export async function checkOutAppointment(appointmentId: string) {
             return { success: false, message: 'Erro ao fazer check-out' }
         }
 
+        // Marcar sessão do pacote como realizada automaticamente, se houver
+        try {
+            await supabase.rpc('complete_package_slot', {
+                p_appointment_id: appointmentId
+            })
+        } catch (slotErr) {
+            // Não bloqueia o checkout se a marcação de slot falhar
+            console.warn('[Check-out] Slot update failed (non-critical):', slotErr)
+        }
+
         revalidatePath('/owner/creche')
         revalidatePath('/owner/banho-tosa')
         revalidatePath('/owner/agenda')
+        revalidatePath('/owner/pets')
         return { success: true, message: 'Check-out realizado com sucesso!' }
 
     } catch (error) {

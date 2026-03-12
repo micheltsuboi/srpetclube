@@ -64,6 +64,14 @@ function PetsContent() {
     const [availablePackages, setAvailablePackages] = useState<any[]>([])
     const [selectedPackageId, setSelectedPackageId] = useState('')
     const [isSelling, setIsSelling] = useState(false)
+    const [prefWeekday, setPrefWeekday] = useState<string>('')
+    const [prefTime, setPrefTime] = useState('')
+    const [isAutoSchedule, setIsAutoSchedule] = useState(false)
+    const [petSlots, setPetSlots] = useState<Record<string, any[]>>({})
+    const [expandedSlotPackage, setExpandedSlotPackage] = useState<string | null>(null)
+    const [reschedulingSlot, setReschedulingSlot] = useState<any | null>(null)
+    const [slotNewDate, setSlotNewDate] = useState('')
+    const [slotNewTime, setSlotNewTime] = useState('')
 
     // Vaccine State
     const [vaccines, setVaccines] = useState<any[]>([])
@@ -354,24 +362,62 @@ function PetsContent() {
         if (!selectedPet || !selectedPackageId) return
 
         const pkg = availablePackages.find(p => p.id === selectedPackageId)
-        if (!confirm(`Confirmar venda do pacote "${pkg.name}" para ${selectedPet.name} por R$ ${pkg.total_price.toFixed(2)}?`)) return
+        const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+        const autoInfo = isAutoSchedule && prefWeekday !== ''
+            ? ` | Todo(a) ${weekdays[parseInt(prefWeekday)]} às ${prefTime || '09:00'}`
+            : ' | Agendamento manual'
+        if (!confirm(`Confirmar contratação do pacote "${pkg.name}" para ${selectedPet.name} por R$ ${pkg.total_price.toFixed(2)}?${autoInfo}`)) return
 
         setIsSelling(true)
         try {
-            const res = await sellPackageToPet(selectedPet.id, selectedPackageId, pkg.total_price, 'other')
+            const res = await sellPackageToPet(
+                selectedPet.id,
+                selectedPackageId,
+                pkg.total_price,
+                'other',
+                isAutoSchedule && prefWeekday !== '' ? parseInt(prefWeekday) : undefined,
+                isAutoSchedule && prefTime ? prefTime : undefined,
+                isAutoSchedule && prefWeekday !== ''
+            )
 
             if (res.success) {
                 alert(res.message)
                 fetchPetPackageSummary()
                 setSelectedPackageId('')
+                setPrefWeekday('')
+                setPrefTime('')
+                setIsAutoSchedule(false)
             } else {
                 alert(res.message)
             }
         } catch (error) {
             console.error(error)
-            alert('Erro ao vender pacote.')
+            alert('Erro ao contratar pacote.')
         } finally {
             setIsSelling(false)
+        }
+    }
+
+    const fetchSlotsForPackage = async (customerPackageId: string) => {
+        try {
+            const { getPackageSlotsHistory } = await import('@/app/actions/package')
+            const slots = await getPackageSlotsHistory(customerPackageId)
+            setPetSlots(prev => ({ ...prev, [customerPackageId]: slots }))
+        } catch (e) {
+            console.error(e)
+        }
+    }
+
+    const handleRescheduleSlot = async () => {
+        if (!reschedulingSlot || !slotNewDate) return
+        const { reschedulePackageSlot } = await import('@/app/actions/package')
+        const res = await reschedulePackageSlot(reschedulingSlot.id, slotNewDate, slotNewTime || '09:00')
+        if (res.success) {
+            alert(res.message)
+            fetchSlotsForPackage(reschedulingSlot.customer_package_id)
+            setReschedulingSlot(null)
+        } else {
+            alert(res.message)
         }
     }
 
@@ -787,71 +833,188 @@ function PetsContent() {
                                                             <option value="">Selecione um pacote...</option>
                                                             {availablePackages.map(pkg => (<option key={pkg.id} value={pkg.id}>{pkg.name} - R$ {pkg.total_price.toFixed(2)}</option>))}
                                                         </select>
-                                                        <button type="button" className={styles.submitButton} disabled={!selectedPackageId || isSelling} onClick={handleSellPackage}>
-                                                            {isSelling ? 'Processando...' : 'Contratar'}
-                                                        </button>
                                                     </div>
+
+                                                    {/* Configuração de agendamento automático */}
+                                                    {selectedPackageId && (
+                                                        <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(59,130,246,0.05)', borderRadius: '8px', border: '1px solid rgba(59,130,246,0.2)' }}>
+                                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: '0.75rem' }}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isAutoSchedule}
+                                                                    onChange={e => setIsAutoSchedule(e.target.checked)}
+                                                                />
+                                                                <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>📅 Agendar automaticamente</span>
+                                                            </label>
+                                                            {isAutoSchedule && (
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Dia da semana</label>
+                                                                        <select
+                                                                            value={prefWeekday}
+                                                                            onChange={e => setPrefWeekday(e.target.value)}
+                                                                            className={styles.select}
+                                                                            style={{ width: '100%' }}
+                                                                        >
+                                                                            <option value="">Selecione...</option>
+                                                                            <option value="1">Segunda-feira</option>
+                                                                            <option value="2">Terça-feira</option>
+                                                                            <option value="3">Quarta-feira</option>
+                                                                            <option value="4">Quinta-feira</option>
+                                                                            <option value="5">Sexta-feira</option>
+                                                                            <option value="6">Sábado</option>
+                                                                            <option value="0">Domingo</option>
+                                                                        </select>
+                                                                    </div>
+                                                                    <div>
+                                                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Horário</label>
+                                                                        <input
+                                                                            type="time"
+                                                                            value={prefTime}
+                                                                            onChange={e => setPrefTime(e.target.value)}
+                                                                            className={styles.input}
+                                                                            style={{ width: '100%' }}
+                                                                        />
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {!isAutoSchedule && (
+                                                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                                                    As sessões serão criadas como disponíveis para agendamento manual.
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    )}
+
+                                                    <button
+                                                        type="button"
+                                                        className={styles.submitButton}
+                                                        style={{ marginTop: '0.75rem', width: '100%' }}
+                                                        disabled={!selectedPackageId || isSelling}
+                                                        onClick={handleSellPackage}
+                                                    >
+                                                        {isSelling ? 'Processando...' : '🎁 Contratar Pacote'}
+                                                    </button>
                                                 </div>
-                                                <h3 className={styles.sectionTitle} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Pacotes Ativos & Créditos</h3>
+
+                                                <h3 className={styles.sectionTitle} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Pacotes Ativos & Sessões</h3>
 
                                                 {petPackages.length === 0 ? (
                                                     <div className={styles.emptyState}>Nenhum pacote ativo para este pet.</div>
                                                 ) : (
                                                     <div className={styles.packagesContainer} style={{ marginTop: '0' }}>
                                                         {petPackages.map((pkg, index) => {
+                                                            const cpId = pkg.customer_package_id
+                                                            const slots = petSlots[cpId] || []
+                                                            const isExpanded = expandedSlotPackage === cpId
+
+                                                            // Fallback: usar dados antigos se slots ainda não foram buscados
                                                             const total = pkg.total_qty || 0
-                                                            const used = pkg.used_qty || 0
-                                                            const rawAppointments = pkg.appointments || []
-                                                            const appointments = [...rawAppointments].sort((a: any, b: any) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
-                                                            const slots = []
-                                                            for (let i = 0; i < total; i++) {
-                                                                let status = 'available'
-                                                                let appointment = null
-                                                                if (i < appointments.length) { appointment = appointments[i]; status = appointment.status === 'done' ? 'used' : 'scheduled' }
-                                                                else if (i < used) { status = 'used' }
-                                                                slots.push({ index: i + 1, status, appointment })
-                                                            }
+                                                            const remaining = pkg.remaining_qty || 0
+
                                                             return (
-                                                                <div key={`${pkg.customer_package_id}-${pkg.service_id}-${index}`} className={styles.packageCard} style={{ flexDirection: 'column', alignItems: 'stretch', backgroundColor: pkg.is_expired ? 'rgba(255,0,0,0.05)' : 'var(--bg-secondary)', opacity: pkg.is_expired ? 0.7 : 1 }}>
+                                                                <div key={`${cpId}-${pkg.service_id}-${index}`} className={styles.packageCard} style={{ flexDirection: 'column', alignItems: 'stretch', backgroundColor: pkg.is_expired ? 'rgba(255,0,0,0.05)' : 'var(--bg-secondary)', opacity: pkg.is_expired ? 0.7 : 1 }}>
                                                                     <div className={styles.packageHeader}>
                                                                         <div className={styles.packageInfo}>
                                                                             <h4>{pkg.service_name}</h4>
-                                                                            <span className={styles.packageName}>Pacote: {pkg.package_name}</span>
+                                                                            <span className={styles.packageName}>📦 {pkg.package_name}</span>
                                                                             <div className={styles.packageDate}>Validade: {pkg.expires_at ? new Date(pkg.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}</div>
                                                                         </div>
                                                                         <div className={styles.creditsInfo} style={{ textAlign: 'right' }}>
-                                                                            <div className={styles.creditCount} style={{ color: pkg.remaining_qty > 0 ? 'var(--primary)' : 'var(--text-secondary)' }}>{pkg.remaining_qty}<span style={{ fontSize: '0.5em', fontWeight: '400', verticalAlign: 'middle', marginLeft: '2px' }}>restantes</span></div>
-                                                                            <span className={styles.creditLabel}>Total contratado: {pkg.total_qty}</span>
+                                                                            <div className={styles.creditCount} style={{ color: remaining > 0 ? 'var(--primary)' : 'var(--text-secondary)' }}>{remaining}<span style={{ fontSize: '0.5em', fontWeight: '400', verticalAlign: 'middle', marginLeft: '2px' }}>restantes</span></div>
+                                                                            <span className={styles.creditLabel}>Total: {total}</span>
                                                                         </div>
                                                                     </div>
-                                                                    <div className={styles.slotsContainer}>
-                                                                        {slots.map(slot => (
-                                                                            <div key={slot.index} className={`${styles.slotItem} ${slot.status === 'used' ? styles.used : slot.status === 'scheduled' ? styles.scheduled : styles.available}`} style={slot.status === 'scheduled' ? { borderColor: 'var(--primary)', backgroundColor: 'rgba(59, 130, 246, 0.05)' } : {}}>
-                                                                                <span className={styles.slotNumber}>#{slot.index}</span>
-                                                                                {slot.status === 'used' ? (
-                                                                                    <>
-                                                                                        <div style={{ color: 'var(--success, #00c853)', fontSize: '1.2rem', marginBottom: '0.25rem' }}>✓</div>
-                                                                                        <span className={styles.slotStatus} style={{ color: 'var(--success, #00c853)', fontSize: '0.8rem' }}>Realizado</span>
-                                                                                        {slot.appointment && <span className={styles.usedDate}>{new Date(slot.appointment.scheduled_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>}
-                                                                                    </>
-                                                                                ) : slot.status === 'scheduled' ? (
-                                                                                    <>
-                                                                                        <div style={{ color: 'var(--primary)', fontSize: '1.2rem', marginBottom: '0.25rem' }}>🕒</div>
-                                                                                        <span className={styles.slotStatus} style={{ color: 'var(--primary)', fontSize: '0.8rem' }}>Agendado</span>
-                                                                                        {slot.appointment && <span className={styles.usedDate} style={{ color: 'var(--text-primary)' }}>{new Date(slot.appointment.scheduled_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}<br />{new Date(slot.appointment.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>}
-                                                                                    </>
-                                                                                ) : (
-                                                                                    <>
-                                                                                        <div style={{ color: 'var(--text-secondary)', fontSize: '1.2rem', marginBottom: '0.25rem', opacity: 0.3 }}>📅</div>
-                                                                                        <button type="button" className={styles.scheduleBtnSmall} onClick={() => { if (selectedPet) { const returnUrl = encodeURIComponent(`/owner/pets?openPetId=${selectedPet.id}`); router.push(`/owner/agenda?petId=${selectedPet.id}&serviceId=${pkg.service_id}&package=true&returnUrl=${returnUrl}`) } }}>Agendar</button>
-                                                                                    </>
-                                                                                )}
-                                                                            </div>
-                                                                        ))}
-                                                                    </div>
+
+                                                                    {/* Botão para expandir sessões */}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            if (!isExpanded) {
+                                                                                setExpandedSlotPackage(cpId)
+                                                                                fetchSlotsForPackage(cpId)
+                                                                            } else {
+                                                                                setExpandedSlotPackage(null)
+                                                                            }
+                                                                        }}
+                                                                        style={{ marginTop: '0.5rem', padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                                                    >
+                                                                        <span>📋 Ver sessões / histórico</span>
+                                                                        <span>{isExpanded ? '−' : '+'}</span>
+                                                                    </button>
+
+                                                                    {isExpanded && (
+                                                                        <div style={{ marginTop: '0.75rem' }}>
+                                                                            {slots.length === 0 ? (
+                                                                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>
+                                                                                    Nenhuma sessão encontrada. Se o pacote tem agendamento automático, as sessões devem aparecer aqui.
+                                                                                </p>
+                                                                            ) : (
+                                                                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                                                    {slots.map((slot: any) => {
+                                                                                        const statusMap: Record<string, { icon: string, label: string, color: string }> = {
+                                                                                            done: { icon: '✅', label: 'Realizado', color: '#10B981' },
+                                                                                            scheduled: { icon: '🕐', label: 'Agendado', color: '#3B82F6' },
+                                                                                            pending: { icon: '📅', label: 'Pendente', color: '#F59E0B' },
+                                                                                            skipped: { icon: '⏭️', label: 'Pulado', color: '#6B7280' },
+                                                                                            rescheduled: { icon: '🔄', label: 'Reagendado', color: '#8B5CF6' },
+                                                                                        }
+                                                                                        const s = statusMap[slot.status] || statusMap.pending
+                                                                                        return (
+                                                                                            <div key={slot.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.75rem', background: 'var(--bg-primary)', borderRadius: '6px', borderLeft: `3px solid ${s.color}` }}>
+                                                                                                <div>
+                                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                                                        <span>{s.icon}</span>
+                                                                                                        <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{slot.services?.name}</span>
+                                                                                                        <span style={{ fontSize: '0.75rem', color: s.color }}>{s.label}</span>
+                                                                                                    </div>
+                                                                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                                                                                                        {slot.slot_date ? new Date(slot.slot_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                                                                                                        {slot.slot_time ? ` às ${slot.slot_time}` : ''}
+                                                                                                        {slot.period_label ? ` · ${slot.period_label}` : ''}
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                                {(slot.status === 'pending' || slot.status === 'skipped') && (
+                                                                                                    <button
+                                                                                                        type="button"
+                                                                                                        onClick={() => {
+                                                                                                            setReschedulingSlot({ ...slot, customer_package_id: cpId })
+                                                                                                            setSlotNewDate(slot.slot_date || '')
+                                                                                                            setSlotNewTime(slot.slot_time || '09:00')
+                                                                                                        }}
+                                                                                                        style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: 'none', background: 'rgba(139,92,246,0.2)', color: '#8B5CF6', cursor: 'pointer' }}
+                                                                                                    >
+                                                                                                        Reagendar
+                                                                                                    </button>
+                                                                                                )}
+                                                                                            </div>
+                                                                                        )
+                                                                                    })}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             )
                                                         })}
+                                                    </div>
+                                                )}
+
+                                                {/* Modal de reagendamento */}
+                                                {reschedulingSlot && (
+                                                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setReschedulingSlot(null)}>
+                                                        <div style={{ background: '#1e293b', borderRadius: '12px', padding: '1.5rem', width: '90%', maxWidth: '380px', border: '1px solid #334155' }} onClick={e => e.stopPropagation()}>
+                                                            <h3 style={{ margin: '0 0 1rem', color: 'white' }}>🔄 Reagendar Sessão</h3>
+                                                            <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1rem' }}>{reschedulingSlot.services?.name}</p>
+                                                            <label style={{ display: 'block', color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Nova data</label>
+                                                            <input type="date" value={slotNewDate} onChange={e => setSlotNewDate(e.target.value)} style={{ width: '100%', padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', marginBottom: '0.75rem' }} />
+                                                            <label style={{ display: 'block', color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Horário</label>
+                                                            <input type="time" value={slotNewTime} onChange={e => setSlotNewTime(e.target.value)} style={{ width: '100%', padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', marginBottom: '1.25rem' }} />
+                                                            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                                                                <button type="button" onClick={() => setReschedulingSlot(null)} style={{ padding: '0.6rem 1.2rem', background: 'transparent', border: '1px solid #334155', borderRadius: '6px', color: 'white', cursor: 'pointer' }}>Cancelar</button>
+                                                                <button type="button" onClick={handleRescheduleSlot} style={{ padding: '0.6rem 1.2rem', background: '#8B5CF6', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontWeight: 600 }}>Confirmar</button>
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </>

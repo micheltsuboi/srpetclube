@@ -76,6 +76,8 @@ interface Appointment {
     discount_percent?: number | null
     payment_status?: string | null
     payment_method?: string | null
+    package_credit_id?: string | null
+    package_slot_id?: string | null
 }
 
 interface ScheduleBlock {
@@ -227,6 +229,7 @@ export default function AgendaPage() {
                     final_price, discount_percent, payment_status, payment_method,
                     actual_check_in, actual_check_out,
                     check_in_date, check_out_date,
+                    package_credit_id, package_slot_id,
                     pets ( 
                         name, species, breed, 
                         perfume_allowed, accessories_allowed, special_care, is_adapted,
@@ -560,6 +563,11 @@ export default function AgendaPage() {
                 <div className={styles.serviceLine}>
                     <span style={{ marginRight: '0.25rem' }}>{categoryIcon}</span>
                     {appt.services?.name}
+                    {(appt.package_credit_id || appt.package_slot_id) && (
+                        <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', padding: '0.1rem 0.4rem', background: 'rgba(139,92,246,0.2)', color: '#a78bfa', borderRadius: '4px', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            📦 Pacote
+                        </span>
+                    )}
                 </div>
                 <PaymentControls
                     appointmentId={appt.id}
