@@ -3,7 +3,7 @@
 -- =====================================================
 
 ALTER TABLE public.customer_packages 
-ADD COLUMN IF NOT EXISTS payment_status VARCHAR DEFAULT 'pending',
+ADD COLUMN IF NOT EXISTS payment_status TEXT DEFAULT 'pending',
 ADD COLUMN IF NOT EXISTS calculated_price NUMERIC DEFAULT 0,
 ADD COLUMN IF NOT EXISTS discount_percent NUMERIC DEFAULT 0;
 
@@ -33,8 +33,8 @@ RETURNS TABLE (
   calculated_price NUMERIC,
   total_paid NUMERIC,
   discount_percent NUMERIC,
-  payment_status VARCHAR,
-  payment_method VARCHAR
+  payment_status TEXT,
+  payment_method TEXT
 ) AS $$
 DECLARE
   v_customer_id UUID;
