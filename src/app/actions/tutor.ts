@@ -38,6 +38,7 @@ export async function createTutor(prevState: CreateTutorState, formData: FormDat
     const neighborhood = formData.get('neighborhood') as string
     const city = formData.get('city') as string
     const instagram = formData.get('instagram') as string
+    const cpf = formData.get('cpf') as string
 
     if (!name || !phone) {
         return { message: 'Nome e Telefone são obrigatórios.', success: false }
@@ -85,6 +86,7 @@ export async function createTutor(prevState: CreateTutorState, formData: FormDat
         neighborhood: neighborhood || null,
         city: city || 'São Paulo',
         instagram: instagram || null,
+        cpf: cpf || null,
     }
 
     if (birthDate) {
@@ -121,6 +123,7 @@ export async function updateTutor(prevState: CreateTutorState, formData: FormDat
     const neighborhood = formData.get('neighborhood') as string
     const city = formData.get('city') as string
     const instagram = formData.get('instagram') as string
+    const cpf = formData.get('cpf') as string
 
     if (!id) return { message: 'ID do tutor não fornecido.', success: false }
 
@@ -176,6 +179,7 @@ export async function updateTutor(prevState: CreateTutorState, formData: FormDat
         neighborhood: neighborhood || null,
         city: city || 'São Paulo',
         instagram: instagram || null,
+        cpf: cpf || null,
         user_id: userId || currentTutor?.user_id // Keep or link new userId
     }
 

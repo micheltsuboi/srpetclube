@@ -5,12 +5,19 @@ import Link from 'next/link'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
 import { createTutor, updateTutor, deleteTutor } from '@/app/actions/tutor'
+import { maskCPF, maskPhone } from '@/utils/mask'
+
+interface Pet {
+    id: string
+    name: string
+}
 
 interface Customer {
     id: string
     name: string
     email: string | null
     phone_1: string | null
+    cpf: string | null
     address: string | null
     neighborhood: string | null
     city: string | null
@@ -18,6 +25,7 @@ interface Customer {
     birth_date: string | null
     user_id: string | null
     created_at: string
+    pets?: Pet[]
 }
 
 const initialState = {
@@ -56,7 +64,7 @@ export default function TutorsPage() {
 
             let query = supabase
                 .from('customers')
-                .select('*')
+                .select('*, pets(id, name)')
                 .eq('org_id', profile.org_id)
                 .order('name')
 
@@ -164,6 +172,7 @@ export default function TutorsPage() {
                     <thead>
                         <tr>
                             <th>Tutor</th>
+                            <th>Pets</th>
                             <th>Contato</th>
                             <th>Endereço</th>
                             <th>Portal</th>
@@ -182,6 +191,19 @@ export default function TutorsPage() {
                                             <span className={styles.userName}>{tutor.name}</span>
                                             {tutor.instagram && <span style={{ fontSize: '0.8rem', color: '#ec4899' }}>@{tutor.instagram.replace('@', '')}</span>}
                                         </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div className={styles.petsList}>
+                                        {tutor.pets && tutor.pets.length > 0 ? (
+                                            tutor.pets.map(pet => (
+                                                <span key={pet.id} className={styles.petBadge}>
+                                                    🐾 {pet.name}
+                                                </span>
+                                            ))
+                                        ) : (
+                                            <span style={{ color: '#94a3b8', fontSize: '0.8rem' }}>Sem pets</span>
+                                        )}
                                     </div>
                                 </td>
                                 <td>
@@ -249,6 +271,16 @@ export default function TutorsPage() {
                                 </div>
 
                                 <div className={styles.formGroup}>
+                                    <label htmlFor="cpf" className={styles.label}>CPF (Opcional)</label>
+                                    <input
+                                        id="cpf" name="cpf" type="text" className={styles.input}
+                                        placeholder="000.000.000-00"
+                                        defaultValue={selectedTutor?.cpf ? maskCPF(selectedTutor.cpf) : ''}
+                                        onChange={(e) => e.target.value = maskCPF(e.target.value)}
+                                    />
+                                </div>
+
+                                <div className={styles.formGroup}>
                                     <label htmlFor="email" className={styles.label}>Email (Opcional)</label>
                                     <input
                                         id="email" name="email" type="email" className={styles.input}
@@ -278,7 +310,8 @@ export default function TutorsPage() {
                                     <input
                                         id="phone" name="phone" type="tel" className={styles.input} required
                                         placeholder="(11) 99999-9999"
-                                        defaultValue={selectedTutor?.phone_1 || ''}
+                                        defaultValue={selectedTutor?.phone_1 ? maskPhone(selectedTutor.phone_1) : ''}
+                                        onChange={(e) => e.target.value = maskPhone(e.target.value)}
                                     />
                                 </div>
                                 <div className={styles.formGroup}>
