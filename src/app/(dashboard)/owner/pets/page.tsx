@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
 import { createPet, updatePet, deletePet } from '@/app/actions/pet'
-import { sellPackageToPet, getPetPackagesWithUsage } from '@/app/actions/package'
+import { sellPackageToPet, getPetPackagesWithUsage, deleteCustomerPackage } from '@/app/actions/package'
 import { getPetAssessment } from '@/app/actions/petAssessment'
 import { getPetAppointmentsByCategory as getPetAppointments } from '@/app/actions/appointment'
 import { getPetshopHistory, payPetshopSale } from '@/app/actions/petshop'
@@ -395,6 +395,23 @@ function PetsContent() {
             alert('Erro ao contratar pacote.')
         } finally {
             setIsSelling(false)
+        }
+    }
+
+    const handleDeleteCustomerPackage = async (customerPackageId: string) => {
+        if (!confirm('Deseja realmente EXCLUIR este pacote? Todos os créditos, sessões e agendamentos vinculados a este pacote poderão ser afetados ou cancelados. Esta ação não pode ser desfeita.')) return;
+
+        try {
+            const res = await deleteCustomerPackage(customerPackageId)
+            if (res.success) {
+                alert(res.message)
+                fetchPetPackageSummary()
+            } else {
+                alert('Erro ao excluir: ' + res.message)
+            }
+        } catch (error) {
+            console.error(error)
+            alert('Erro inesperado ao excluir o pacote. Tente novamente.')
         }
     }
 
@@ -926,22 +943,33 @@ function PetsContent() {
                                                                         </div>
                                                                     </div>
 
-                                                                    {/* Botão para expandir sessões */}
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => {
-                                                                            if (!isExpanded) {
-                                                                                setExpandedSlotPackage(cpId)
-                                                                                fetchSlotsForPackage(cpId)
-                                                                            } else {
-                                                                                setExpandedSlotPackage(null)
-                                                                            }
-                                                                        }}
-                                                                        style={{ marginTop: '0.5rem', padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-                                                                    >
-                                                                        <span>📋 Ver sessões / histórico</span>
-                                                                        <span>{isExpanded ? '−' : '+'}</span>
-                                                                    </button>
+                                                                    {/* Botões de Ação do Pacote */}
+                                                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleDeleteCustomerPackage(cpId)}
+                                                                            style={{ flex: '0 0 auto', padding: '0.4rem 0.8rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '6px', color: '#EF4444', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                                                            title="Excluir pacote"
+                                                                        >
+                                                                            🗑️
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => {
+                                                                                if (!isExpanded) {
+                                                                                    setExpandedSlotPackage(cpId)
+                                                                                    fetchSlotsForPackage(cpId)
+                                                                                } else {
+                                                                                    setExpandedSlotPackage(null)
+                                                                                }
+                                                                            }}
+                                                                            style={{ flex: '1', padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                                                        >
+                                                                            <span>📋 Ver sessões / histórico</span>
+                                                                            <span>{isExpanded ? '−' : '+'}</span>
+                                                                        </button>
+                                                                    </div>
+
 
                                                                     {isExpanded && (
                                                                         <div style={{ marginTop: '0.75rem' }}>

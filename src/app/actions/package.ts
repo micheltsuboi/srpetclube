@@ -233,6 +233,47 @@ export async function sellPackageToCustomer(prevState: ActionState, formData: Fo
     return { message: 'Pacote vendido com sucesso!', success: true }
 }
 
+export async function deleteCustomerPackage(customerPackageId: string): Promise<ActionState> {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { message: 'Não autorizado.', success: false }
+
+    const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+    if (!profile?.org_id) return { message: 'Erro de organização.', success: false }
+
+    // Obter todos os package_credits associados para excluir os appointments gerados automaticamente
+    const { data: credits } = await supabase
+        .from('package_credits')
+        .select('id')
+        .eq('customer_package_id', customerPackageId)
+
+    if (credits && credits.length > 0) {
+        const creditIds = credits.map(c => c.id)
+
+        // Excluir os agendamentos que ainda são "pending" ou "scheduled" vindos deste pacote
+        await supabase
+            .from('appointments')
+            .delete()
+            .in('package_credit_id', creditIds)
+            .in('status', ['pending', 'scheduled'])
+    }
+
+    const { error } = await supabase
+        .from('customer_packages')
+        .delete()
+        .eq('id', customerPackageId)
+        .eq('org_id', profile.org_id)
+
+    if (error) {
+        return { message: error.message, success: false }
+    }
+
+    revalidatePath('/owner/packages')
+    revalidatePath('/owner/pets')
+    revalidatePath('/owner/agenda')
+    return { message: 'Pacote e agendamentos futuros excluídos com sucesso.', success: true }
+}
+
 // Nova função para vender pacote direto para um pet (atalho)
 export async function sellPackageToPet(
     petId: string,
