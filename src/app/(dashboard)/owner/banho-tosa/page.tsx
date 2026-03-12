@@ -58,6 +58,8 @@ export default function BanhoTosaPage() {
     const [selectedServiceId, setSelectedServiceId] = useState('')
     const [dynamicPrices, setDynamicPrices] = useState<Record<string, number>>({})
     const [loadingPrices, setLoadingPrices] = useState(false)
+    const [petSearchTerm, setPetSearchTerm] = useState('')
+    const [showPetResults, setShowPetResults] = useState(false)
 
     const fetchBanhoTosaData = useCallback(async (isBackground = false) => {
         try {
@@ -104,7 +106,7 @@ export default function BanhoTosaPage() {
             if (pets.length === 0) {
                 const { data: petsData } = await supabase
                     .from('pets')
-                    .select('id, name, species, breed, weight_kg')
+                    .select('id, name, species, breed, weight_kg, customers(name)')
                     .order('name')
                 if (petsData) setPets(petsData)
             }
@@ -212,7 +214,12 @@ export default function BanhoTosaPage() {
                     <div className={styles.buttonGroup}>
                         <button
                             className={`${styles.actionButton} ${styles.actionButtonPrimary}`}
-                            onClick={() => setShowNewModal(true)}
+                            onClick={() => {
+                                setSelectedPetId('')
+                                setPetSearchTerm('')
+                                setShowPetResults(false)
+                                setShowNewModal(true)
+                            }}
                             style={{ flex: 1 }}
                         >
                             + Novo Agendamento
@@ -469,22 +476,74 @@ export default function BanhoTosaPage() {
                                 setSubmitting(false)
                             }
                         }}>
-                            <div className={styles.formGroup}>
-                                <label className={styles.label}>Pet *</label>
+                            <div className={styles.formGroup} style={{ position: 'relative' }}>
+                                <label className={styles.label}>Pet * (Busque por nome do pet ou do tutor)</label>
+                                <input
+                                    type="text"
+                                    className={styles.input}
+                                    placeholder="🔍 Buscar pet ou tutor..."
+                                    value={petSearchTerm}
+                                    onChange={(e) => {
+                                        setPetSearchTerm(e.target.value)
+                                        setShowPetResults(true)
+                                    }}
+                                    onFocus={() => setShowPetResults(true)}
+                                    required={!selectedPetId}
+                                />
+
+                                {showPetResults && petSearchTerm.length > 0 && (
+                                    <div className={styles.searchResultsContainer}>
+                                        {pets
+                                            .filter(p =>
+                                                p.name.toLowerCase().includes(petSearchTerm.toLowerCase()) ||
+                                                p.customers?.name?.toLowerCase().includes(petSearchTerm.toLowerCase())
+                                            )
+                                            .slice(0, 10)
+                                            .map(p => (
+                                                <div
+                                                    key={p.id}
+                                                    className={styles.searchResultItem}
+                                                    onClick={() => {
+                                                        setSelectedPetId(p.id)
+                                                        setPetSearchTerm(p.name)
+                                                        setShowPetResults(false)
+                                                    }}
+                                                >
+                                                    <span className={styles.resultPetName}>{p.name} ({p.species})</span>
+                                                    <span className={styles.resultTutorName}>👤 {p.customers?.name || 'Tutor não identificado'}</span>
+                                                </div>
+                                            ))}
+                                        {pets.filter(p =>
+                                            p.name.toLowerCase().includes(petSearchTerm.toLowerCase()) ||
+                                            p.customers?.name?.toLowerCase().includes(petSearchTerm.toLowerCase())
+                                        ).length === 0 && (
+                                                <div className={styles.searchResultItem} style={{ color: '#94a3b8', cursor: 'default' }}>
+                                                    Nenhum pet encontrado.
+                                                </div>
+                                            )}
+                                    </div>
+                                )}
+
+                                {/* Hidden select for form submission */}
                                 <select
                                     name="petId"
-                                    className={styles.select}
                                     required
                                     value={selectedPetId}
                                     onChange={(e) => setSelectedPetId(e.target.value)}
+                                    style={{ display: 'none' }}
                                 >
                                     <option value="">Selecione...</option>
                                     {pets.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.name} ({p.species}) {p.weight_kg ? `- ${p.weight_kg}kg` : ''}
-                                        </option>
+                                        <option key={p.id} value={p.id}>{p.name}</option>
                                     ))}
                                 </select>
+
+                                {selectedPetId && !showPetResults && (
+                                    <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#10B981', fontWeight: 600 }}>
+                                        ✓ Pet selecionado: {pets.find(p => p.id === selectedPetId)?.name}
+                                        ({pets.find(p => p.id === selectedPetId)?.customers?.name})
+                                    </div>
+                                )}
                             </div>
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Serviço *</label>

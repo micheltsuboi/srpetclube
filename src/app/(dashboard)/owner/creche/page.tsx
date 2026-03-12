@@ -410,6 +410,8 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
     const [loading, setLoading] = useState(false)
     const [dynamicPrices, setDynamicPrices] = useState<Record<string, number>>({})
     const [loadingPrices, setLoadingPrices] = useState(false)
+    const [petSearchTerm, setPetSearchTerm] = useState('')
+    const [showPetResults, setShowPetResults] = useState(false)
 
     useEffect(() => {
         const loadData = async () => {
@@ -519,13 +521,66 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
                     <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#cbd5e1' }}>✕</button>
                 </div>
                 <form onSubmit={handleSubmit}>
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Pet *</label>
+                    <div style={{ marginBottom: '1rem', position: 'relative' }}>
+                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Pet * (Busque por nome ou tutor)</label>
+                        <input
+                            type="text"
+                            placeholder="🔍 Buscar pet ou tutor..."
+                            value={petSearchTerm}
+                            onChange={(e) => {
+                                setPetSearchTerm(e.target.value)
+                                setShowPetResults(true)
+                            }}
+                            onFocus={() => setShowPetResults(true)}
+                            required={!selectedPetId}
+                            style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }}
+                        />
+
+                        {showPetResults && petSearchTerm.length > 0 && (
+                            <div className={styles.searchResultsContainer}>
+                                {pets
+                                    .filter(p =>
+                                        p.name.toLowerCase().includes(petSearchTerm.toLowerCase()) ||
+                                        p.customers?.name?.toLowerCase().includes(petSearchTerm.toLowerCase())
+                                    )
+                                    .slice(0, 10)
+                                    .map(p => (
+                                        <div
+                                            key={p.id}
+                                            className={styles.searchResultItem}
+                                            onClick={() => {
+                                                setSelectedPetId(p.id)
+                                                setPetSearchTerm(p.name)
+                                                setShowPetResults(false)
+                                            }}
+                                        >
+                                            <span className={styles.resultPetName}>{p.name} ({p.species})</span>
+                                            <span className={styles.resultTutorName}>👤 {p.customers?.name || 'Tutor não identificado'}</span>
+                                        </div>
+                                    ))}
+                                {pets.filter(p =>
+                                    p.name.toLowerCase().includes(petSearchTerm.toLowerCase()) ||
+                                    p.customers?.name?.toLowerCase().includes(petSearchTerm.toLowerCase())
+                                ).length === 0 && (
+                                        <div className={styles.searchResultItem} style={{ color: '#94a3b8', cursor: 'default' }}>
+                                            Nenhum pet encontrado.
+                                        </div>
+                                    )}
+                            </div>
+                        )}
+
                         <select required value={selectedPetId} onChange={e => setSelectedPetId(e.target.value)}
-                            style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }}>
+                            style={{ display: 'none' }}>
                             <option value="">Selecione...</option>
                             {pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                         </select>
+
+                        {selectedPetId && !showPetResults && (
+                            <div style={{ marginTop: '0.5rem', fontSize: '0.85rem', color: '#10B981', fontWeight: 600 }}>
+                                ✓ Pet selecionado: {pets.find(p => p.id === selectedPetId)?.name}
+                                ({pets.find(p => p.id === selectedPetId)?.customers?.name})
+                            </div>
+                        )}
                     </div>
                     <div style={{ marginBottom: '1rem' }}>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Serviço *</label>
