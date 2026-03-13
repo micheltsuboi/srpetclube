@@ -6,32 +6,21 @@
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
-    margin-bottom: 1.5rem;
+    margin-bottom: 2rem;
     flex-wrap: wrap;
     gap: 1rem;
 }
 
-.backLink {
-    display: inline-block;
-    color: var(--primary);
-    text-decoration: none;
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
-}
-
-.backLink:hover {
-    text-decoration: underline;
-}
-
 .title {
-    font-size: 1.5rem;
-    font-weight: 700;
+    font-size: 1.75rem;
+    font-weight: 800;
     color: var(--text-primary);
     margin: 0 0 0.25rem 0;
+    letter-spacing: -0.5px;
 }
 
 .subtitle {
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     color: var(--text-secondary);
     margin: 0;
 }
@@ -39,30 +28,55 @@
 .addButton {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.6rem;
     background: var(--gradient-primary);
     color: white;
     border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
+    padding: 0.8rem 1.6rem;
+    border-radius: 12px;
+    font-weight: 700;
     cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: var(--shadow-md);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 15px -3px rgba(var(--primary-rgb), 0.3);
 }
 
 .addButton:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-1px);
+    box-shadow: 0 20px 25px -5px rgba(var(--primary-rgb), 0.4);
+    transform: translateY(-2px);
+}
+
+.searchInputWrapper {
+    max-width: 450px;
+    margin-bottom: 2rem;
+}
+
+.input {
+    width: 100%;
+    padding: 0.8rem 1.25rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    color: var(--text-primary);
+    font-size: 1rem;
+    transition: all 0.2s;
+    backdrop-filter: blur(5px);
+}
+
+.input:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.1);
 }
 
 /* Table */
 .tableContainer {
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
-    backdrop-filter: blur(10px);
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
+    border-radius: 20px;
     overflow: hidden;
+    box-shadow: var(--shadow-xl);
 }
 
 .table {
@@ -70,59 +84,86 @@
     border-collapse: collapse;
 }
 
-.table th,
-.table td {
-    padding: 1rem;
-    text-align: left;
-}
-
 .table th {
-    background: rgba(255, 255, 255, 0.05);
-    font-size: 0.8rem;
-    font-weight: 600;
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1.25rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
     color: var(--text-secondary);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 1px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.table td {
+    padding: 1.25rem 1rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
 
 .table tbody tr {
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    transition: background 0.2s ease;
+    transition: all 0.2s ease;
 }
 
 .table tbody tr:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--primary-rgb), 0.05);
 }
 
 .userInfo {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 1rem;
 }
 
 .avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--coral) 100%);
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: var(--gradient-primary);
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
-    font-weight: 600;
-    font-size: 1rem;
+    font-weight: 700;
+    font-size: 1.1rem;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
 
 .userName {
     display: block;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--text-primary);
+    font-size: 1rem;
+    margin-bottom: 0.15rem;
 }
 
 .userEmail {
     display: block;
-    font-size: 0.8rem;
+    font-size: 0.85rem;
     color: var(--text-secondary);
+}
+
+.petsList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.petBadge {
+    padding: 0.3rem 0.75rem;
+    background: rgba(var(--primary-rgb), 0.15);
+    color: var(--primary);
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border: 1px solid rgba(var(--primary-rgb), 0.2);
+    transition: all 0.2s;
+}
+
+.petBadge:hover {
+    background: var(--primary);
+    color: white;
 }
 
 /* Modal */
@@ -132,37 +173,39 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.75);
+    background: rgba(0, 0, 0, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
     padding: 1rem;
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(10px);
 }
 
 .modal {
     background: var(--bg-tertiary);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 1.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 24px;
+    padding: 2.5rem;
     width: 100%;
-    max-width: 600px;
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+    max-width: 650px;
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
     max-height: 90vh;
     overflow-y: auto;
+    position: relative;
 }
 
-.modal h2 {
-    margin: 0 0 1.5rem 0;
-    font-size: 1.25rem;
+.modalTitle {
+    margin: 0 0 2rem 0;
+    font-size: 1.5rem;
+    font-weight: 800;
     color: var(--text-primary);
 }
 
 .formGrid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 1rem;
+    gap: 1.5rem;
 }
 
 .fullWidth {
@@ -170,71 +213,63 @@
 }
 
 .formGroup {
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
 }
 
 .label {
     display: block;
     font-size: 0.85rem;
+    font-weight: 600;
     color: var(--text-secondary);
-    margin-bottom: 0.5rem;
-}
-
-.input {
-    width: 100%;
-    padding: 0.75rem 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    color: var(--text-primary);
-    font-size: 0.95rem;
-}
-
-.input:focus {
-    outline: none;
-    border-color: var(--primary);
+    margin-bottom: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 .modalActions {
     display: flex;
-    gap: 0.75rem;
-    margin-top: 1.5rem;
+    gap: 1rem;
+    margin-top: 2.5rem;
     justify-content: flex-end;
 }
 
 .cancelBtn {
-    padding: 0.75rem 1.5rem;
-    background: rgba(255, 255, 255, 0.05);
+    padding: 0.8rem 1.5rem;
+    background: transparent;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    border-radius: 12px;
     color: var(--text-secondary);
-    font-size: 0.9rem;
+    font-size: 0.95rem;
     cursor: pointer;
-    font-weight: 500;
+    font-weight: 600;
+    transition: all 0.2s;
 }
 
 .cancelBtn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
 }
 
 .submitButton {
-    padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, var(--primary) 0%, var(--coral) 100%);
+    padding: 0.8rem 2rem;
+    background: var(--gradient-primary);
     border: none;
-    border-radius: 8px;
+    border-radius: 12px;
     color: white;
-    font-size: 0.9rem;
-    font-weight: 600;
+    font-size: 0.95rem;
+    font-weight: 700;
     cursor: pointer;
+    transition: all 0.3s;
+    box-shadow: 0 8px 15px rgba(var(--primary-rgb), 0.2);
 }
 
 .submitButton:hover {
-    box-shadow: 0 4px 15px rgba(var(--primary-rgb), 0.3);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 15px 20px rgba(var(--primary-rgb), 0.3);
 }
 
 .submitButton:disabled {
-    opacity: 0.7;
+    opacity: 0.5;
     cursor: not-allowed;
     transform: none;
 }
@@ -246,21 +281,10 @@
     }
 
     .tableContainer {
-        overflow-x: hidden;
-        width: 100%;
         background: transparent;
         border: none;
+        box-shadow: none;
         backdrop-filter: none;
-    }
-
-    .table,
-    .table tbody,
-    .table tr,
-    .table td {
-        display: block;
-        width: 100%;
-        min-width: 0;
-        box-sizing: border-box;
     }
 
     .table thead {
@@ -268,15 +292,13 @@
     }
 
     .table tr {
-        margin-bottom: 1rem;
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+        display: block;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
         border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 16px;
-        padding: 1rem;
-    }
-
-    .table tr:hover {
-        background: rgba(255, 255, 255, 0.05);
+        border-radius: 20px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: var(--shadow-md);
     }
 
     .table td {
@@ -292,36 +314,13 @@
     }
 
     .table td::before {
-        font-size: 0.75rem;
+        content: attr(data-label);
+        font-size: 0.7rem;
         text-transform: uppercase;
         color: var(--text-secondary);
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        display: block;
-    }
-
-    .table td:nth-child(1)::before {
-        content: "Tutor";
-    }
-
-    .table td:nth-child(2)::before {
-        content: "Pets";
-    }
-
-    .table td:nth-child(3)::before {
-        content: "Contato";
-    }
-
-    .table td:nth-child(4)::before {
-        content: "Endereço";
-    }
-
-    .table td:nth-child(5)::before {
-        content: "Portal";
-    }
-
-    .table td:nth-child(6)::before {
-        content: "Desde";
+        font-weight: 700;
+        margin-bottom: 0.4rem;
+        letter-spacing: 0.5px;
     }
 
     .formGrid {
@@ -331,20 +330,4 @@
     .fullWidth {
         grid-column: span 1;
     }
-}
-.petsList {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-}
-
-.petBadge {
-    padding: 0.2rem 0.6rem;
-    background: rgba(59, 130, 246, 0.1);
-    color: #3b82f6;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    font-weight: 500;
-    white-space: nowrap;
-    border: 1px solid rgba(59, 130, 246, 0.2);
 }

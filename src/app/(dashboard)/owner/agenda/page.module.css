@@ -2,41 +2,26 @@
     padding: 1.5rem;
 }
 
-@media (max-width: 768px) {
-    .container {
-        padding: 1rem;
-    }
-}
-
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2rem;
+    margin-bottom: 2.5rem;
     flex-wrap: wrap;
-    gap: 1rem;
-}
-
-@media (max-width: 768px) {
-    .header {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .header div {
-        flex-direction: column;
-        width: 100%;
-    }
-
-    .header button,
-    .header select {
-        width: 100%;
-    }
+    gap: 1.5rem;
 }
 
 .headerLeft {
     display: flex;
     flex-direction: column;
+}
+
+.title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    margin: 0;
+    letter-spacing: -0.5px;
 }
 
 .actionGroup {
@@ -45,249 +30,188 @@
     align-items: center;
 }
 
-@media (max-width: 768px) {
-    .actionGroup {
-        flex-direction: column;
-        align-items: stretch;
-        width: 100%;
-    }
-}
-
-.title {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin: 0;
-}
-
 .actionButton {
     background: var(--gradient-primary);
     color: white;
     border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
+    padding: 0.8rem 1.6rem;
+    border-radius: 12px;
+    font-weight: 700;
     cursor: pointer;
-    box-shadow: var(--shadow-md);
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 15px -3px rgba(var(--primary-rgb), 0.3);
 }
 
 .actionButton:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-1px);
-}
-
-.dateFilter {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    margin-bottom: 2rem;
-    background: var(--bg-secondary);
-    padding: 0.75rem;
-    border-radius: 12px;
-    border: 1px solid var(--border);
-}
-
-.dateBtn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    font-size: 1.2rem;
-    padding: 0.5rem;
-    border-radius: 50%;
-}
-
-.currentDate {
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.agendaGrid {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-
-@media (max-width: 768px) {
-    .agendaGrid {
-        gap: 1rem;
-    }
-}
-
-/* Updated Card Style based on Request */
-.appointmentCard {
-    background: var(--bg-card, #1e293b);
-    /* Darker background */
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 16px;
-    padding: 1.5rem;
-    position: relative;
-    transition: transform 0.2s;
-    cursor: pointer;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-}
-
-
-
-.appointmentCard:hover {
+    box-shadow: 0 20px 25px -5px rgba(var(--primary-rgb), 0.4);
     transform: translateY(-2px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-    border-color: var(--primary);
 }
 
-.cardTop {
+/* Toolbar & Navigation */
+.toolbar {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 1rem;
+    align-items: center;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+    gap: 1.5rem;
 }
 
-.petInfoMain {
+.viewToggle {
     display: flex;
-    align-items: flex-start;
-    gap: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.3rem;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(5px);
 }
 
-.petAvatar {
-    width: 48px;
-    height: 48px;
-    background: #334155;
-    border-radius: 12px;
+.viewBtn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 0.6rem 1.25rem;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.viewBtnActive {
+    background: var(--primary);
+    color: white;
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
+}
+
+.dateNav {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.4rem 0.8rem;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.navBtn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    width: 34px;
+    height: 34px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
-}
-
-.petDetails {
-    display: flex;
-    flex-direction: column;
-}
-
-.petName {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: white;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.petBreed {
-    font-size: 0.85rem;
-    color: #94a3b8;
-}
-
-.tutorName {
-    font-size: 0.85rem;
-    color: #64748b;
-    margin-top: 0.25rem;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
-}
-
-.statusBadge {
-    font-size: 0.7rem;
-    padding: 0.15rem 0.5rem;
-    border-radius: 9999px;
-    font-weight: 600;
-    text-transform: uppercase;
-    background: #334155;
-    color: #cbd5e1;
-    margin-left: 0.5rem;
-}
-
-.startButton {
-    background: #3b82f6;
-    /* Blue like screenshot */
-    color: white;
-    border: none;
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    font-weight: 600;
-    font-size: 0.9rem;
+    border-radius: 10px;
     cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-    transition: background 0.2s;
+    transition: all 0.2s;
 }
 
-.startButton:hover {
-    background: #2563eb;
+.navBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
 }
 
-.startButton.done {
-    background: #10b981;
-}
-
-.serviceLine {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    color: #cbd5e1;
-    font-size: 0.9rem;
-    margin-bottom: 0.5rem;
-    font-weight: 500;
-}
-
-.priceTag {
-    margin-left: auto;
-    font-size: 0.9rem;
+.dateInput {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 1rem;
     font-weight: 700;
-    color: var(--success, #10b981);
-    background: rgba(16, 185, 129, 0.1);
-    padding: 0.1rem 0.4rem;
-    border-radius: 4px;
+    padding: 0.25rem 0.5rem;
+    outline: none;
+    cursor: pointer;
 }
 
-.notesBox {
-    background: rgba(255, 255, 255, 0.05);
-    border-left: 3px solid var(--coral);
-    padding: 0.75rem;
-    border-radius: 0 8px 8px 0;
-    margin-bottom: 1rem;
-    font-size: 0.9rem;
-    color: #e2e8f0;
-    display: flex;
-    align-items: flex-start;
-    gap: 0.5rem;
+/* Appointment Cards */
+.appointmentCard {
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 1.5rem;
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+    box-shadow: var(--shadow-lg);
 }
 
-.prefContainer {
-    display: flex;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
-.prefTag {
-    background: rgba(236, 72, 153, 0.15);
-    color: #f472b6;
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    display: flex;
-    align-items: center;
-    gap: 0.25rem;
+.appointmentCard:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-xl);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 .timeDisplay {
     display: inline-block;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    padding: 0.25rem 0.6rem;
-    border-radius: 6px;
+    background: rgba(var(--primary-rgb), 0.1);
+    padding: 0.3rem 0.75rem;
+    border-radius: 8px;
     font-size: 0.85rem;
+    color: var(--primary);
+    font-weight: 800;
+    margin-bottom: 1rem;
+}
+
+.petName {
+    font-size: 1.25rem;
+    font-weight: 800;
     color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 0.25rem;
+}
+
+.petAvatar {
+    width: 52px;
+    height: 52px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.75rem;
+}
+
+.tutorName {
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-weight: 500;
+}
+
+.statusBadge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 8px;
     font-weight: 700;
-    margin-bottom: 0.75rem;
-    align-self: flex-start;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.startButton {
+    background: var(--primary);
+    color: white;
+    border: none;
+    padding: 0.6rem 1.25rem;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s;
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.2);
+}
+
+.startButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(var(--primary-rgb), 0.3);
 }
 
 /* Modal Styles */

@@ -1,99 +1,139 @@
 .container {
-    padding: 2rem;
+    padding: 1.5rem;
 }
 
 .header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2rem;
+    margin-bottom: 2.5rem;
+    flex-wrap: wrap;
+    gap: 1.5rem;
 }
 
 .title {
-    font-size: 1.5rem;
-    font-weight: 700;
+    font-size: 2rem;
+    font-weight: 800;
     color: var(--text-primary);
+    letter-spacing: -0.5px;
 }
 
-.actionButton {
+.addBtn {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
     background: var(--gradient-primary);
     color: white;
     border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
+    padding: 0.8rem 1.6rem;
+    border-radius: 12px;
+    font-weight: 700;
     cursor: pointer;
-    box-shadow: var(--shadow-md);
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 10px 15px -3px rgba(var(--primary-rgb), 0.3);
 }
 
-.actionButton:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-1px);
+.addBtn:hover {
+    box-shadow: 0 20px 25px -5px rgba(var(--primary-rgb), 0.4);
+    transform: translateY(-2px);
 }
 
-/* ... existing code ... */
+.searchBar {
+    width: 100%;
+    margin-bottom: 2.5rem;
+    position: relative;
+}
 
-.submitBtn {
-    background: var(--gradient-primary);
+.searchInput {
+    width: 100%;
+    padding: 0.8rem 1.25rem;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
     color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: var(--shadow-md);
+    font-size: 1rem;
+    outline: none;
     transition: all 0.2s;
+    backdrop-filter: blur(5px);
 }
 
-.submitBtn:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-1px);
+.searchInput:focus {
+    border-color: var(--primary);
+    background: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 0 0 4px rgba(var(--primary-rgb), 0.1);
 }
 
 .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 1.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 1.75rem;
 }
 
 .card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.5rem;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 1.75rem;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: var(--shadow-lg);
+    display: flex;
+    flex-direction: column;
 }
 
 .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    border-color: var(--primary);
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-xl);
+    border-color: rgba(255, 255, 255, 0.2);
 }
 
 .cardHeader {
     display: flex;
     justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
+    align-items: flex-start;
+    margin-bottom: 1rem;
 }
 
 .cardTitle {
-    font-size: 1.1rem;
-    font-weight: 600;
+    font-size: 1.25rem;
+    font-weight: 800;
     color: var(--text-primary);
+    line-height: 1.3;
 }
 
 .cardPrice {
-    font-weight: 700;
-    color: var(--success);
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--primary);
+    letter-spacing: -0.5px;
 }
 
 .cardMeta {
     font-size: 0.9rem;
     color: var(--text-secondary);
-    margin-bottom: 0.5rem;
+    margin-bottom: 1.25rem;
+    font-weight: 500;
+}
+
+.editBtn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 0.6rem 1rem;
+    border-radius: 10px;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-size: 0.9rem;
+    width: 100%;
+    margin-top: auto;
+    transition: all 0.2s;
+    font-weight: 600;
+}
+
+.editBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
 /* Modal Styling */
@@ -103,216 +143,24 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    backdrop-filter: blur(4px);
-}
-
-.modal {
-    background: var(--bg-card);
-    border-radius: 16px;
-    padding: 2rem;
-    width: 90%;
-    max-width: 800px;
-    /* Wide for matrix table */
-    max-height: 90vh;
-    overflow-y: auto;
-    border: 1px solid var(--border);
-}
-
-.sectionTitle {
-    margin: 1.5rem 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 0.5rem;
-}
-
-.matrixTable {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 1rem;
-}
-
-.matrixTable th,
-.matrixTable td {
-    padding: 0.75rem;
-    text-align: left;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.9rem;
-}
-
-.matrixTable th {
-    background: var(--bg-secondary);
-    font-weight: 600;
-}
-
-.deleteBtnSmall {
-    background: rgba(239, 68, 68, 0.1);
-    color: #ef4444;
-    border: none;
-    padding: 0.25rem 0.5rem;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 0.8rem;
-}
-
-.addRuleForm {
-    background: var(--bg-secondary);
-    padding: 1rem;
-    border-radius: 8px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 1rem;
-    align-items: end;
-}
-
-.inputGroup {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.label {
-    font-size: 0.8rem;
-    color: var(--text-secondary);
-}
-
-.input,
-.select {
-    padding: 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    width: 100%;
-}
-
-.addBtnSmall {
-    background: var(--primary);
-    color: white;
-    border: none;
-    padding: 0.5rem;
-    /* Match input height roughly */
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.9rem;
-}
-
-.modalActions {
-    margin-top: 2rem;
-    display: flex;
-    justify-content: flex-end;
-    gap: 1rem;
-}
-
-.cancelBtn {
-    background: transparent;
-    border: 1px solid var(--border);
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    cursor: pointer;
-    color: var(--text-primary);
-}
-
-.deleteServiceBtn {
-    background: #ef4444;
-    color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    cursor: pointer;
-    margin-right: auto;
-}
-
-
-.submitBtn {
-    background: var(--primary);
-    color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-}
-
-.editBtn {
-    background: transparent;
-    border: 1px solid var(--border);
-    padding: 0.5rem 1rem;
-    border-radius: 8px;
-    cursor: pointer;
-    color: var(--text-primary);
-    font-size: 0.9rem;
-    width: 100%;
-    margin-top: 1rem;
-    transition: all 0.2s;
-}
-
-.editBtn:hover {
-    background: var(--bg-tertiary);
-    border-color: var(--primary);
-    color: var(--primary);
-}
-
-/* New classes from reconstructed ServicesPage */
-/* New classes from reconstructed ServicesPage */
-.addBtn {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    background: var(--gradient-primary);
-    color: white;
-    border: none;
-    padding: 0.75rem 1.5rem;
-    border-radius: 8px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: var(--shadow-md);
-}
-
-.addBtn:hover {
-    box-shadow: var(--shadow-lg);
-    transform: translateY(-1px);
-}
-
-.searchBar {
-    width: 100%;
-    margin-bottom: 2rem;
-}
-
-.searchInput {
-    width: 100%;
-    padding: 0.75rem;
-    background: var(--bg-secondary);
-    border: 1px solid #334155;
-    border-radius: 8px;
-    color: white;
-    font-size: 1rem;
-    outline: none;
-    transition: all 0.2s;
-}
-
-.searchInput:focus {
-    border-color: var(--primary);
-    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
 }
 
 .modalContent {
-    background: var(--bg-card);
-    border-radius: 16px;
-    padding: 2rem;
+    background: var(--bg-tertiary);
+    border-radius: 24px;
+    padding: 2.5rem;
     width: 90%;
-    max-width: 800px;
+    max-width: 900px;
     max-height: 90vh;
     overflow-y: auto;
-    border: 1px solid var(--border);
-    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
     position: relative;
 }
 
@@ -321,167 +169,143 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 2rem;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding-bottom: 1.25rem;
 }
 
 .modalHeader h2 {
-    font-size: 1.25rem;
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--text-primary);
+    letter-spacing: -0.5px;
+}
+
+.closeBtn {
+    background: rgba(255, 255, 255, 0.05);
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.5rem;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.closeBtn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}
+
+.sectionBox {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.sectionBox h4 {
+    margin-bottom: 1.25rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: var(--text-primary);
 }
 
-.closeBtn {
-    background: transparent;
-    border: none;
-    color: var(--text-secondary);
-    font-size: 2rem;
-    line-height: 1;
-    cursor: pointer;
-    padding: 0;
-    margin: 0;
-}
-
-.formScroller {
-    display: flex;
-    flex-direction: column;
-    gap: 2rem;
-}
-
-.formGrid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.5rem;
-}
-
-.sectionBox {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 1.5rem;
-}
-
-.sectionBox h4 {
-    margin-bottom: 1rem;
-    font-size: 1rem;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.inlineForm {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.selectSmall {
-    padding: 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-}
-
-.checkboxGroup {
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-}
-
-.tagsContainer {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-}
-
-.tag {
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border);
-    padding: 0.25rem 0.75rem;
-    border-radius: 9999px;
-    font-size: 0.85rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.tag button {
-    background: none;
-    border: none;
-    color: #ef4444;
-    cursor: pointer;
-    font-weight: bold;
-    padding: 0;
-}
-
-.checklist {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-}
-
-.checklist li {
-    background: var(--bg-tertiary);
+.input,
+.select {
     padding: 0.75rem 1rem;
-    border-radius: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border: 1px solid var(--border);
-}
-
-.matrixSection {
-    margin-top: 3rem;
-    padding-top: 2rem;
-    border-top: 1px solid var(--border);
-}
-
-.matrixForm {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap: 0.5rem;
-    margin-top: 1rem;
-    background: var(--bg-secondary);
-    padding: 1rem;
-    border-radius: 12px;
-}
-
-.inputSmall {
-    padding: 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    color: white;
     width: 100%;
+    transition: all 0.2s;
 }
 
-@media (max-width: 640px) {
-    .formGrid {
-        grid-template-columns: 1fr;
+.input:focus,
+.select:focus {
+    border-color: var(--primary);
+    background: rgba(0, 0, 0, 0.3);
+    outline: none;
+}
+
+.submitBtn {
+    background: var(--gradient-primary);
+    color: white;
+    border: none;
+    padding: 0.8rem 2rem;
+    border-radius: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 15px -3px rgba(var(--primary-rgb), 0.3);
+    transition: all 0.3s;
+}
+
+.submitBtn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 25px -5px rgba(var(--primary-rgb), 0.4);
+}
+
+.deleteBtnSmall {
+    background: rgba(239, 68, 68, 0.1);
+    color: #ef4444;
+    border: none;
+    padding: 0.4rem 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.deleteBtnSmall:hover {
+    background: #ef4444;
+    color: white;
+}
+
+.matrixTable {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    margin-bottom: 1.5rem;
+}
+
+.matrixTable th {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 1rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    text-align: left;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.matrixTable td {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: 1rem;
     }
 
-    .inlineForm {
+    .header {
         flex-direction: column;
         align-items: stretch;
     }
 
-    .matrixTable,
-    .matrixTable tbody,
-    .matrixTable tr,
-    .matrixTable td {
-        display: block;
-        width: 100%;
-        min-width: 0;
-        box-sizing: border-box;
+    .grid {
+        grid-template-columns: 1fr;
     }
 
-    .matrixTable {
-        background: transparent;
-        border: none;
+    .formGrid {
+        grid-template-columns: 1fr;
     }
 
     .matrixTable thead {
@@ -489,51 +313,27 @@
     }
 
     .matrixTable tr {
-        margin-bottom: 1rem;
-        background: var(--bg-secondary);
-        border: 1px solid var(--border);
+        display: block;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid rgba(255, 255, 255, 0.05);
         border-radius: 12px;
         padding: 1rem;
+        margin-bottom: 1rem;
     }
 
     .matrixTable td {
         display: flex;
         flex-direction: column;
-        padding: 0.75rem 0;
+        padding: 0.5rem 0;
         border: none !important;
-        text-align: left;
-    }
-
-    .matrixTable td:not(:last-child) {
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
     }
 
     .matrixTable td::before {
-        font-size: 0.75rem;
+        content: attr(data-label);
+        font-size: 0.7rem;
         text-transform: uppercase;
         color: var(--text-secondary);
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-        display: block;
-    }
-
-    .matrixTable td:nth-child(1)::before {
-        content: "Min/Max (kg)";
-    }
-
-    .matrixTable td:nth-child(2)::before {
-        content: "Porte";
-    }
-
-    .matrixTable td:nth-child(3)::before {
-        content: "Dia";
-    }
-
-    .matrixTable td:nth-child(4)::before {
-        content: "Preço";
-    }
-
-    .matrixTable td:nth-child(5)::before {
-        content: "";
+        font-weight: 700;
+        margin-bottom: 0.25rem;
     }
 }
