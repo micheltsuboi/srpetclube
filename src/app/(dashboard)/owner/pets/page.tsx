@@ -1032,7 +1032,7 @@ function PetsContent() {
                                                                                                         {slot.period_label ? ` · ${slot.period_label}` : ''}
                                                                                                     </div>
                                                                                                 </div>
-                                                                                                {(slot.status === 'pending' || slot.status === 'skipped') && (
+                                                                                                {(slot.status === 'pending' || slot.status === 'skipped' || slot.status === 'scheduled') && (
                                                                                                     <button
                                                                                                         type="button"
                                                                                                         onClick={() => {

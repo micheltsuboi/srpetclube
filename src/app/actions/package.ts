@@ -453,7 +453,12 @@ export async function reschedulePackageSlot(
     // Atualizar o slot
     const { error: updateError } = await supabase
         .from('package_schedule_slots')
-        .update({ slot_date: newDate, slot_time: newTime, status: 'pending', updated_at: new Date().toISOString() })
+        .update({
+            slot_date: newDate,
+            slot_time: newTime,
+            status: slot.appointment_id ? 'scheduled' : 'pending',
+            updated_at: new Date().toISOString()
+        })
         .eq('id', slotId)
 
     if (updateError) return { message: updateError.message, success: false }
