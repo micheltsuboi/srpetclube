@@ -197,17 +197,60 @@ export async function markAllAsRead() {
     try {
         const supabase = await createClient()
         const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
+        if (!user) return { success: false }
 
-        // Fetch all unread notifications ids for this user's org... 
-        // Simpler: Just get all notifications for org and insert reads?
-        // Let's implement individual mark for now, or fetch unread and insert.
+        // Get all unread notification IDs for the current user's org
+        // We track reads in notification_reads. 
+        // We want to insert a read record for every notification in the user's org that doesn't have one yet.
 
-        // For prototype, let's keep it simple: individual mark is robust. 
-        // Implementing bulk mark needs query.
+        const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+        if (!profile?.org_id) return { success: false }
 
-        return { success: false, message: 'Not implemented bulk' }
+        const { data: unreadNotifs } = await supabase
+            .from('notifications')
+            .select(`
+                id,
+                notification_reads!left ( user_id )
+            `)
+            .eq('org_id', profile.org_id)
+            .is('notification_reads.user_id', null)
+
+        if (unreadNotifs && unreadNotifs.length > 0) {
+            const inserts = unreadNotifs.map(n => ({
+                notification_id: n.id,
+                user_id: user.id
+            }))
+
+            await supabase
+                .from('notification_reads')
+                .upsert(inserts, { onConflict: 'notification_id,user_id', ignoreDuplicates: true })
+        }
+
+        revalidatePath('/owner')
+        return { success: true }
     } catch (error) {
+        console.error('Error marking all as read:', error)
+        return { success: false }
+    }
+}
+
+export async function createNotification(data: {
+    org_id: string,
+    type: string,
+    title: string,
+    message: string,
+    reference_id?: string,
+    link?: string
+}) {
+    try {
+        const supabase = await createClient()
+        const { error } = await supabase.from('notifications').insert(data)
+        if (error) throw error
+
+        revalidatePath('/owner')
+        return { success: true }
+    } catch (error) {
+        console.error('Error creating notification:', error)
         return { success: false }
     }
 }

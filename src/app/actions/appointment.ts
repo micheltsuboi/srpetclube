@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { createNotification } from './notification'
 
 interface CreateAppointmentState {
     message: string
@@ -300,6 +301,20 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             payment_status: 'pending',
             discount_percent: 0
         })
+
+    if (!error) {
+        // Generate Notification for new appointment
+        const formattedDate = date ? new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR') :
+            (checkInDate ? new Date(`${checkInDate}T12:00:00`).toLocaleDateString('pt-BR') : '');
+
+        await createNotification({
+            org_id: profile.org_id,
+            type: 'new_appointment',
+            title: 'Novo Agendamento 📅',
+            message: `Novo agendamento de ${serviceAny.name} para o pet ${petData.name} em ${formattedDate}.`,
+            link: isHospedagem ? '/owner/hospedagem' : (isCreche ? '/owner/creche' : '/owner/agenda')
+        });
+    }
 
     if (error) {
         return { message: `Erro ao agendar: ${error.message}`, success: false }
