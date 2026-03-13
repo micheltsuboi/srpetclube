@@ -264,9 +264,9 @@ export default function PackagesPage() {
                             </div>
                         )}
                         <div className={styles.cardMeta}>
-                            {pkg.validity_type === 'monthly' ? '🔄 Renovação Mensal' :
-                                pkg.validity_type === 'weekly' ? '🔄 Renovação Semanal' :
-                                    'Sem renovação automática'}
+                            {pkg.validity_type === 'weekly' && pkg.validity_days
+                                ? `🔄 Renovação a cada ${pkg.validity_days / 7} semana(s)`
+                                : 'Sem renovação automática'}
                         </div>
                         <div className={styles.servicesList}>
                             {pkg.package_items?.map(item => (
@@ -328,19 +328,32 @@ export default function PackagesPage() {
                                     />
                                 </div>
                                 <div className={styles.inputGroup}>
-                                    <label className={styles.label}>Validade / Renovação *</label>
+                                    <label className={styles.label}>Renovação *</label>
                                     <select
                                         name="validity_type"
                                         className={styles.select || styles.input}
-                                        defaultValue={selectedPackage?.validity_type || 'none'}
+                                        defaultValue={selectedPackage?.validity_type === 'none' ? 'none' : 'weekly'}
                                         style={{ width: '100%', padding: '0.75rem', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                                     >
                                         <option value="none">Sem renovação automática</option>
-                                        <option value="monthly">Mensal — renova todo mês</option>
-                                        <option value="weekly">Semanal — renova toda semana</option>
+                                        <option value="weekly">Ativo – Renovação por Semanas</option>
                                     </select>
                                     <small style={{ fontSize: '0.75rem', color: '#666' }}>
-                                        Pacotes mensais/semanais renovam automaticamente ao virar o período
+                                        Para pacotes com período de duração em semanas.
+                                    </small>
+                                </div>
+                                <div className={styles.inputGroup}>
+                                    <label className={styles.label}>Validade (Semanas) *</label>
+                                    <input
+                                        name="validity_weeks"
+                                        type="number"
+                                        min="1"
+                                        className={styles.input}
+                                        defaultValue={selectedPackage?.validity_days ? selectedPackage.validity_days / 7 : 5}
+                                        required
+                                    />
+                                    <small style={{ fontSize: '0.75rem', color: '#666' }}>
+                                        Duração antes da renovação (ex: 5 semanas).
                                     </small>
                                 </div>
                             </div>

@@ -24,9 +24,11 @@ export async function createServicePackage(prevState: ActionState, formData: For
     const name = formData.get('name') as string
     const description = formData.get('description') as string
     const total_price = parseFloat(formData.get('total_price') as string)
-    const validity_type = (formData.get('validity_type') as string) || 'none'
-    // Calcular validity_days a partir do type para retrocompatibilidade
-    const validity_days = validity_type === 'monthly' ? 30 : validity_type === 'weekly' ? 7 : null
+    let validity_type = (formData.get('validity_type') as string) || 'none'
+    const validity_weeks = parseInt(formData.get('validity_weeks') as string) || 0
+    // Mensal não existe mais no frontend, mas no banco aceitamos 'weekly' e convertemos para dias.
+    if (validity_type === 'monthly') validity_type = 'weekly';
+    const validity_days = validity_type === 'weekly' ? validity_weeks * 7 : null
 
     // Criar o pacote
     const { data: package_data, error: packageError } = await supabase
@@ -57,8 +59,10 @@ export async function updateServicePackage(prevState: ActionState, formData: For
     const name = formData.get('name') as string
     const description = formData.get('description') as string
     const total_price = parseFloat(formData.get('total_price') as string)
-    const validity_type = (formData.get('validity_type') as string) || 'none'
-    const validity_days = validity_type === 'monthly' ? 30 : validity_type === 'weekly' ? 7 : null
+    let validity_type = (formData.get('validity_type') as string) || 'none'
+    const validity_weeks = parseInt(formData.get('validity_weeks') as string) || 0
+    if (validity_type === 'monthly') validity_type = 'weekly';
+    const validity_days = validity_type === 'weekly' ? validity_weeks * 7 : null
 
     const { error } = await supabase
         .from('service_packages')
