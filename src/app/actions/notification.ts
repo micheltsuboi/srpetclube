@@ -151,16 +151,25 @@ export async function getNotifications() {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return []
 
+        const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+        if (!profile?.org_id) return []
+
         const { data: notifs, error } = await supabase
             .from('notifications')
             .select(`
                 *,
                 notification_reads!left ( user_id )
             `)
+            .eq('org_id', profile.org_id)
             .order('created_at', { ascending: false })
             .limit(50)
 
-        if (error) throw error
+        if (error) {
+            console.error('[Notifications] Database error:', error)
+            throw error
+        }
+
+        console.log(`[Notifications] Found ${notifs.length} notifications for org ${profile.org_id}`)
 
         // Transform to add 'read' boolean
         return notifs.map(n => ({
@@ -243,14 +252,19 @@ export async function createNotification(data: {
     link?: string
 }) {
     try {
+        console.log('[Notifications] Creating notification:', data)
         const supabase = await createClient()
         const { error } = await supabase.from('notifications').insert(data)
-        if (error) throw error
+        if (error) {
+            console.error('[Notifications] Error inserting into DB:', error)
+            throw error
+        }
 
         revalidatePath('/owner')
+        revalidatePath('/')
         return { success: true }
     } catch (error) {
-        console.error('Error creating notification:', error)
+        console.error('[Notifications] Error creating notification:', error)
         return { success: false }
     }
 }
