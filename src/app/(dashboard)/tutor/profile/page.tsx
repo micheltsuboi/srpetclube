@@ -197,7 +197,7 @@ export default function TutorProfilePage() {
                     </div>
 
                     <div className={styles.formGroup}>
-                        <label>Data de Nascimento</label>
+                        <label>Data de Nascimento (Opcional)</label>
                         <input
                             type="date"
                             value={formData.birth_date}

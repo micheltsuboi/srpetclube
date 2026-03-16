@@ -61,7 +61,7 @@ export default function RegisterForm() {
                 </div>
 
                 <div className={styles.field}>
-                    <label>Data de Nascimento</label>
+                    <label>Data de Nascimento (Opcional)</label>
                     <input name="birthDate" type="date" className={styles.input} />
                 </div>
 

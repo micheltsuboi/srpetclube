@@ -91,6 +91,8 @@ export async function createTutor(prevState: CreateTutorState, formData: FormDat
 
     if (birthDate) {
         customerData.birth_date = birthDate
+    } else {
+        customerData.birth_date = null
     }
 
     const { error: customerError } = await supabaseAdmin
@@ -183,7 +185,7 @@ export async function updateTutor(prevState: CreateTutorState, formData: FormDat
         user_id: userId || currentTutor?.user_id // Keep or link new userId
     }
 
-    if (birthDate) customerData.birth_date = birthDate
+    customerData.birth_date = birthDate || null
 
     const { error } = await supabaseAdmin
         .from('customers')
