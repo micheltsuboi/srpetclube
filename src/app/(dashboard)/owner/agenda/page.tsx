@@ -1040,26 +1040,67 @@ export default function AgendaPage() {
                                     </div>
                                 )}
                             </div>
-                            <div className={styles.row}>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Data *</label>
-                                    <input
-                                        name="date"
-                                        type="date"
-                                        className={styles.input}
-                                        required
-                                        defaultValue={selectedDate}
-                                        onChange={(e) => {
-                                            setSelectedDate(e.target.value)
-                                            validateScheduling(e.target.value, selectedServiceId, preSelectedPetId || "")
-                                        }}
-                                    />
-                                </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Hora *</label>
-                                    <input name="time" type="time" className={styles.input} required defaultValue={selectedHourSlot ? `${selectedHourSlot}:00` : ''} />
-                                </div>
-                            </div>
+                            {/* Conditional Rendering for Hospedagem */}
+                            {(() => {
+                                const selectedService = services.find(s => s.id === selectedServiceId)
+                                const categoryName = selectedService?.service_categories?.name || ''
+                                const isHospedagem = categoryName.toLowerCase().includes('hospedagem') || categoryName.toLowerCase().includes('hotel')
+
+                                if (isHospedagem) {
+                                    return (
+                                        <div className={styles.row}>
+                                            <div className={styles.formGroup}>
+                                                <label className={styles.label}>Data Check-in *</label>
+                                                <input
+                                                    name="checkInDate"
+                                                    type="date"
+                                                    className={styles.input}
+                                                    required
+                                                    defaultValue={selectedDate}
+                                                    onChange={(e) => {
+                                                        setSelectedDate(e.target.value)
+                                                        validateScheduling(e.target.value, selectedServiceId, preSelectedPetId || "")
+                                                    }}
+                                                />
+                                                <input type="hidden" name="date" value={selectedDate} />
+                                                <input type="hidden" name="time" value="14:00" />
+                                            </div>
+                                            <div className={styles.formGroup}>
+                                                <label className={styles.label}>Data Check-out *</label>
+                                                <input
+                                                    name="checkOutDate"
+                                                    type="date"
+                                                    className={styles.input}
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+                                    )
+                                }
+
+                                return (
+                                    <div className={styles.row}>
+                                        <div className={styles.formGroup}>
+                                            <label className={styles.label}>Data *</label>
+                                            <input
+                                                name="date"
+                                                type="date"
+                                                className={styles.input}
+                                                required
+                                                defaultValue={selectedDate}
+                                                onChange={(e) => {
+                                                    setSelectedDate(e.target.value)
+                                                    validateScheduling(e.target.value, selectedServiceId, preSelectedPetId || "")
+                                                }}
+                                            />
+                                        </div>
+                                        <div className={styles.formGroup}>
+                                            <label className={styles.label}>Hora *</label>
+                                            <input name="time" type="time" className={styles.input} required defaultValue={selectedHourSlot ? `${selectedHourSlot}:00` : ''} />
+                                        </div>
+                                    </div>
+                                )
+                            })()}
                             <div className={styles.formGroup}>
                                 <label className={styles.label}>Observações</label>
                                 <textarea name="notes" className={styles.textarea} rows={3} />
@@ -1098,19 +1139,66 @@ export default function AgendaPage() {
                             <form action={updateAction}>
                                 <input type="hidden" name="id" value={selectedAppointment.id} />
                                 <div className={styles.formGroup}>
-                                    <label className={styles.label}>Data</label>
-                                    <input name="date" type="date" className={styles.input} defaultValue={new Date(selectedAppointment.scheduled_at).toISOString().split('T')[0]} />
-                                </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Hora</label>
-                                    <input name="time" type="time" className={styles.input} defaultValue={new Date(selectedAppointment.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} />
-                                </div>
-                                <div className={styles.formGroup}>
                                     <label className={styles.label}>Serviço</label>
-                                    <select name="serviceId" className={styles.select} defaultValue={selectedAppointment.services?.id}>
+                                    <select
+                                        name="serviceId"
+                                        className={styles.select}
+                                        defaultValue={selectedAppointment.service_id}
+                                        onChange={(e) => {
+                                            // Force re-render to update isHospedagem logic
+                                            const appt = { ...selectedAppointment, service_id: e.target.value }
+                                            setSelectedAppointment(appt as any)
+                                        }}
+                                    >
                                         {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                                     </select>
                                 </div>
+
+                                {(() => {
+                                    const selectedService = services.find(s => s.id === selectedAppointment.service_id)
+                                    const categoryName = selectedService?.service_categories?.name || ''
+                                    const isHospedagem = categoryName.toLowerCase().includes('hospedagem') || categoryName.toLowerCase().includes('hotel')
+
+                                    if (isHospedagem) {
+                                        return (
+                                            <div className={styles.row}>
+                                                <div className={styles.formGroup}>
+                                                    <label className={styles.label}>Check-in</label>
+                                                    <input
+                                                        name="checkInDate"
+                                                        type="date"
+                                                        className={styles.input}
+                                                        defaultValue={selectedAppointment.check_in_date || selectedAppointment.scheduled_at.split('T')[0]}
+                                                    />
+                                                    <input type="hidden" name="date" value={selectedAppointment.scheduled_at.split('T')[0]} />
+                                                    <input type="hidden" name="time" value="14:00" />
+                                                </div>
+                                                <div className={styles.formGroup}>
+                                                    <label className={styles.label}>Check-out</label>
+                                                    <input
+                                                        name="checkOutDate"
+                                                        type="date"
+                                                        className={styles.input}
+                                                        defaultValue={selectedAppointment.check_out_date || ''}
+                                                    />
+                                                </div>
+                                            </div>
+                                        )
+                                    }
+
+                                    return (
+                                        <div className={styles.row}>
+                                            <div className={styles.formGroup}>
+                                                <label className={styles.label}>Data</label>
+                                                <input name="date" type="date" className={styles.input} defaultValue={new Date(selectedAppointment.scheduled_at).toISOString().split('T')[0]} />
+                                            </div>
+                                            <div className={styles.formGroup}>
+                                                <label className={styles.label}>Hora</label>
+                                                <input name="time" type="time" className={styles.input} defaultValue={new Date(selectedAppointment.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} />
+                                            </div>
+                                        </div>
+                                    )
+                                })()}
                                 <div className={styles.formGroup}>
                                     <label className={styles.label}>Notas</label>
                                     <textarea name="notes" className={styles.textarea} defaultValue={selectedAppointment.notes || ''} />
