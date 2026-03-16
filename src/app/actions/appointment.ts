@@ -578,14 +578,10 @@ export async function updatePaymentStatus(id: string, paymentStatus: string, pay
     return { message: paymentStatus === 'paid' ? 'Pagamento registrado!' : 'Status de pagamento atualizado.', success: true }
 }
 
-export async function applyDiscount(id: string, discountPercent: number, frontendBasePrice?: number) {
+export async function applyDiscount(id: string, value: number, type: 'percent' | 'fixed', frontendBasePrice?: number) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { message: 'Não autorizado.', success: false }
-
-    if (discountPercent < 0 || discountPercent > 100) {
-        return { message: 'Desconto deve ser entre 0% e 100%.', success: false }
-    }
 
     // Fetch current calculated_price
     const { data: appt, error: fetchErr } = await supabase
@@ -598,13 +594,32 @@ export async function applyDiscount(id: string, discountPercent: number, fronten
 
     const dbBasePrice = appt.calculated_price ?? (appt.services as any)?.base_price ?? 0
     const basePrice = frontendBasePrice ?? dbBasePrice
-    const finalPrice = basePrice * (1 - discountPercent / 100)
+
+    let finalPrice: number
+    let discountPercent: number
+    let discountAmount: number
+
+    if (type === 'percent') {
+        if (value < 0 || value > 100) {
+            return { message: 'Desconto deve ser entre 0% e 100%.', success: false }
+        }
+        discountPercent = value
+        finalPrice = basePrice * (1 - discountPercent / 100)
+        discountAmount = basePrice - finalPrice
+    } else {
+        if (value < 0 || value > basePrice) {
+            return { message: 'Desconto não pode ser maior que o valor base.', success: false }
+        }
+        discountAmount = value
+        finalPrice = basePrice - discountAmount
+        discountPercent = basePrice > 0 ? (discountAmount / basePrice) * 100 : 0
+    }
 
     const { error } = await supabase
         .from('appointments')
         .update({
-            discount_percent: discountPercent,
-            discount: basePrice - finalPrice,
+            discount_percent: parseFloat(discountPercent.toFixed(2)),
+            discount: parseFloat(discountAmount.toFixed(2)),
             final_price: parseFloat(finalPrice.toFixed(2))
         })
         .eq('id', id)
@@ -616,5 +631,7 @@ export async function applyDiscount(id: string, discountPercent: number, fronten
     revalidatePath('/owner/creche')
     revalidatePath('/owner/hospedagem')
     revalidatePath('/owner')
-    return { message: `Desconto de ${discountPercent}% aplicado! Valor final: R$ ${finalPrice.toFixed(2)}`, success: true }
+
+    const displayValue = type === 'percent' ? `${value}%` : `R$ ${value.toFixed(2)}`
+    return { message: `Desconto de ${displayValue} aplicado! Valor final: R$ ${finalPrice.toFixed(2)}`, success: true }
 }

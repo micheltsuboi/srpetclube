@@ -285,13 +285,36 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
     revalidatePath('/owner/packages')
 }
 
-export async function applyPackageDiscount(id: string, percent: number, basePrice: number) {
+export async function applyPackageDiscount(id: string, value: number, type: 'percent' | 'fixed', basePrice: number) {
     const supabase = await createClient()
-    const discountValue = (basePrice * percent) / 100
-    const finalPrice = basePrice - discountValue
-    await supabase.from('customer_packages').update({ discount_percent: percent, total_paid: finalPrice }).eq('id', id)
+
+    let finalPrice: number
+    let discountPercent: number
+
+    if (type === 'percent') {
+        if (value < 0 || value > 100) return { message: 'Desconto deve ser entre 0% e 100%.', success: false }
+        discountPercent = value
+        const discountAmount = (basePrice * discountPercent) / 100
+        finalPrice = basePrice - discountAmount
+    } else {
+        if (value < 0 || value > basePrice) return { message: 'Desconto não pode ser maior que o valor base.', success: false }
+        finalPrice = basePrice - value
+        discountPercent = basePrice > 0 ? (value / basePrice) * 100 : 0
+    }
+
+    const { error } = await supabase
+        .from('customer_packages')
+        .update({
+            discount_percent: parseFloat(discountPercent.toFixed(2)),
+            total_paid: parseFloat(finalPrice.toFixed(2))
+        })
+        .eq('id', id)
+
+    if (error) return { message: error.message, success: false }
+
     revalidatePath('/owner/pets')
     revalidatePath('/owner/packages')
+    return { success: true, message: 'Desconto aplicado com sucesso!' }
 }
 
 // Nova função para vender pacote direto para um pet (atalho)
