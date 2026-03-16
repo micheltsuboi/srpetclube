@@ -655,7 +655,7 @@ function PetsContent() {
                                                     </select>
                                                 </div>
                                                 <div className={styles.formGroup}>
-                                                    <label htmlFor="birthDate" className={styles.label}>Data de Nascimento</label>
+                                                    <label htmlFor="birthDate" className={styles.label}>Data de Nascimento (Opcional)</label>
                                                     <input id="birthDate" name="birthDate" type="date" className={styles.input} defaultValue={selectedPet?.birth_date || ''} />
                                                 </div>
                                                 <div className={styles.formGroup}>

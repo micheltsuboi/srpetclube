@@ -92,7 +92,7 @@ export default function PetRegistrationModal({ onClose, onSuccess }: { onClose: 
                     </div>
 
                     <div className={styles.formGroup}>
-                        <label className={styles.label}>Data de Nascimento</label>
+                        <label className={styles.label}>Data de Nascimento (Opcional)</label>
                         <input name="birthDate" type="date" className={styles.input} />
                     </div>
 
