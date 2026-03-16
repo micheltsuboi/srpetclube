@@ -342,7 +342,7 @@ export default function ServicesPage() {
 
                                     <div className={styles.inputGroup}>
                                         <label className={styles.label}>Descrição</label>
-                                        <textarea name="description" className={styles.input} defaultValue={selectedService?.description || ''} rows={4} placeholder="Breve descrição do serviço..." />
+                                        <textarea name="description" className={styles.textarea} defaultValue={selectedService?.description || ''} rows={4} placeholder="Breve descrição do serviço..." />
                                     </div>
                                 </div>
 
