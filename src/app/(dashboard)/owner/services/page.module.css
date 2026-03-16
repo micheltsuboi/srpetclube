@@ -1,5 +1,6 @@
 .container {
     padding: 1.5rem;
+    font-family: var(--font-montserrat), sans-serif;
 }
 
 .header {
@@ -31,6 +32,7 @@
     cursor: pointer;
     transition: all 0.3s;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    font-family: inherit;
 }
 
 .addBtn:hover {
@@ -55,6 +57,7 @@
     outline: none;
     transition: all 0.2s;
     backdrop-filter: blur(5px);
+    font-family: inherit;
 }
 
 .searchInput:focus {
@@ -128,6 +131,7 @@
     margin-top: auto;
     transition: all 0.2s;
     font-weight: 600;
+    font-family: inherit;
 }
 
 .editBtn:hover {
@@ -162,6 +166,7 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 30px 60px rgba(0, 0, 0, 0.5);
     position: relative;
+    font-family: var(--font-montserrat), sans-serif;
 }
 
 .modalHeader {
@@ -238,6 +243,7 @@
     width: 100%;
     transition: all 0.2s;
     font-size: 0.95rem;
+    font-family: inherit;
 }
 
 .input:focus,
@@ -256,6 +262,7 @@
     font-weight: 700;
     cursor: pointer;
     transition: all 0.3s;
+    font-family: inherit;
 }
 
 .submitBtn:hover {
@@ -271,6 +278,7 @@
     border-radius: 12px;
     font-weight: 700;
     cursor: pointer;
+    font-family: inherit;
 }
 
 .deleteServiceBtn {
@@ -282,6 +290,7 @@
     font-weight: 700;
     cursor: pointer;
     margin-right: auto;
+    font-family: inherit;
 }
 
 .modalActions {
@@ -308,6 +317,7 @@
     font-weight: 600;
     cursor: pointer;
     white-space: nowrap;
+    font-family: inherit;
 }
 
 .checkboxGroup {
@@ -322,6 +332,7 @@
     font-size: 0.9rem;
     color: #e2e8f0;
     cursor: pointer;
+    font-family: inherit;
 }
 
 .tagsContainer {
@@ -339,6 +350,7 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    font-family: inherit;
 }
 
 .tagRemove {
@@ -367,6 +379,7 @@
     align-items: center;
     font-size: 0.9rem;
     border: 1px solid #1e293b;
+    font-family: inherit;
 }
 
 .emptyText {
@@ -401,6 +414,7 @@
     border-radius: 8px;
     color: white;
     width: 100%;
+    font-family: inherit;
 }
 
 .deleteBtnSmall {
@@ -413,6 +427,7 @@
     font-size: 0.85rem;
     font-weight: 600;
     transition: all 0.2s;
+    font-family: inherit;
 }
 
 .deleteBtnSmall:hover {
