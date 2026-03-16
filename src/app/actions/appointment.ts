@@ -433,6 +433,8 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
     const time = formData.get('time') as string
     const serviceId = formData.get('serviceId') as string
     const notes = formData.get('notes') as string
+    const checkInDate = formData.get('checkInDate') as string
+    const checkOutDate = formData.get('checkOutDate') as string
 
     if (!id || !date || !time || !serviceId) {
         return { message: 'Dados incompletos.', success: false }
@@ -445,18 +447,24 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
         return { message: 'Data inválida.', success: false }
     }
 
+    const updateData: any = {
+        service_id: serviceId,
+        scheduled_at: scheduledAt,
+        notes: notes || null
+    }
+
+    if (checkInDate) updateData.check_in_date = checkInDate
+    if (checkOutDate) updateData.check_out_date = checkOutDate
+
     const { error } = await supabase
         .from('appointments')
-        .update({
-            service_id: serviceId,
-            scheduled_at: scheduledAt,
-            notes: notes || null
-        })
+        .update(updateData)
         .eq('id', id)
 
     if (error) return { message: error.message, success: false }
 
     revalidatePath('/owner/agenda')
+    revalidatePath('/owner/hospedagem')
     return { message: 'Agendamento atualizado!', success: true }
 }
 
