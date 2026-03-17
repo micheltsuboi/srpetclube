@@ -65,6 +65,7 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
     }
 
     const photo_url = formData.get('photo_url') as string
+    const vaccine_card_url = formData.get('vaccine_card_url') as string
     const isAdapted = formData.get('is_adapted') === 'on'
 
     const { error } = await supabaseAdmin
@@ -83,6 +84,7 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
             responsible2_name: responsible2_name || null,
             responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null,
+            vaccine_card_url: vaccine_card_url || null,
             is_adapted: isAdapted,
             color: color || null,
             characteristics: characteristics || null
@@ -119,6 +121,7 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
     const responsible2_name = formData.get('responsible2_name') as string
     const responsible2_phone = formData.get('responsible2_phone') as string
     const photo_url = formData.get('photo_url') as string
+    const vaccine_card_url = formData.get('vaccine_card_url') as string
     const isAdapted = formData.get('is_adapted') === 'on'
     const color = formData.get("color") as string;
     const characteristics = formData.get("characteristics") as string;
@@ -142,6 +145,7 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
             responsible2_name: responsible2_name || null,
             responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null,
+            vaccine_card_url: vaccine_card_url || null,
             is_adapted: isAdapted,
             color: color || null,
             characteristics: characteristics || null
@@ -215,6 +219,7 @@ export async function createPetByTutor(prevState: CreatePetState, formData: Form
     const responsible2_name = formData.get('responsible2_name') as string
     const responsible2_phone = formData.get('responsible2_phone') as string
     const photo_url = formData.get('photo_url') as string
+    const vaccine_card_url = formData.get('vaccine_card_url') as string
     const color = formData.get("color") as string;
     const characteristics = formData.get("characteristics") as string;
 
@@ -241,6 +246,7 @@ export async function createPetByTutor(prevState: CreatePetState, formData: Form
             responsible2_name: responsible2_name || null,
             responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null,
+            vaccine_card_url: vaccine_card_url || null,
             color: color || null,
             characteristics: characteristics || null
         })
@@ -296,3 +302,21 @@ export async function togglePetAdaptation(petId: string, isAdapted: boolean) {
     return { message: 'Status de adaptação atualizado!', success: true }
 }
 
+export async function updatePetVaccineCard(petId: string, url: string | null) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { message: 'Não autorizado.', success: false }
+
+    const supabaseAdmin = createAdminClient()
+    const { error } = await supabaseAdmin
+        .from('pets')
+        .update({ vaccine_card_url: url })
+        .eq('id', petId)
+
+    if (error) {
+        return { message: `Erro ao atualizar carteira: ${error.message}`, success: false }
+    }
+
+    revalidatePath('/owner/pets')
+    return { message: 'Carteira de vacinação atualizada!', success: true }
+}

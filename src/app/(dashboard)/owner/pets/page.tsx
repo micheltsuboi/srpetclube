@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
-import { createPet, updatePet, deletePet } from '@/app/actions/pet'
+import { createPet, updatePet, deletePet, updatePetVaccineCard } from '@/app/actions/pet'
 import { sellPackageToPet, getPetPackagesWithUsage, deleteCustomerPackage } from '@/app/actions/package'
 import { getPetAssessment } from '@/app/actions/petAssessment'
 import { getPetAppointmentsByCategory as getPetAppointments } from '@/app/actions/appointment'
@@ -35,6 +35,7 @@ interface Pet {
     customer_id: string
     customers: { id: string, name: string, phone_1: string | null } | null
     photo_url?: string | null
+    vaccine_card_url?: string | null
     is_adapted?: boolean
     color?: string | null
     characteristics?: string | null
@@ -88,6 +89,7 @@ function PetsContent() {
     const [updateState, updateAction, isUpdatePending] = useActionState(updatePet, initialState)
     const [responsible2Phone, setResponsible2Phone] = useState('')
     const [selectedCustomerId, setSelectedCustomerId] = useState('')
+    const [expandedVaccineCard, setExpandedVaccineCard] = useState<string | null>(null)
 
     const isPending = isCreatePending || isUpdatePending
 
@@ -178,7 +180,7 @@ function PetsContent() {
                 .from('pets')
                 .select(`
                     id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
-                    existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, is_adapted,
+                    existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_url, is_adapted,
                     color, characteristics,
                     customers ( id, name, phone_1 )
                 `)
@@ -582,6 +584,7 @@ function PetsContent() {
                                                         circle={true}
                                                     />
                                                     <input type="hidden" id="photo_url_input" name="photo_url" defaultValue={selectedPet?.photo_url || ''} />
+                                                    <input type="hidden" id="vaccine_card_url_input" name="vaccine_card_url" defaultValue={selectedPet?.vaccine_card_url || ''} />
                                                 </div>
 
                                                 <div className={`${styles.formGroup} ${styles.fullWidth}`}>
@@ -713,6 +716,53 @@ function PetsContent() {
                                     <div style={{ padding: '1rem' }}>
                                         {selectedPet ? (
                                             <>
+                                                {/* Upload da Carteira (Foto) */}
+                                                <div style={{ marginBottom: '1.5rem', padding: '1.2rem', background: 'var(--bg-tertiary)', borderRadius: '12px', border: '1px dashed var(--border)' }}>
+                                                    <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: '600' }}>📄 Carteira de Vacinação (Foto/PDF)</h4>
+                                                    <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                        Para pets que ainda não possuem todas as vacinas individualmente registradas abaixo.
+                                                    </p>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
+                                                        <ImageUpload
+                                                            bucket="pets"
+                                                            url={selectedPet.vaccine_card_url}
+                                                            onUpload={async (url) => {
+                                                                const res = await updatePetVaccineCard(selectedPet.id, url)
+                                                                if (res.success) {
+                                                                    setSelectedPet({ ...selectedPet, vaccine_card_url: url })
+                                                                    const input = document.getElementById('vaccine_card_url_input') as HTMLInputElement;
+                                                                    if (input) input.value = url;
+                                                                    fetchData()
+                                                                } else {
+                                                                    alert(res.message)
+                                                                }
+                                                            }}
+                                                            onRemove={async () => {
+                                                                if (confirm('Deseja realmente remover a foto da carteira?')) {
+                                                                    const res = await updatePetVaccineCard(selectedPet.id, null)
+                                                                    if (res.success) {
+                                                                        setSelectedPet({ ...selectedPet, vaccine_card_url: null })
+                                                                        const input = document.getElementById('vaccine_card_url_input') as HTMLInputElement;
+                                                                        if (input) input.value = '';
+                                                                        fetchData()
+                                                                    } else {
+                                                                        alert(res.message)
+                                                                    }
+                                                                }
+                                                            }}
+                                                            label=""
+                                                        />
+                                                        {selectedPet.vaccine_card_url && (
+                                                            <div
+                                                                onClick={() => setExpandedVaccineCard(selectedPet.vaccine_card_url!)}
+                                                                style={{ cursor: 'zoom-in', color: 'var(--accent)', fontWeight: '500', fontSize: '0.9rem', padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.05)', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                                                            >
+                                                                🔍 Clique na imagem para ampliar
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
                                                 {/* Form to add new vaccine */}
                                                 <div style={{ marginBottom: '1.5rem', padding: '1rem', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
                                                     <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.9rem' }}>Adicionar Nova Vacina</h4>
@@ -1334,6 +1384,35 @@ function PetsContent() {
                         <button type="button" className={styles.cancelBtn} onClick={() => setShowModal(false)}>
                             Fechar
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Lighbox para Foto da Carteira */}
+            {expandedVaccineCard && (
+                <div
+                    className={styles.modalOverlay}
+                    style={{ zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={() => setExpandedVaccineCard(null)}
+                >
+                    <div
+                        style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <button
+                            onClick={() => setExpandedVaccineCard(null)}
+                            style={{ position: 'absolute', top: '-50px', right: '0', background: 'none', border: 'none', color: 'white', fontSize: '3rem', cursor: 'pointer', lineHeight: '1' }}
+                        >
+                            &times;
+                        </button>
+                        <img
+                            src={expandedVaccineCard}
+                            alt="Carteira de Vacinação Ampliada"
+                            style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
+                        />
+                        <p style={{ color: 'white', marginTop: '1rem', fontStyle: 'italic', background: 'rgba(0,0,0,0.5)', padding: '0.5rem 1.5rem', borderRadius: '20px' }}>
+                            Carteira de Vacinação - {selectedPet?.name}
+                        </p>
                     </div>
                 </div>
             )}
