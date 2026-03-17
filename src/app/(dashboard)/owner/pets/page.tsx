@@ -35,7 +35,7 @@ interface Pet {
     customer_id: string
     customers: { id: string, name: string, phone_1: string | null } | null
     photo_url?: string | null
-    vaccine_card_url?: string | null
+    vaccine_card_urls?: string[] | null
     is_adapted?: boolean
     color?: string | null
     characteristics?: string | null
@@ -180,7 +180,7 @@ function PetsContent() {
                 .from('pets')
                 .select(`
                     id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
-                    existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_url, is_adapted,
+                    existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
                     color, characteristics,
                     customers ( id, name, phone_1 )
                 `)
@@ -584,7 +584,7 @@ function PetsContent() {
                                                         circle={true}
                                                     />
                                                     <input type="hidden" id="photo_url_input" name="photo_url" defaultValue={selectedPet?.photo_url || ''} />
-                                                    <input type="hidden" id="vaccine_card_url_input" name="vaccine_card_url" defaultValue={selectedPet?.vaccine_card_url || ''} />
+                                                    <input type="hidden" id="vaccine_card_urls_input" name="vaccine_card_urls" defaultValue={JSON.stringify(selectedPet?.vaccine_card_urls || [])} />
                                                 </div>
 
                                                 <div className={`${styles.formGroup} ${styles.fullWidth}`}>
@@ -717,50 +717,82 @@ function PetsContent() {
                                         {selectedPet ? (
                                             <>
                                                 {/* Upload da Carteira (Foto) */}
-                                                <div style={{ marginBottom: '1.5rem', padding: '1.2rem', background: 'var(--bg-tertiary)', borderRadius: '12px', border: '1px dashed var(--border)' }}>
-                                                    <h4 style={{ margin: '0 0 1rem 0', fontSize: '1rem', fontWeight: '600' }}>📄 Carteira de Vacinação (Foto/PDF)</h4>
-                                                    <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                                                        Para pets que ainda não possuem todas as vacinas individualmente registradas abaixo.
-                                                    </p>
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center' }}>
-                                                        <ImageUpload
-                                                            bucket="pets"
-                                                            url={selectedPet.vaccine_card_url}
-                                                            onUpload={async (url) => {
-                                                                const res = await updatePetVaccineCard(selectedPet.id, url)
-                                                                if (res.success) {
-                                                                    setSelectedPet({ ...selectedPet, vaccine_card_url: url })
-                                                                    const input = document.getElementById('vaccine_card_url_input') as HTMLInputElement;
-                                                                    if (input) input.value = url;
-                                                                    fetchData()
-                                                                } else {
-                                                                    alert(res.message)
-                                                                }
-                                                            }}
-                                                            onRemove={async () => {
-                                                                if (confirm('Deseja realmente remover a foto da carteira?')) {
-                                                                    const res = await updatePetVaccineCard(selectedPet.id, null)
-                                                                    if (res.success) {
-                                                                        setSelectedPet({ ...selectedPet, vaccine_card_url: null })
-                                                                        const input = document.getElementById('vaccine_card_url_input') as HTMLInputElement;
-                                                                        if (input) input.value = '';
-                                                                        fetchData()
-                                                                    } else {
-                                                                        alert(res.message)
-                                                                    }
-                                                                }
-                                                            }}
-                                                            label=""
-                                                        />
-                                                        {selectedPet.vaccine_card_url && (
-                                                            <div
-                                                                onClick={() => setExpandedVaccineCard(selectedPet.vaccine_card_url!)}
-                                                                style={{ cursor: 'zoom-in', color: 'var(--accent)', fontWeight: '500', fontSize: '0.9rem', padding: '0.5rem 1rem', background: 'rgba(0,0,0,0.05)', borderRadius: '20px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-                                                            >
-                                                                🔍 Clique na imagem para ampliar
-                                                            </div>
-                                                        )}
+                                                <div style={{ marginBottom: '1.5rem', padding: '1.5rem', background: 'var(--bg-tertiary)', borderRadius: '12px', border: '1px dashed var(--border)' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                                        <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700' }}>📄 Carteira de Vacinação (Galeria)</h4>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', padding: '4px 10px', borderRadius: '12px' }}>
+                                                            {selectedPet.vaccine_card_urls?.length || 0} fotos salvas
+                                                        </span>
                                                     </div>
+
+                                                    <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                                                        Adicione fotos de todas as páginas da carteira de vacinação do pet para backup e consulta rápida.
+                                                    </p>
+
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                                                        {selectedPet.vaccine_card_urls?.map((url, index) => (
+                                                            <div key={index} style={{ position: 'relative', aspectRatio: '3/4', borderRadius: '8px', overflow: 'hidden', border: '2px solid var(--border)', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+                                                                <img
+                                                                    src={url}
+                                                                    alt={`Página ${index + 1}`}
+                                                                    style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'zoom-in' }}
+                                                                    onClick={() => setExpandedVaccineCard(url)}
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={async () => {
+                                                                        if (confirm('Deseja remover esta página da carteira?')) {
+                                                                            const newUrls = selectedPet.vaccine_card_urls!.filter((_, i) => i !== index);
+                                                                            const res = await updatePetVaccineCard(selectedPet.id, newUrls);
+                                                                            if (res.success) {
+                                                                                setSelectedPet({ ...selectedPet, vaccine_card_urls: newUrls });
+                                                                                const input = document.getElementById('vaccine_card_urls_input') as HTMLInputElement;
+                                                                                if (input) input.value = JSON.stringify(newUrls);
+                                                                                fetchData();
+                                                                            }
+                                                                        }
+                                                                    }}
+                                                                    style={{ position: 'absolute', top: '4px', right: '4px', padding: '4px', background: 'rgba(239, 68, 68, 0.9)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', display: 'flex' }}
+                                                                >
+                                                                    <span style={{ fontSize: '14px', lineHeight: '1' }}>&times;</span>
+                                                                </button>
+                                                                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, background: 'rgba(0,0,0,0.5)', color: 'white', fontSize: '10px', textAlign: 'center', padding: '2px' }}>
+                                                                    Pág {index + 1}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+
+                                                        {/* Botão de Adicionar Mais */}
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                            <ImageUpload
+                                                                bucket="pets"
+                                                                onUpload={async (url) => {
+                                                                    const currentUrls = selectedPet.vaccine_card_urls || [];
+                                                                    const newUrls = [...currentUrls, url];
+                                                                    const res = await updatePetVaccineCard(selectedPet.id, newUrls);
+                                                                    if (res.success) {
+                                                                        setSelectedPet({ ...selectedPet, vaccine_card_urls: newUrls });
+                                                                        const input = document.getElementById('vaccine_card_urls_input') as HTMLInputElement;
+                                                                        if (input) input.value = JSON.stringify(newUrls);
+                                                                        fetchData();
+                                                                    } else {
+                                                                        alert(res.message);
+                                                                    }
+                                                                }}
+                                                                onRemove={() => { }}
+                                                                label=""
+                                                            />
+                                                            <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--accent)', fontWeight: '600' }}>Adicionar Página</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {selectedPet.vaccine_card_urls && selectedPet.vaccine_card_urls.length > 0 && (
+                                                        <div style={{ textAlign: 'center', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                                💡 Clique em uma imagem para ver detalhes ampliado.
+                                                            </span>
+                                                        </div>
+                                                    )}
                                                 </div>
 
                                                 {/* Form to add new vaccine */}
@@ -1388,31 +1420,67 @@ function PetsContent() {
                 </div>
             )}
 
-            {/* Lighbox para Foto da Carteira */}
+            {/* Lighbox para Foto da Carteira (Galeria Navegável) */}
             {expandedVaccineCard && (
                 <div
                     className={styles.modalOverlay}
-                    style={{ zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    style={{ zIndex: 9999, backgroundColor: 'rgba(0,0,0,0.92)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     onClick={() => setExpandedVaccineCard(null)}
                 >
                     <div
-                        style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
+                        style={{ position: 'relative', width: '95vw', height: '95vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}
                         onClick={e => e.stopPropagation()}
                     >
                         <button
                             onClick={() => setExpandedVaccineCard(null)}
-                            style={{ position: 'absolute', top: '-50px', right: '0', background: 'none', border: 'none', color: 'white', fontSize: '3rem', cursor: 'pointer', lineHeight: '1' }}
+                            style={{ position: 'absolute', top: '20px', right: '20px', background: 'rgba(0,0,0,0.5)', border: 'none', color: 'white', fontSize: '2.5rem', cursor: 'pointer', lineHeight: '1', width: '50px', height: '50px', borderRadius: '50%', zIndex: 10 }}
                         >
                             &times;
                         </button>
+
+                        {selectedPet?.vaccine_card_urls && selectedPet.vaccine_card_urls.length > 1 && (
+                            <>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const currentIndex = selectedPet.vaccine_card_urls!.indexOf(expandedVaccineCard);
+                                        const prevIndex = (currentIndex - 1 + selectedPet.vaccine_card_urls!.length) % selectedPet.vaccine_card_urls!.length;
+                                        setExpandedVaccineCard(selectedPet.vaccine_card_urls![prevIndex]);
+                                    }}
+                                    style={{ position: 'absolute', left: '20px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', fontSize: '3rem', cursor: 'pointer', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.3s' }}
+                                    onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
+                                    onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                                >
+                                    ‹
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        const currentIndex = selectedPet.vaccine_card_urls!.indexOf(expandedVaccineCard);
+                                        const nextIndex = (currentIndex + 1) % selectedPet.vaccine_card_urls!.length;
+                                        setExpandedVaccineCard(selectedPet.vaccine_card_urls![nextIndex]);
+                                    }}
+                                    style={{ position: 'absolute', right: '20px', top: '50%', transform: 'translateY(-50%)', background: 'rgba(255,255,255,0.1)', border: 'none', color: 'white', fontSize: '3rem', cursor: 'pointer', width: '60px', height: '60px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.3s' }}
+                                    onMouseOver={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
+                                    onMouseOut={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+                                >
+                                    ›
+                                </button>
+                            </>
+                        )}
+
                         <img
                             src={expandedVaccineCard}
                             alt="Carteira de Vacinação Ampliada"
-                            style={{ maxWidth: '100%', maxHeight: '85vh', objectFit: 'contain', borderRadius: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}
+                            style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 10px 40px rgba(0,0,0,0.8)' }}
                         />
-                        <p style={{ color: 'white', marginTop: '1rem', fontStyle: 'italic', background: 'rgba(0,0,0,0.5)', padding: '0.5rem 1.5rem', borderRadius: '20px' }}>
-                            Carteira de Vacinação - {selectedPet?.name}
-                        </p>
+
+                        <div style={{ color: 'white', marginTop: '1.5rem', textAlign: 'center' }}>
+                            <div style={{ fontSize: '1.2rem', fontWeight: '600' }}>{selectedPet?.name}</div>
+                            <div style={{ fontSize: '0.9rem', opacity: 0.8, marginTop: '4px' }}>
+                                Página {selectedPet?.vaccine_card_urls ? selectedPet.vaccine_card_urls.indexOf(expandedVaccineCard) + 1 : 0} de {selectedPet?.vaccine_card_urls?.length || 0}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
