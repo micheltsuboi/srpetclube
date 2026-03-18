@@ -1125,3 +1125,70 @@
     font-size: 0.75rem;
     color: var(--text-secondary);
 }
+/* Quick Actions in Cards and Pills */
+.cardTopActions {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.quickEditBtn, .quickDeleteBtn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    border-radius: 6px;
+    padding: 0.35rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-primary);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.quickEditBtn:hover {
+    background: var(--primary);
+    transform: scale(1.1);
+    color: white;
+}
+
+.quickDeleteBtn:hover {
+    background: #ef4444;
+    transform: scale(1.1);
+    color: white;
+}
+
+.pillActions {
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;
+    gap: 2px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 2px 4px;
+    border-radius: 4px;
+    z-index: 10;
+}
+
+.weekEventPill:hover .pillActions,
+.monthEventDot:hover .pillActions {
+    display: flex;
+}
+
+.quickPillBtn {
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    font-size: 0.7rem;
+    line-height: 1;
+}
+
+.quickPillBtn:hover {
+    transform: scale(1.2);
+}

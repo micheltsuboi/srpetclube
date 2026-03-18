@@ -447,10 +447,12 @@ export default function AgendaPage() {
         setShowDetailModal(true)
     }
 
-    const handleDelete = async () => {
-        if (!selectedAppointment) return
+    const handleDelete = async (id?: string) => {
+        const appointmentId = id || selectedAppointment?.id
+        if (!appointmentId) return
+        
         if (confirm('Tem certeza que deseja cancelar este agendamento?')) {
-            const res = await deleteAppointment(selectedAppointment.id)
+            const res = await deleteAppointment(appointmentId)
             if (res.success) {
                 setShowDetailModal(false)
                 fetchData()
@@ -588,6 +590,10 @@ export default function AgendaPage() {
                     {appt.actual_check_in && !appt.actual_check_out && (
                         <button className={styles.actionBtn} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'checkout') }}>Saída ⬅️</button>
                     )}
+                    <div className={styles.cardTopActions}>
+                        <button className={styles.quickEditBtn} onClick={(e) => { e.stopPropagation(); setEditingAppointment(appt); }} title="Editar">✏️</button>
+                        <button className={styles.quickDeleteBtn} onClick={(e) => { e.stopPropagation(); handleDelete(appt.id); }} title="Excluir">🗑️</button>
+                    </div>
                     <button className={styles.detailBtn} onClick={(e) => { e.stopPropagation(); handleOpenDetail(appt) }}>Detalhes</button>
                 </div>
             </div>
@@ -769,6 +775,10 @@ export default function AgendaPage() {
                                                 title={`${petName} - ${appt.services?.name}`}
                                             >
                                                 {petName}
+                                                <div className={styles.pillActions}>
+                                                    <button className={styles.quickPillBtn} onClick={(e) => { e.stopPropagation(); setEditingAppointment(appt); }}>✏️</button>
+                                                    <button className={styles.quickPillBtn} onClick={(e) => { e.stopPropagation(); handleDelete(appt.id); }}>🗑️</button>
+                                                </div>
                                             </div>
                                         )
                                     })}
@@ -831,6 +841,10 @@ export default function AgendaPage() {
                                         title={`${petName} - ${appt.services?.name}`}
                                     >
                                         {petName}
+                                        <div className={styles.pillActions}>
+                                            <button className={styles.quickPillBtn} onClick={(e) => { e.stopPropagation(); setEditingAppointment(appt); }}>✏️</button>
+                                            <button className={styles.quickPillBtn} onClick={(e) => { e.stopPropagation(); handleDelete(appt.id); }}>🗑️</button>
+                                        </div>
                                     </div>
                                 )
                             })}
@@ -1133,7 +1147,7 @@ export default function AgendaPage() {
                                         setEditingAppointment(selectedAppointment)
                                         setShowDetailModal(false)
                                     }}>✏️ Editar</button>
-                                    <button className={styles.deleteBtnSmall} onClick={handleDelete}>🗑️ Cancelar</button>
+                                    <button className={styles.deleteBtnSmall} onClick={() => handleDelete()}>🗑️ Cancelar</button>
                                 </div>
                             </div>
 
