@@ -442,13 +442,23 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
 
     let scheduledAt: string
     try {
-        scheduledAt = new Date(`${date}T${time}:00-03:00`).toISOString()
+        // Ensure time is in HH:MM format (removing seconds if they came from toLocaleTimeString)
+        const cleanTime = time.slice(0, 5)
+        scheduledAt = new Date(`${date}T${cleanTime}:00-03:00`).toISOString()
     } catch (_) {
         return { message: 'Data inválida.', success: false }
     }
 
+    // Fetch service category
+    const { data: serviceData } = await supabase
+        .from('services')
+        .select('category_id')
+        .eq('id', serviceId)
+        .single()
+
     const updateData: any = {
         service_id: serviceId,
+        service_category_id: serviceData?.category_id,
         scheduled_at: scheduledAt,
         notes: notes || null
     }

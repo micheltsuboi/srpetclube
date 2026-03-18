@@ -19,8 +19,9 @@ import {
     createScheduleBlock,
     deleteScheduleBlock
 } from '@/app/actions/schedule'
-import { format } from 'date-fns'
+import DateRangeFilter, { DateRange, getDateRange } from '@/components/DateRangeFilter'
 import PaymentControls from '@/components/PaymentControls'
+import EditAppointmentModal from '@/components/EditAppointmentModal'
 
 interface Customer {
     name: string
@@ -136,6 +137,7 @@ export default function AgendaPage() {
     const [preSelectedServiceId, setPreSelectedServiceId] = useState<string | null>(null)
     const [selectedServiceId, setSelectedServiceId] = useState<string>('')
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
+    const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
     const [isEditing, setIsEditing] = useState(false)
 
     // Checklist State
@@ -150,7 +152,6 @@ export default function AgendaPage() {
 
     // Actions
     const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
-    const [updateState, updateAction, isUpdatePending] = useActionState(updateAppointment, initialState)
     const [blockState, blockAction, isBlockPending] = useActionState(createScheduleBlock, initialState)
 
     // Debug state change
@@ -1126,89 +1127,17 @@ export default function AgendaPage() {
                 <div className={styles.modalOverlay} onClick={() => setShowDetailModal(false)}>
                     <div className={styles.modal} onClick={e => e.stopPropagation()}>
                         <div className={styles.modalHeader}>
-                            <h2 className={styles.modalTitle}>{isEditing ? 'Editar Agendamento' : 'Detalhes do Agendamento'}</h2>
-                            {!isEditing && (
-                                <div className={styles.modalTools}>
-                                    <button className={styles.editBtnSmall} onClick={() => setIsEditing(true)}>✏️ Editar</button>
+                            <h2 className={styles.modalTitle}>Detalhes do Agendamento</h2>
+                            <div className={styles.modalTools}>
+                                    <button className={styles.editBtnSmall} onClick={() => {
+                                        setEditingAppointment(selectedAppointment)
+                                        setShowDetailModal(false)
+                                    }}>✏️ Editar</button>
                                     <button className={styles.deleteBtnSmall} onClick={handleDelete}>🗑️ Cancelar</button>
                                 </div>
-                            )}
-                        </div>
+                            </div>
 
-                        {isEditing ? (
-                            <form action={updateAction}>
-                                <input type="hidden" name="id" value={selectedAppointment.id} />
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Serviço</label>
-                                    <select
-                                        name="serviceId"
-                                        className={styles.select}
-                                        defaultValue={selectedAppointment.service_id}
-                                        onChange={(e) => {
-                                            // Force re-render to update isHospedagem logic
-                                            const appt = { ...selectedAppointment, service_id: e.target.value }
-                                            setSelectedAppointment(appt as any)
-                                        }}
-                                    >
-                                        {services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                                    </select>
-                                </div>
-
-                                {(() => {
-                                    const selectedService = services.find(s => s.id === selectedAppointment.service_id)
-                                    const categoryName = selectedService?.service_categories?.name || ''
-                                    const isHospedagem = categoryName.toLowerCase().includes('hospedagem') || categoryName.toLowerCase().includes('hotel')
-
-                                    if (isHospedagem) {
-                                        return (
-                                            <div className={styles.row}>
-                                                <div className={styles.formGroup}>
-                                                    <label className={styles.label}>Check-in</label>
-                                                    <input
-                                                        name="checkInDate"
-                                                        type="date"
-                                                        className={styles.input}
-                                                        defaultValue={selectedAppointment.check_in_date || selectedAppointment.scheduled_at.split('T')[0]}
-                                                    />
-                                                    <input type="hidden" name="date" value={selectedAppointment.scheduled_at.split('T')[0]} />
-                                                    <input type="hidden" name="time" value="14:00" />
-                                                </div>
-                                                <div className={styles.formGroup}>
-                                                    <label className={styles.label}>Check-out</label>
-                                                    <input
-                                                        name="checkOutDate"
-                                                        type="date"
-                                                        className={styles.input}
-                                                        defaultValue={selectedAppointment.check_out_date || ''}
-                                                    />
-                                                </div>
-                                            </div>
-                                        )
-                                    }
-
-                                    return (
-                                        <div className={styles.row}>
-                                            <div className={styles.formGroup}>
-                                                <label className={styles.label}>Data</label>
-                                                <input name="date" type="date" className={styles.input} defaultValue={new Date(selectedAppointment.scheduled_at).toISOString().split('T')[0]} />
-                                            </div>
-                                            <div className={styles.formGroup}>
-                                                <label className={styles.label}>Hora</label>
-                                                <input name="time" type="time" className={styles.input} defaultValue={new Date(selectedAppointment.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} />
-                                            </div>
-                                        </div>
-                                    )
-                                })()}
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Notas</label>
-                                    <textarea name="notes" className={styles.textarea} defaultValue={selectedAppointment.notes || ''} />
-                                </div>
-                                <div className={styles.modalActions}>
-                                    <button type="button" className={styles.cancelBtn} onClick={() => setIsEditing(false)}>Cancelar</button>
-                                    <button type="submit" className={styles.submitBtn} disabled={isUpdatePending}>Salvar</button>
-                                </div>
-                            </form>
-                        ) : (
+                        {selectedAppointment && (
                             <div className={styles.detailContent}>
                                 <div className={styles.detailRow}>
                                     <strong>Pet:</strong> {selectedAppointment.pets?.name} ({selectedAppointment.pets?.species === 'cat' ? 'Gato' : 'Cão'})
@@ -1375,6 +1304,16 @@ export default function AgendaPage() {
                 </div >
             )
             }
+            {editingAppointment && (
+                <EditAppointmentModal
+                    appointment={editingAppointment as any}
+                    onClose={() => setEditingAppointment(null)}
+                    onSave={() => {
+                        fetchData()
+                        setEditingAppointment(null)
+                    }}
+                />
+            )}
         </div >
     )
 }

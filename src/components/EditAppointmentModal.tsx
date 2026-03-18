@@ -189,15 +189,12 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', marginBottom: '0.5rem', color: '#cbd5e1', fontSize: '0.9rem' }}>Hora</label>
-                                    <select
+                                    <input
+                                        type="time"
                                         value={time}
                                         onChange={e => setTime(e.target.value)}
                                         style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white' }}
-                                    >
-                                        {Array.from({ length: 13 }, (_, i) => i + 8).map(h => (
-                                            <option key={h} value={`${h.toString().padStart(2, '0')}:00`}>{h}:00</option>
-                                        ))}
-                                    </select>
+                                    />
                                 </div>
                             </div>
                         )}
