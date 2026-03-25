@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback, useActionState, Suspense } from 'react'
+import { useState, useEffect, useCallback, useActionState, Suspense, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import styles from './page.module.css'
@@ -160,10 +160,19 @@ function PetsContent() {
     const [bathHistory, setBathHistory] = useState<any[]>([])
     const [petshopHistory, setPetshopHistory] = useState<any[]>([])
     const [searchTerm, setSearchTerm] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
 
-    const fetchData = useCallback(async () => {
+    // Debounce search term
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm)
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [searchTerm])
+
+    const fetchData = useCallback(async (isInitial = false) => {
         try {
-            setLoading(true)
+            if (isInitial) setLoading(true)
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
@@ -186,8 +195,8 @@ function PetsContent() {
                 `)
                 .order('name')
 
-            if (searchTerm) {
-                query = query.or(`name.ilike.%${searchTerm}%,breed.ilike.%${searchTerm}%`)
+            if (debouncedSearch) {
+                query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%`)
             } else {
                 query = query.limit(50)
             }
@@ -222,7 +231,7 @@ function PetsContent() {
         } finally {
             setLoading(false)
         }
-    }, [supabase, searchTerm])
+    }, [supabase, debouncedSearch])
 
     // Buscar pacotes do pet quando o accordion muda ou o pet é selecionado
     const fetchPetPackageSummary = useCallback(async () => {
@@ -263,8 +272,11 @@ function PetsContent() {
         }
     }, [selectedPet, accordions.creche, accordions.hotel, accordions.bathGrooming, accordions.petshop])
 
+    const isFirstRender = useRef(true)
+
     useEffect(() => {
-        fetchData()
+        fetchData(isFirstRender.current)
+        if (isFirstRender.current) isFirstRender.current = false
     }, [fetchData])
 
     useEffect(() => {
@@ -281,7 +293,7 @@ function PetsContent() {
         } else if (createState.message) {
             alert(createState.message)
         }
-    }, [createState, fetchData])
+    }, [createState]) // Removido fetchData das dependências para evitar múltiplos alertas ao buscar
 
     // Handle return from Agenda (Re-open modal)
     const searchParams = useSearchParams()
@@ -311,7 +323,7 @@ function PetsContent() {
         } else if (updateState.message) {
             alert(updateState.message)
         }
-    }, [updateState, fetchData])
+    }, [updateState]) // Removido fetchData das dependências para evitar múltiplos alertas ao buscar
 
     const handleRowClick = async (pet: Pet) => {
         setSelectedPet(pet)
@@ -441,7 +453,7 @@ function PetsContent() {
         }
     }
 
-    if (loading) {
+    if (loading && pets.length === 0) {
         return (
             <div className={styles.container} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
                 <div style={{ fontSize: '1.2rem', color: '#666' }}>Carregando pets...</div>
