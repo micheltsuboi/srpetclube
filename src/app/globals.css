@@ -23,6 +23,7 @@
   --color-primary: var(--color-coral);
   --color-primary-hover: var(--color-coral-hover);
   --color-primary-light: var(--color-coral-light);
+  --primary-rgb: 232, 130, 106;
   --color-secondary: var(--color-sky);
   --color-secondary-hover: var(--color-sky-dark);
   --color-accent: var(--color-navy);

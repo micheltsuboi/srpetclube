@@ -191,18 +191,89 @@
 .textarea {
     width: 100%;
     padding: 0.75rem 1rem;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
     color: var(--text-primary);
     font-size: 0.95rem;
+    outline: none;
+    transition: all 0.2s ease;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 1rem;
+    padding-right: 2.5rem;
+}
+
+.select option {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
 }
 
 .input:focus,
 .select:focus,
 .textarea:focus {
-    outline: none;
-    border-color: var(--primary);
+    border-color: var(--color-coral);
+    background: var(--bg-input);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+}
+
+.accordionItem {
+    width: 100%;
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--bg-secondary);
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.accordionHeader {
+    width: 100%;
+    padding: 1rem 1.25rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--bg-secondary);
+    border: none;
+    cursor: pointer;
+    font-weight: 700;
+    color: var(--text-primary);
+    border-radius: 12px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.accordionHeader:hover {
+    background: var(--bg-tertiary);
+    transform: translateY(-1px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+}
+
+.accordionHeader:active {
+    transform: translateY(0);
+}
+
+.accordionContent {
+    padding: 1.25rem;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .modalActions {
@@ -298,7 +369,7 @@
 }
 
 .addPackageSection {
-    background: var(--bg-secondary);
+    background: var(--bg-tertiary);
     padding: 1.25rem;
     border-radius: 12px;
     border: 1px dashed var(--border);
@@ -375,7 +446,7 @@
     text-align: center;
     padding: 3rem;
     color: var(--text-secondary);
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--bg-secondary);
     border-radius: 12px;
     border: 1px solid var(--border);
     font-style: italic;
@@ -422,7 +493,7 @@
 
     .table tr {
         margin-bottom: 1rem;
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+        background: var(--bg-secondary);
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 12px;
         padding: 1rem;

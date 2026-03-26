@@ -124,7 +124,7 @@ export default function ImageUpload({
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {label && <label style={{ fontSize: '0.9rem', fontWeight: 500, color: '#333' }}>{label}</label>}
+            {label && <label style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{label}</label>}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 <div
@@ -132,14 +132,15 @@ export default function ImageUpload({
                         position: 'relative',
                         width: circle ? '100px' : '120px',
                         height: circle ? '100px' : '120px',
-                        borderRadius: circle ? '50%' : '8px',
+                        borderRadius: circle ? '50%' : '12px',
                         overflow: 'hidden',
-                        backgroundColor: '#f0f0f0',
-                        border: '2px dashed #ccc',
+                        backgroundColor: 'var(--bg-secondary)',
+                        border: '2px dashed var(--border)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        transition: 'all 0.2s'
                     }}
                 >
                     {previewUrl ? (
@@ -150,21 +151,22 @@ export default function ImageUpload({
                             style={{ objectFit: 'cover' }}
                         />
                     ) : (
-                        <span style={{ fontSize: '2rem' }}>📷</span>
+                        <span style={{ fontSize: '2rem', opacity: 0.5 }}>📷</span>
                     )}
 
                     {uploading && (
                         <div style={{
                             position: 'absolute',
                             inset: 0,
-                            backgroundColor: 'rgba(255,255,255,0.7)',
+                            backgroundColor: 'rgba(0,0,0,0.6)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: '0.8rem',
-                            fontWeight: 'bold'
+                            fontWeight: 'bold',
+                            backdropFilter: 'blur(4px)'
                         }}>
-                            ...
+                            <div className="animate-spin" style={{ width: '20px', height: '20px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%' }} />
                         </div>
                     )}
                 </div>
@@ -176,14 +178,18 @@ export default function ImageUpload({
                         disabled={uploading}
                         style={{
                             padding: '8px 16px',
-                            backgroundColor: '#0070f3',
+                            backgroundColor: 'var(--color-primary)',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '4px',
+                            borderRadius: '8px',
                             cursor: 'pointer',
                             fontSize: '0.9rem',
-                            fontWeight: 500
+                            fontWeight: 600,
+                            transition: 'all 0.2s',
+                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
                         }}
+                        onMouseOver={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
+                        onMouseOut={(e) => e.currentTarget.style.filter = 'none'}
                     >
                         {uploading ? 'Enviando...' : (previewUrl ? 'Alterar Foto' : 'Selecionar Foto')}
                     </button>
@@ -196,11 +202,18 @@ export default function ImageUpload({
                             style={{
                                 padding: '8px 16px',
                                 backgroundColor: 'transparent',
-                                color: '#d32f2f',
-                                border: '1px solid #d32f2f',
-                                borderRadius: '4px',
+                                color: 'var(--status-canceled)',
+                                border: '1px solid var(--status-canceled)',
+                                borderRadius: '8px',
                                 cursor: 'pointer',
-                                fontSize: '0.9rem'
+                                fontSize: '0.9rem',
+                                transition: 'all 0.2s'
+                            }}
+                            onMouseOver={(e) => {
+                                e.currentTarget.style.backgroundColor = 'rgba(212, 107, 107, 0.1)';
+                            }}
+                            onMouseOut={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
                             }}
                         >
                             Remover

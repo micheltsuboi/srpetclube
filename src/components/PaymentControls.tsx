@@ -95,47 +95,49 @@ export default function PaymentControls({
                 left: 0,
                 width: '100%',
                 height: '100vh',
-                background: 'rgba(0,0,0,0.6)',
+                background: 'rgba(0,0,0,0.85)',
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
                 zIndex: 9999,
-                padding: '1rem'
+                padding: '1rem',
+                backdropFilter: 'blur(8px)'
             }}
         >
             <div
                 onClick={(e) => e.stopPropagation()}
                 style={{
-                    background: 'white',
-                    borderRadius: '12px',
+                    background: 'var(--bg-tertiary)',
+                    borderRadius: '16px',
                     padding: '1.5rem',
                     width: '100%',
                     maxWidth: '400px',
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-                    position: 'relative'
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                    position: 'relative',
+                    border: '1px solid var(--border)'
                 }}
             >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#1e293b' }}>💰 Detalhes do Pagamento</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>💰 Detalhes do Pagamento</h3>
                     <button
                         onClick={() => setShowModal(false)}
-                        style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#64748b' }}
+                        style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}
                     >
                         &times;
                     </button>
                 </div>
 
                 {/* Price Summary */}
-                <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.85rem', fontSize: '0.9rem', color: '#64748b' }}>
+                <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.85rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                         <span>Valor Base:</span>
-                        <span style={{ fontWeight: 600 }}>R$ {basePrice.toFixed(2)}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {basePrice.toFixed(2)}</span>
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.85rem' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.9rem', color: '#64748b' }}>Tipo de Desconto:</span>
-                            <div style={{ display: 'flex', background: '#e2e8f0', borderRadius: '6px', padding: '2px' }}>
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Tipo de Desconto:</span>
+                            <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
                                 <button
                                     onClick={() => setDiscountType('percent')}
                                     disabled={isPaid}
@@ -145,9 +147,8 @@ export default function PaymentControls({
                                         borderRadius: '4px',
                                         border: 'none',
                                         cursor: 'pointer',
-                                        background: discountType === 'percent' ? 'white' : 'transparent',
-                                        boxShadow: discountType === 'percent' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
-                                        color: discountType === 'percent' ? '#1e293b' : '#64748b',
+                                        background: discountType === 'percent' ? 'var(--primary)' : 'transparent',
+                                        color: 'white',
                                         fontWeight: discountType === 'percent' ? 600 : 400
                                     }}
                                 >
@@ -162,9 +163,8 @@ export default function PaymentControls({
                                         borderRadius: '4px',
                                         border: 'none',
                                         cursor: 'pointer',
-                                        background: discountType === 'fixed' ? 'white' : 'transparent',
-                                        boxShadow: discountType === 'fixed' ? '0 1px 2px rgba(0,0,0,0.1)' : 'none',
-                                        color: discountType === 'fixed' ? '#1e293b' : '#64748b',
+                                        background: discountType === 'fixed' ? 'var(--primary)' : 'transparent',
+                                        color: 'white',
                                         fontWeight: discountType === 'fixed' ? 600 : 400
                                     }}
                                 >
@@ -174,10 +174,10 @@ export default function PaymentControls({
                         </div>
 
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.9rem', color: '#64748b' }}>Valor:</span>
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Valor:</span>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                    {discountType === 'fixed' && <span style={{ position: 'absolute', left: '8px', fontSize: '0.85rem', color: '#64748b' }}>R$</span>}
+                                    {discountType === 'fixed' && <span style={{ position: 'absolute', left: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>R$</span>}
                                     <input
                                         type="number"
                                         value={discountValue}
@@ -189,12 +189,14 @@ export default function PaymentControls({
                                             width: '80px',
                                             padding: `6px 8px 6px ${discountType === 'fixed' ? '24px' : '8px'}`,
                                             borderRadius: '6px',
-                                            border: '1px solid #e2e8f0',
+                                            border: '1px solid var(--border)',
+                                            background: 'var(--bg-primary)',
+                                            color: 'var(--text-primary)',
                                             textAlign: 'right',
                                             fontSize: '0.85rem'
                                         }}
                                     />
-                                    {discountType === 'percent' && <span style={{ marginLeft: '4px', fontSize: '0.85rem', color: '#64748b' }}>%</span>}
+                                    {discountType === 'percent' && <span style={{ marginLeft: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>%</span>}
                                 </div>
                                 {!isPaid && (
                                     <button
@@ -206,7 +208,7 @@ export default function PaymentControls({
                                         style={{
                                             fontSize: '0.75rem',
                                             padding: '4px 12px',
-                                            background: '#3b82f6',
+                                            background: 'var(--primary)',
                                             color: 'white',
                                             border: 'none',
                                             borderRadius: '6px',
@@ -222,13 +224,13 @@ export default function PaymentControls({
                     </div>
 
                     {discountPercent && discountPercent > 0 ? (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#ef4444' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--status-canceled)' }}>
                             <span>Desconto aplicado:</span>
                             <span>- R$ {(basePrice - displayPrice).toFixed(2)}</span>
                         </div>
                     ) : null}
 
-                    <div style={{ borderTop: '1px solid #e2e8f0', marginTop: '0.5rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1rem', color: '#1e293b' }}>
+                    <div style={{ borderTop: '1px solid var(--border)', marginTop: '0.5rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1rem', color: 'var(--text-primary)' }}>
                         <span>Total Final:</span>
                         <span>R$ {parseFloat(displayPrice.toFixed(2)).toFixed(2)}</span>
                     </div>
@@ -239,8 +241,8 @@ export default function PaymentControls({
                     {isPaid ? (
                         <div style={{ textAlign: 'center' }}>
                             <div style={{
-                                background: 'rgba(16, 185, 129, 0.1)',
-                                color: '#10b981',
+                                background: 'rgba(122, 201, 160, 0.1)',
+                                color: 'var(--status-done)',
                                 padding: '0.75rem',
                                 borderRadius: '8px',
                                 marginBottom: '1rem',
@@ -248,7 +250,8 @@ export default function PaymentControls({
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 gap: '0.5rem',
-                                fontWeight: 600
+                                fontWeight: 600,
+                                border: '1px solid rgba(122, 201, 160, 0.2)'
                             }}>
                                 ✅ Pago via {paymentMethodLabels[paymentMethod || ''] || paymentMethod}
                             </div>
@@ -256,11 +259,11 @@ export default function PaymentControls({
                                 onClick={handleUnpay}
                                 disabled={loading}
                                 style={{
-                                    background: 'none',
-                                    border: '1px solid #e2e8f0',
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid var(--border)',
                                     padding: '0.5rem 1rem',
                                     borderRadius: '6px',
-                                    color: '#64748b',
+                                    color: 'var(--text-secondary)',
                                     cursor: 'pointer',
                                     fontSize: '0.9rem',
                                     width: '100%'
@@ -271,7 +274,7 @@ export default function PaymentControls({
                         </div>
                     ) : (
                         <div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.75rem', color: '#1e293b' }}>
+                            <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
                                 Confirmar Pagamento:
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
@@ -283,16 +286,16 @@ export default function PaymentControls({
                                         style={{
                                             padding: '0.75rem',
                                             borderRadius: '8px',
-                                            border: '1px solid #e2e8f0',
-                                            background: 'white',
-                                            color: '#1e293b',
+                                            border: '1px solid var(--border)',
+                                            background: 'var(--bg-secondary)',
+                                            color: 'var(--text-primary)',
                                             cursor: loading ? 'wait' : 'pointer',
                                             fontSize: '0.9rem',
                                             textAlign: 'left',
                                             transition: 'all 0.2s',
                                         }}
-                                        onMouseOver={(e) => e.currentTarget.style.borderColor = '#3b82f6'}
-                                        onMouseOut={(e) => e.currentTarget.style.borderColor = '#e2e8f0'}
+                                        onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--primary)'}
+                                        onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
                                     >
                                         {label}
                                     </button>
@@ -304,6 +307,7 @@ export default function PaymentControls({
             </div>
         </div>
     )
+
 
     // Main Card Display (Compact Badge)
     return (

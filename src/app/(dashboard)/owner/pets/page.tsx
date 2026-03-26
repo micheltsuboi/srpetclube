@@ -581,13 +581,13 @@ function PetsContent() {
                         <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 100px)', paddingRight: '0.5rem' }}>
 
                             {/* 1. DADOS CADASTRAIS */}
-                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
-                                <button type="button" onClick={() => toggleAccordion('details')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                            <div className={styles.accordionItem}>
+                                <button type="button" onClick={() => toggleAccordion('details')} className={styles.accordionHeader}>
                                     <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>👤 Dados Cadastrais</span>
                                     <span>{accordions.details ? '−' : '+'}</span>
                                 </button>
                                 {accordions.details && (
-                                    <div style={{ padding: '1rem' }}>
+                                    <div className={styles.accordionContent}>
                                         <form action={selectedPet ? updateAction : createAction}>
                                             {selectedPet && <input type="hidden" name="id" value={selectedPet.id} />}
                                             <div className={styles.formGrid}>
@@ -733,13 +733,13 @@ function PetsContent() {
                             </div>
 
                             {/* 1.1 VACINAS */}
-                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
-                                <button type="button" onClick={() => toggleAccordion('vaccines')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                            <div className={styles.accordionItem}>
+                                <button type="button" onClick={() => toggleAccordion('vaccines')} className={styles.accordionHeader}>
                                     <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>💉 Carteira de Vacinação</span>
                                     <span>{accordions.vaccines ? '−' : '+'}</span>
                                 </button>
                                 {accordions.vaccines && (
-                                    <div style={{ padding: '1rem' }}>
+                                    <div className={styles.accordionContent}>
                                         {selectedPet ? (
                                             <>
                                                 {/* Upload da Carteira (Foto) */}
@@ -900,13 +900,13 @@ function PetsContent() {
                             </div>
 
                             {/* 2. Banho e Tosa */}
-                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
-                                <button type="button" onClick={() => toggleAccordion('bathGrooming')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                            <div className={styles.accordionItem}>
+                                <button type="button" onClick={() => toggleAccordion('bathGrooming')} className={styles.accordionHeader}>
                                     <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🚿 Banho e Tosa</span>
                                     <span>{accordions.bathGrooming ? '−' : '+'}</span>
                                 </button>
                                 {accordions.bathGrooming && (
-                                    <div style={{ padding: '1rem' }}>
+                                    <div className={styles.accordionContent}>
                                         {selectedPet ? (
                                             <>
                                                 <div style={{ marginBottom: '1rem' }}>
@@ -943,13 +943,13 @@ function PetsContent() {
                             </div>
 
                             {/* 2.1 Pacotes */}
-                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
-                                <button type="button" onClick={() => toggleAccordion('packages')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                            <div className={styles.accordionItem}>
+                                <button type="button" onClick={() => toggleAccordion('packages')} className={styles.accordionHeader}>
                                     <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🎁 Pacotes de Serviços</span>
                                     <span>{accordions.packages ? '−' : '+'}</span>
                                 </button>
                                 {accordions.packages && (
-                                    <div style={{ padding: '1rem' }}>
+                                    <div className={styles.accordionContent}>
                                         {selectedPet ? (
                                             <>
                                                 <div className={styles.addPackageSection}>
@@ -963,24 +963,23 @@ function PetsContent() {
 
                                                     {/* Configuração de agendamento automático */}
                                                     {selectedPackageId && (
-                                                        <div style={{ marginTop: '1rem', padding: '1rem', background: 'rgba(59,130,246,0.05)', borderRadius: '8px', border: '1px solid rgba(59,130,246,0.2)' }}>
-                                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', marginBottom: '0.75rem' }}>
+                                                        <div style={{ marginTop: '1rem', padding: '1.25rem', background: 'rgba(var(--primary-rgb), 0.1)', borderRadius: '12px', border: '1px solid rgba(var(--primary-rgb), 0.2)' }}>
+                                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: '1rem', color: 'var(--text-primary)' }}>
                                                                 <input
                                                                     type="checkbox"
                                                                     checked={isAutoSchedule}
                                                                     onChange={e => setIsAutoSchedule(e.target.checked)}
                                                                 />
-                                                                <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>📅 Agendar automaticamente</span>
+                                                                <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>📅 Agendar automaticamente</span>
                                                             </label>
                                                             {isAutoSchedule && (
-                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                                                     <div>
-                                                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Dia da semana</label>
+                                                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Dia da semana</label>
                                                                         <select
                                                                             value={prefWeekday}
                                                                             onChange={e => setPrefWeekday(e.target.value)}
                                                                             className={styles.select}
-                                                                            style={{ width: '100%' }}
                                                                         >
                                                                             <option value="">Selecione...</option>
                                                                             <option value="1">Segunda-feira</option>
@@ -1168,17 +1167,17 @@ function PetsContent() {
 
                                                 {/* Modal de reagendamento */}
                                                 {reschedulingSlot && (
-                                                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setReschedulingSlot(null)}>
-                                                        <div style={{ background: '#1e293b', borderRadius: '12px', padding: '1.5rem', width: '90%', maxWidth: '380px', border: '1px solid #334155' }} onClick={e => e.stopPropagation()}>
-                                                            <h3 style={{ margin: '0 0 1rem', color: 'white' }}>🔄 Reagendar Sessão</h3>
-                                                            <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1rem' }}>{reschedulingSlot.services?.name}</p>
-                                                            <label style={{ display: 'block', color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Nova data</label>
-                                                            <input type="date" value={slotNewDate} onChange={e => setSlotNewDate(e.target.value)} style={{ width: '100%', padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', marginBottom: '0.75rem' }} />
-                                                            <label style={{ display: 'block', color: '#cbd5e1', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Horário</label>
-                                                            <input type="time" value={slotNewTime} onChange={e => setSlotNewTime(e.target.value)} style={{ width: '100%', padding: '0.6rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', color: 'white', marginBottom: '1.25rem' }} />
+                                                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }} onClick={() => setReschedulingSlot(null)}>
+                                                        <div style={{ background: 'var(--bg-tertiary)', borderRadius: '16px', padding: '1.5rem', width: '90%', maxWidth: '380px', border: '1px solid var(--border)', boxShadow: 'var(--shadow-xl)' }} onClick={e => e.stopPropagation()}>
+                                                            <h3 style={{ margin: '0 0 1rem', color: 'var(--text-primary)', fontSize: '1.25rem' }}>🔄 Reagendar Sessão</h3>
+                                                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1rem' }}>{reschedulingSlot.services?.name}</p>
+                                                            <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Nova data</label>
+                                                            <input type="date" value={slotNewDate} onChange={e => setSlotNewDate(e.target.value)} className={styles.input} style={{ marginBottom: '0.75rem' }} />
+                                                            <label style={{ display: 'block', color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.25rem' }}>Horário</label>
+                                                            <input type="time" value={slotNewTime} onChange={e => setSlotNewTime(e.target.value)} className={styles.input} style={{ marginBottom: '1.25rem' }} />
                                                             <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
-                                                                <button type="button" onClick={() => setReschedulingSlot(null)} style={{ padding: '0.6rem 1.2rem', background: 'transparent', border: '1px solid #334155', borderRadius: '6px', color: 'white', cursor: 'pointer' }}>Cancelar</button>
-                                                                <button type="button" onClick={handleRescheduleSlot} style={{ padding: '0.6rem 1.2rem', background: '#8B5CF6', border: 'none', borderRadius: '6px', color: 'white', cursor: 'pointer', fontWeight: 600 }}>Confirmar</button>
+                                                                <button type="button" onClick={() => setReschedulingSlot(null)} className={styles.cancelBtn}>Cancelar</button>
+                                                                <button type="button" onClick={handleRescheduleSlot} className={styles.submitButton}>Confirmar</button>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -1191,13 +1190,13 @@ function PetsContent() {
                                 )}
                             </div>
                             {/* 3. Creche */}
-                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
-                                <button type="button" onClick={() => toggleAccordion('creche')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                            <div className={styles.accordionItem}>
+                                <button type="button" onClick={() => toggleAccordion('creche')} className={styles.accordionHeader}>
                                     <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🎾 Agendar Creche</span>
                                     <span>{accordions.creche ? '−' : '+'}</span>
                                 </button>
                                 {accordions.creche && (
-                                    <div style={{ padding: '1rem' }}>
+                                    <div className={styles.accordionContent}>
                                         {selectedPet ? (
                                             <>
                                                 <div style={{ marginBottom: '1rem' }}>
@@ -1239,13 +1238,13 @@ function PetsContent() {
                             </div>
 
                             {/* 4. Hospedagem */}
-                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
-                                <button type="button" onClick={() => toggleAccordion('hotel')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                            <div className={styles.accordionItem}>
+                                <button type="button" onClick={() => toggleAccordion('hotel')} className={styles.accordionHeader}>
                                     <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🏨 Agendar Hospedagem</span>
                                     <span>{accordions.hotel ? '−' : '+'}</span>
                                 </button>
                                 {accordions.hotel && (
-                                    <div style={{ padding: '1rem' }}>
+                                    <div className={styles.accordionContent}>
                                         {selectedPet ? (
                                             <>
                                                 <div style={{ marginBottom: '1rem' }}>
@@ -1293,13 +1292,13 @@ function PetsContent() {
                                     </div>
                                 )}
                             </div>
-                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
-                                <button type="button" onClick={() => toggleAccordion('assessment')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                             <div className={styles.accordionItem}>
+                                <button type="button" onClick={() => toggleAccordion('assessment')} className={styles.accordionHeader}>
                                     <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>📋 Avaliação Comportamental / Saúde</span>
                                     <span>{accordions.assessment ? '−' : '+'}</span>
                                 </button>
                                 {accordions.assessment && (
-                                    <div style={{ padding: '1rem' }}>
+                                    <div className={styles.accordionContent}>
                                         {selectedPet ? (
                                             <>
                                                 {petAssessment && !isViewingAssessment && !isEditingAssessment ? (
@@ -1378,13 +1377,13 @@ function PetsContent() {
                             </div>
 
                             {/* 6. Produtos Pet Shop */}
-                            <div className={styles.accordionItem} style={{ borderBottom: '1px solid var(--border)', marginBottom: '0.5rem' }}>
-                                <button type="button" onClick={() => toggleAccordion('petshop')} style={{ width: '100%', padding: '1rem', display: 'flex', justifyContent: 'space-between', background: 'var(--bg-secondary)', border: 'none', cursor: 'pointer', fontWeight: '600', color: 'var(--text-primary)', borderRadius: '8px', alignItems: 'center' }}>
+                            <div className={styles.accordionItem}>
+                                <button type="button" onClick={() => toggleAccordion('petshop')} className={styles.accordionHeader}>
                                     <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>🛒 Produtos Pet Shop</span>
                                     <span>{accordions.petshop ? '−' : '+'}</span>
                                 </button>
                                 {accordions.petshop && (
-                                    <div style={{ padding: '1rem' }}>
+                                    <div className={styles.accordionContent}>
                                         {selectedPet ? (
                                             <>
                                                 <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Histórico de Compras</h4>
