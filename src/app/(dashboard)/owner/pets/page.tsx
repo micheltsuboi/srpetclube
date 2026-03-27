@@ -74,6 +74,10 @@ function PetsContent() {
     const [reschedulingSlot, setReschedulingSlot] = useState<any | null>(null)
     const [slotNewDate, setSlotNewDate] = useState('')
     const [slotNewTime, setSlotNewTime] = useState('')
+    
+    // Pagination
+    const [displayLimit, setDisplayLimit] = useState(50)
+    const [hasMore, setHasMore] = useState(false)
 
     // Vaccine State
     const [vaccines, setVaccines] = useState<any[]>([])
@@ -198,10 +202,21 @@ function PetsContent() {
             if (debouncedSearch) {
                 query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%`)
             } else {
-                query = query.limit(50)
+                query = query.limit(displayLimit + 1)
             }
 
             const { data: petsData, error: petsError } = await query
+
+            if (petsError) throw petsError
+
+            // Handle pagination
+            let finalPets = petsData || []
+            if (!debouncedSearch && finalPets.length > displayLimit) {
+                setHasMore(true)
+                finalPets = finalPets.slice(0, displayLimit)
+            } else {
+                setHasMore(false)
+            }
 
             if (petsError) throw petsError
 
@@ -222,7 +237,7 @@ function PetsContent() {
                 .eq('is_active', true)
                 .order('total_price')
 
-            if (petsData) setPets(petsData as unknown as Pet[])
+            if (finalPets) setPets(finalPets as unknown as Pet[])
             if (customersData) setCustomers(customersData)
             if (packagesData) setAvailablePackages(packagesData)
 
@@ -231,7 +246,7 @@ function PetsContent() {
         } finally {
             setLoading(false)
         }
-    }, [supabase, debouncedSearch])
+    }, [supabase, debouncedSearch, displayLimit])
 
     // Buscar pacotes do pet quando o accordion muda ou o pet é selecionado
     const fetchPetPackageSummary = useCallback(async () => {
@@ -563,6 +578,17 @@ function PetsContent() {
                 </table>
                 {pets.length === 0 && (
                     <p style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>Nenhum pet cadastrado.</p>
+                )}
+                {hasMore && !debouncedSearch && (
+                    <div style={{ textAlign: 'center', padding: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                        <button 
+                            onClick={() => setDisplayLimit(prev => prev + 50)}
+                            className={styles.backLink}
+                            style={{ background: 'var(--bg-tertiary)', padding: '0.6rem 2rem', borderRadius: '8px', cursor: 'pointer', border: '1px solid var(--border)' }}
+                        >
+                            ⬇️ Carregar mais pets...
+                        </button>
+                    </div>
                 )}
             </div>
 

@@ -40,6 +40,19 @@ export default function TutorsPage() {
     const [showModal, setShowModal] = useState(false)
     const [selectedTutor, setSelectedTutor] = useState<Customer | null>(null)
     const [searchTerm, setSearchTerm] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
+
+    // Pagination
+    const [displayLimit, setDisplayLimit] = useState(50)
+    const [hasMore, setHasMore] = useState(false)
+
+    // Debounce search term
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchTerm)
+        }, 500)
+        return () => clearTimeout(timer)
+    }, [searchTerm])
 
     // Server Action States
     const [createState, createAction, isCreatePending] = useActionState(createTutor, initialState)
@@ -48,9 +61,9 @@ export default function TutorsPage() {
     // Derived state for feedback handling
     const isPending = isCreatePending || isUpdatePending
 
-    const fetchTutors = useCallback(async () => {
+    const fetchTutors = useCallback(async (isInitial = false) => {
         try {
-            setLoading(true)
+            if (isInitial) setLoading(true)
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
@@ -68,23 +81,35 @@ export default function TutorsPage() {
                 .eq('org_id', profile.org_id)
                 .order('name')
 
-            if (searchTerm) {
-                query = query.or(`name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,phone_1.ilike.%${searchTerm}%`)
+            if (debouncedSearch) {
+                query = query.or(`name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone_1.ilike.%${debouncedSearch}%`)
+            } else {
+                query = query.limit(displayLimit + 1)
             }
 
             const { data, error } = await query
 
             if (error) throw error
-            if (data) setTutors(data)
+            
+            // Handle pagination
+            let finalTutors = data || []
+            if (!debouncedSearch && finalTutors.length > displayLimit) {
+                setHasMore(true)
+                finalTutors = finalTutors.slice(0, displayLimit)
+            } else {
+                setHasMore(false)
+            }
+
+            if (finalTutors) setTutors(finalTutors)
         } catch (error) {
             console.error('Erro ao buscar tutores:', error)
         } finally {
             setLoading(false)
         }
-    }, [supabase, searchTerm])
+    }, [supabase, debouncedSearch, displayLimit])
 
     useEffect(() => {
-        fetchTutors()
+        fetchTutors(tutors.length === 0)
     }, [fetchTutors])
 
     // Success/Error Handling
@@ -263,6 +288,17 @@ export default function TutorsPage() {
                 </table>
                 {tutors.length === 0 && (
                     <p style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>Nenhum tutor cadastrado.</p>
+                )}
+                {hasMore && !debouncedSearch && (
+                    <div style={{ textAlign: 'center', padding: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                        <button 
+                            onClick={() => setDisplayLimit(prev => prev + 50)}
+                            className={styles.addTaskBtn || ''}
+                            style={{ background: 'var(--bg-tertiary)', padding: '0.6rem 2rem', borderRadius: '8px', cursor: 'pointer', border: '1px solid var(--border)', color: 'var(--text-primary)' }}
+                        >
+                            ⬇️ Carregar mais tutores...
+                        </button>
+                    </div>
                 )}
             </div>
 
