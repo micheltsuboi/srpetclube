@@ -87,7 +87,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     // 3. Get customer & pet data FIRST (needed for species check)
     const { data: petData, error: petError } = await supabase
         .from('pets')
-        .select('*, customer_id, weight_kg, species') // Ensure species is selected
+        .select('id, name, customer_id, weight_kg, species') // Ensure species is selected
         .eq('id', petId)
         .single()
 
@@ -230,7 +230,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     if (weight !== null && weight !== undefined) {
         const { data: rules } = await supabase
             .from('pricing_matrix')
-            .select('*')
+            .select('fixed_price')
             .eq('service_id', serviceId)
             .eq('is_active', true)
             .lte('weight_min', weight)

@@ -43,14 +43,24 @@ export async function uploadReportPhoto(formData: FormData) {
         const arrayBuffer = await file.arrayBuffer()
         const buffer = Buffer.from(arrayBuffer)
 
-        // Optimize image with sharp
-        const optimizedBuffer = await sharp(buffer)
-            .resize(1080, null, {
-                withoutEnlargement: true, // Don't upscale small images
-                fit: 'inside'
-            })
-            .webp({ quality: 70 })
-            .toBuffer()
+        // Optimize image with sharp only if necessary or just to standardize
+        // Using a more efficient approach for very small images
+        let optimizedBuffer: Buffer
+        const isSmallImage = file.size < 200 * 1024 // < 200KB
+        const isModernFormat = ['image/webp', 'image/jpeg'].includes(file.type)
+
+        if (isSmallImage && isModernFormat) {
+            // Only convert to WebP if not already, but keep it simple
+            optimizedBuffer = buffer
+        } else {
+            optimizedBuffer = await sharp(buffer)
+                .resize(1080, null, {
+                    withoutEnlargement: true,
+                    fit: 'inside'
+                })
+                .webp({ quality: 65, effort: 2 }) // Lower effort = less CPU
+                .toBuffer()
+        }
 
         // Generate unique filename
         const timestamp = Date.now()
@@ -183,7 +193,7 @@ export async function getDailyReport(appointmentId: string) {
 
         const { data, error } = await supabase
             .from('appointment_daily_reports')
-            .select('*')
+            .select('id, appointment_id, report_text, photos, created_at')
             .eq('appointment_id', appointmentId)
             .single()
 

@@ -34,7 +34,7 @@ export async function getAssessmentQuestions(orgId: string) {
 
         const { data, error } = await supabase
             .from('assessment_questions')
-            .select('*')
+            .select('id, category, question_text, question_type, options, order_index, is_active')
             .eq('org_id', orgId)
             .order('category', { ascending: true })
             .order('order_index', { ascending: true })
@@ -71,7 +71,7 @@ export async function getActiveQuestionsForContext() {
 
         const { data, error } = await supabase
             .from('assessment_questions')
-            .select('*')
+            .select('id, category, question_text, question_type, options, order_index, is_active')
             .eq('org_id', profile.org_id)
             .eq('is_active', true)
             .order('category', { ascending: true })
@@ -100,7 +100,7 @@ export async function getActiveQuestionsForPet(petId: string) {
 
         const { data, error } = await supabase
             .from('assessment_questions')
-            .select('*')
+            .select('id, category, question_text, question_type, options, order_index, is_active')
             .eq('org_id', orgId)
             .eq('is_active', true)
             .order('category', { ascending: true })
@@ -378,7 +378,7 @@ export async function getPetAssessment(petId: string) {
         // 1. Get base assessment
         const { data: assessment, error: assessmentError } = await supabase
             .from('pet_assessments')
-            .select('*')
+            .select('pet_id, org_id, status, owner_declaration_accepted, declaration_accepted_at')
             .eq('pet_id', petId)
             .single()
 

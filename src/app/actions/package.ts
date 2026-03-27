@@ -176,7 +176,7 @@ export async function sellPackageToCustomer(prevState: ActionState, formData: Fo
     // Buscar informações do pacote
     const { data: packageData, error: packageError } = await supabase
         .from('service_packages')
-        .select('*, package_items(service_id, quantity)')
+        .select('id, validity_days, package_items(service_id, quantity)')
         .eq('id', package_id)
         .single()
 
@@ -499,7 +499,7 @@ export async function reschedulePackageSlot(
     // Buscar o slot atual
     const { data: slot, error: slotError } = await supabase
         .from('package_schedule_slots')
-        .select('*, customer_packages(org_id, preferred_time), services(id, name)')
+        .select('id, appointment_id, customer_packages(org_id, preferred_time), services(id, name)')
         .eq('id', slotId)
         .single()
 
@@ -649,7 +649,7 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
     // Buscar pacote atual
     const { data: currentPackage, error: fetchError } = await supabase
         .from('customer_packages')
-        .select('*, service_packages(validity_days, package_items(service_id, quantity))')
+        .select('id, customer_id, package_id, org_id, service_packages(validity_days, package_items(service_id, quantity))')
         .eq('id', customerPackageId)
         .single()
 
@@ -660,12 +660,12 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
     // Os créditos não usados devem ser somados aos novos créditos
     const { data: existingCredits } = await supabase
         .from('package_credits')
-        .select('*')
+        .select('service_id, remaining_quantity')
         .eq('customer_package_id', customerPackageId)
 
     // Calcular nova data de expiração
     let new_expires_at = null
-    const validityDays = (currentPackage.service_packages as { validity_days: number | null }).validity_days
+    const validityDays = (currentPackage.service_packages as any)?.validity_days
     if (validityDays) {
         const expiry = new Date()
         expiry.setDate(expiry.getDate() + validityDays)
@@ -692,8 +692,8 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
     }
 
     // Criar créditos considerando os antigos
-    const packageItems = (currentPackage.service_packages as { package_items: Array<{ service_id: string; quantity: number }> }).package_items
-    const newCredits = packageItems.map((item) => {
+    const packageItems = (currentPackage.service_packages as any)?.package_items || []
+    const newCredits = packageItems.map((item: any) => {
         const existingCredit = existingCredits?.find(c => c.service_id === item.service_id)
         const carryOver = existingCredit?.remaining_quantity || 0
 

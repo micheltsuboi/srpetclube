@@ -11,7 +11,7 @@ export async function getPetshopHistory(petId: string) {
 
         const { data, error } = await supabase
             .from('petshop_sales')
-            .select('*')
+            .select('id, product_name, quantity, total_price, payment_status, created_at')
             .eq('pet_id', petId)
             .order('created_at', { ascending: false })
 
@@ -35,7 +35,7 @@ export async function payPetshopSale(saleId: string, paymentMethod: string) {
         // 1. Get the sale
         const { data: sale, error: saleError } = await supabase
             .from('petshop_sales')
-            .select('*')
+            .select('id, org_id, total_price, quantity, product_name, payment_status')
             .eq('id', saleId)
             .single()
 

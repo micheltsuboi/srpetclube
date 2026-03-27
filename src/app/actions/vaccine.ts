@@ -67,7 +67,7 @@ export async function getPetVaccines(petId: string) {
 
         const { data, error } = await supabase
             .from('pet_vaccines')
-            .select('*')
+            .select('id, name, expiry_date, application_date, batch_number')
             .eq('pet_id', petId)
             .order('expiry_date', { ascending: true })
 

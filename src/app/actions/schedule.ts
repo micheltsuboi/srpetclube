@@ -113,7 +113,7 @@ export async function getScheduleBlocks(startStr: string, endStr: string) {
 
     const { data } = await supabase
         .from('schedule_blocks')
-        .select('*')
+        .select('id, start_at, end_at, reason, allowed_species')
         .eq('org_id', profile?.org_id!)
         .lt('start_at', endStr)
         .gt('end_at', startStr)
