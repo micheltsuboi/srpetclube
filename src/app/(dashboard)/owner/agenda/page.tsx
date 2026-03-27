@@ -9,12 +9,11 @@ import {
     createAppointment,
     updateAppointment,
     deleteAppointment,
-    checkInAppointment,
-    checkOutAppointment,
     updateChecklist,
     updateAppointmentStatus,
     updatePetPreferences
 } from '@/app/actions/appointment'
+import { checkInAppointment, checkOutAppointment } from '@/app/actions/checkInOut'
 import {
     createScheduleBlock,
     deleteScheduleBlock
