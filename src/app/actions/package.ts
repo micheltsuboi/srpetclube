@@ -323,11 +323,11 @@ export async function sellPackageToPet(
     packageId: string,
     totalPaid: number,
     paymentMethod: string,
-    preferredWeekday?: number,
+    preferredWeekdays?: number[],
     preferredTime?: string,
     isAutoSchedule?: boolean
 ): Promise<ActionState> {
-    console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekday, preferredTime, isAutoSchedule })
+    console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekdays, preferredTime, isAutoSchedule })
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -386,7 +386,7 @@ export async function sellPackageToPet(
             payment_method: paymentMethod,
             notes: `Pacote para ${petData.name}`,
             expires_at,
-            preferred_weekday: preferredWeekday ?? null,
+            preferred_weekdays: preferredWeekdays ?? null,
             preferred_time: preferredTime ?? null,
             is_auto_schedule: isAutoSchedule ?? false
         })
@@ -418,7 +418,7 @@ export async function sellPackageToPet(
     }
 
     // Se agendamento automático, gerar slots via RPC
-    if (isAutoSchedule && preferredWeekday !== undefined) {
+    if (isAutoSchedule && preferredWeekdays && preferredWeekdays.length > 0) {
         try {
             await supabase.rpc('generate_package_slots', {
                 p_customer_package_id: customerPackage.id

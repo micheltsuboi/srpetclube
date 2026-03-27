@@ -66,7 +66,7 @@ function PetsContent() {
     const [availablePackages, setAvailablePackages] = useState<any[]>([])
     const [selectedPackageId, setSelectedPackageId] = useState('')
     const [isSelling, setIsSelling] = useState(false)
-    const [prefWeekday, setPrefWeekday] = useState<string>('')
+    const [prefWeekdays, setPrefWeekdays] = useState<number[]>([])
     const [prefTime, setPrefTime] = useState('')
     const [isAutoSchedule, setIsAutoSchedule] = useState(false)
     const [petSlots, setPetSlots] = useState<Record<string, any[]>>({})
@@ -392,9 +392,10 @@ function PetsContent() {
         if (!selectedPet || !selectedPackageId) return
 
         const pkg = availablePackages.find(p => p.id === selectedPackageId)
-        const weekdays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-        const autoInfo = isAutoSchedule && prefWeekday !== ''
-            ? ` | Todo(a) ${weekdays[parseInt(prefWeekday)]} às ${prefTime || '09:00'}`
+        const weekdaysNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+        const selectedDaysNames = prefWeekdays.sort().map(d => weekdaysNames[d]).join(', ')
+        const autoInfo = isAutoSchedule && prefWeekdays.length > 0
+            ? ` | Dias: ${selectedDaysNames} às ${prefTime || '09:00'}`
             : ' | Agendamento manual'
         if (!confirm(`Confirmar contratação do pacote "${pkg.name}" para ${selectedPet.name} por R$ ${pkg.total_price.toFixed(2)}?${autoInfo}`)) return
 
@@ -405,16 +406,16 @@ function PetsContent() {
                 selectedPackageId,
                 pkg.total_price,
                 'other',
-                isAutoSchedule && prefWeekday !== '' ? parseInt(prefWeekday) : undefined,
+                isAutoSchedule && prefWeekdays.length > 0 ? prefWeekdays : undefined,
                 isAutoSchedule && prefTime ? prefTime : undefined,
-                isAutoSchedule && prefWeekday !== ''
+                isAutoSchedule && prefWeekdays.length > 0
             )
 
             if (res.success) {
                 alert(res.message)
                 fetchPetPackageSummary()
                 setSelectedPackageId('')
-                setPrefWeekday('')
+                setPrefWeekdays([])
                 setPrefTime('')
                 setIsAutoSchedule(false)
             } else {
@@ -1000,31 +1001,61 @@ function PetsContent() {
                                                             </label>
                                                             {isAutoSchedule && (
                                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                                                    <div>
-                                                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Dia da semana</label>
-                                                                        <select
-                                                                            value={prefWeekday}
-                                                                            onChange={e => setPrefWeekday(e.target.value)}
-                                                                            className={styles.select}
-                                                                        >
-                                                                            <option value="">Selecione...</option>
-                                                                            <option value="1">Segunda-feira</option>
-                                                                            <option value="2">Terça-feira</option>
-                                                                            <option value="3">Quarta-feira</option>
-                                                                            <option value="4">Quinta-feira</option>
-                                                                            <option value="5">Sexta-feira</option>
-                                                                            <option value="6">Sábado</option>
-                                                                            <option value="0">Domingo</option>
-                                                                        </select>
+                                                                    <div style={{ gridColumn: 'span 2' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>Dias da semana</label>
+                                                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                                            {[
+                                                                                { label: 'S', value: 1, name: 'Segunda' },
+                                                                                { label: 'T', value: 2, name: 'Terça' },
+                                                                                { label: 'Q', value: 3, name: 'Quarta' },
+                                                                                { label: 'Q', value: 4, name: 'Quinta' },
+                                                                                { label: 'S', value: 5, name: 'Sexta' },
+                                                                                { label: 'S', value: 6, name: 'Sábado' },
+                                                                                { label: 'D', value: 0, name: 'Domingo' }
+                                                                            ].map(day => {
+                                                                                const isSelected = prefWeekdays.includes(day.value)
+                                                                                return (
+                                                                                    <button
+                                                                                        key={day.value}
+                                                                                        type="button"
+                                                                                        title={day.name}
+                                                                                        onClick={() => {
+                                                                                            if (isSelected) {
+                                                                                                setPrefWeekdays(prefWeekdays.filter(d => d !== day.value))
+                                                                                            } else {
+                                                                                                setPrefWeekdays([...prefWeekdays, day.value])
+                                                                                            }
+                                                                                        }}
+                                                                                        style={{
+                                                                                            width: '36px',
+                                                                                            height: '36px',
+                                                                                            borderRadius: '50%',
+                                                                                            border: isSelected ? '2px solid var(--primary-color)' : '1px solid var(--border)',
+                                                                                            background: isSelected ? 'rgba(var(--primary-rgb), 0.15)' : 'transparent',
+                                                                                            color: isSelected ? 'var(--primary-color)' : 'var(--text-secondary)',
+                                                                                            fontWeight: isSelected ? '700' : '400',
+                                                                                            cursor: 'pointer',
+                                                                                            transition: 'all 0.2s ease',
+                                                                                            display: 'flex',
+                                                                                            alignItems: 'center',
+                                                                                            justifyContent: 'center',
+                                                                                            fontSize: '0.85rem'
+                                                                                        }}
+                                                                                    >
+                                                                                        {day.label}
+                                                                                    </button>
+                                                                                )
+                                                                            })}
+                                                                        </div>
                                                                     </div>
-                                                                    <div>
-                                                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Horário</label>
+                                                                    <div style={{ gridColumn: 'span 2' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Horário padrão</label>
                                                                         <input
                                                                             type="time"
                                                                             value={prefTime}
                                                                             onChange={e => setPrefTime(e.target.value)}
                                                                             className={styles.input}
-                                                                            style={{ width: '100%' }}
+                                                                            style={{ width: '100%', maxWidth: '150px' }}
                                                                         />
                                                                     </div>
                                                                 </div>
