@@ -1138,14 +1138,30 @@ function PetsContent() {
                                                                     </div>
 
                                                                     {/* Botões de Ação do Pacote */}
-                                                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                                                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => handleDeleteCustomerPackage(cpId)}
-                                                                            style={{ flex: '0 0 auto', padding: '0.4rem 0.8rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '6px', color: '#EF4444', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                                            title="Excluir pacote"
+                                                                            style={{ 
+                                                                                flex: 1, 
+                                                                                padding: '0.6rem', 
+                                                                                background: 'rgba(239,68,68,0.08)', 
+                                                                                border: '1px solid rgba(239,68,68,0.2)', 
+                                                                                borderRadius: '8px', 
+                                                                                color: '#EF4444', 
+                                                                                cursor: 'pointer', 
+                                                                                fontSize: '0.85rem', 
+                                                                                fontWeight: 600,
+                                                                                display: 'flex', 
+                                                                                alignItems: 'center', 
+                                                                                justifyContent: 'center',
+                                                                                gap: '0.5rem',
+                                                                                transition: 'all 0.2s ease'
+                                                                            }}
+                                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
+                                                                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
                                                                         >
-                                                                            🗑️
+                                                                            🗑️ Excluir Pacote do Pet
                                                                         </button>
                                                                         <button
                                                                             type="button"
