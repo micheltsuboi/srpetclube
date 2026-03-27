@@ -245,23 +245,55 @@ export async function deleteCustomerPackage(customerPackageId: string): Promise<
     const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
     if (!profile?.org_id) return { message: 'Erro de organização.', success: false }
 
-    // Obter todos os package_credits associados para excluir os appointments gerados automaticamente
+    // Obter todos os package_credits associados
     const { data: credits } = await supabase
         .from('package_credits')
         .select('id')
         .eq('customer_package_id', customerPackageId)
 
-    if (credits && credits.length > 0) {
-        const creditIds = credits.map(c => c.id)
+    const { data: slots } = await supabase
+        .from('package_schedule_slots')
+        .select('id')
+        .eq('customer_package_id', customerPackageId)
 
-        // Excluir os agendamentos que ainda são "pending" ou "scheduled" vindos deste pacote
-        await supabase
-            .from('appointments')
-            .delete()
-            .in('package_credit_id', creditIds)
-            .in('status', ['pending', 'scheduled'])
+    const creditIds = credits?.map(c => c.id) || []
+    const slotIds = slots?.map(s => s.id) || []
+
+    // 1. Desvincular agendamentos JÁ realizados ou cancelados (que não queremos deletar)
+    if (creditIds.length > 0 || slotIds.length > 0) {
+        let query = supabase.from('appointments').update({
+            package_credit_id: null,
+            package_slot_id: null
+        })
+
+        if (creditIds.length > 0 && slotIds.length > 0) {
+            query = query.or(`package_credit_id.in.(${creditIds.join(',')}),package_slot_id.in.(${slotIds.join(',')})`)
+        } else if (creditIds.length > 0) {
+            query = query.in('package_credit_id', creditIds)
+        } else {
+            query = query.in('package_slot_id', slotIds)
+        }
+
+        await query.not('status', 'in', '("pending","scheduled")')
     }
 
+    // 2. Excluir agendamentos futuristas (pendentes/agendados) que pertencem a este pacote
+    if (creditIds.length > 0 || slotIds.length > 0) {
+        let query = supabase.from('appointments').delete()
+
+        if (creditIds.length > 0 && slotIds.length > 0) {
+            query = query.or(`package_credit_id.in.(${creditIds.join(',')}),package_slot_id.in.(${slotIds.join(',')})`)
+        } else if (creditIds.length > 0) {
+            query = query.in('package_credit_id', creditIds)
+        } else {
+            query = query.in('package_slot_id', slotIds)
+        }
+
+        await query.in('status', ['pending', 'scheduled'])
+    }
+
+    // 3. Remover o pacote (o cascade cuidará de package_credits e package_schedule_slots no banco,
+    // mas vamos garantir a ordem aqui se necessário)
     const { error } = await supabase
         .from('customer_packages')
         .delete()
