@@ -538,7 +538,7 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
 
         // Pass fake date/time for compatibility (will be ignored by backend for Hospedagem)
         formData.append('date', checkInDate)
-        formData.append('time', '12:00')
+        formData.append('time', '17:00')
 
         try {
             const result = await createAppointment({ message: '', success: false }, formData)

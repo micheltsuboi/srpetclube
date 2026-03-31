@@ -104,8 +104,8 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
         // Hospedagem Logic
         checkIn = checkInDate
         checkOut = checkOutDate
-        // Scheduled at mostly for sorting, set to Check-in at 12:00
-        scheduledAt = new Date(`${checkInDate}T12:00:00-03:00`).toISOString()
+        // Scheduled at mostly for sorting, set to Check-in at 17:00
+        scheduledAt = new Date(`${checkInDate}T17:00:00-03:00`).toISOString()
     } else {
         // Standard / Creche Logic
         try {
@@ -449,21 +449,22 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
 
     if (!currentAppt) return { message: 'Agendamento não encontrado.', success: false }
 
+    // 2. Fetch service category and base price
+    const { data: serviceData } = await supabase
+        .from('services')
+        .select('category_id, base_price, service_categories(name)')
+        .eq('id', serviceId)
+        .single()
+
     let scheduledAt: string
     try {
-        // Ensure time is in HH:MM format (removing seconds if they came from toLocaleTimeString)
-        const cleanTime = time.slice(0, 5)
+        // Force 17:00 for Hospedagem, otherwise use provided time
+        const isHospedagem = (serviceData as any)?.service_categories?.name === 'Hospedagem';
+        const cleanTime = isHospedagem ? '17:00' : time.slice(0, 5)
         scheduledAt = new Date(`${date}T${cleanTime}:00-03:00`).toISOString()
     } catch (_) {
         return { message: 'Data inválida.', success: false }
     }
-
-    // 2. Fetch service category and base price
-    const { data: serviceData } = await supabase
-        .from('services')
-        .select('category_id, base_price')
-        .eq('id', serviceId)
-        .single()
 
     // 3. Recalculate price if service changed OR just for safety
     let calculatedPrice = serviceData?.base_price || 0

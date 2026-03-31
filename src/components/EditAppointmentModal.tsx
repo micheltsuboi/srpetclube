@@ -70,7 +70,7 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
         formData.append('id', appointment.id)
         formData.append('serviceId', serviceId)
         formData.append('date', date)
-        formData.append('time', time)
+        formData.append('time', isHospedagem ? '17:00' : time)
         formData.append('notes', notes)
         if (checkInDate) formData.append('checkInDate', checkInDate)
         if (checkOutDate) formData.append('checkOutDate', checkOutDate)
