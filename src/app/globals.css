@@ -105,6 +105,13 @@ html {
   -moz-osx-font-smoothing: grayscale;
 }
 
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
 html,
 body {
   max-width: 100%;

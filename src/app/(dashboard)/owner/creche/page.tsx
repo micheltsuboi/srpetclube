@@ -507,25 +507,19 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
     }
 
     return (
-        <div style={{
-            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)'
-        }} onClick={onClose}>
-            <div style={{
-                background: '#1e293b', borderRadius: '16px', width: '90%', maxWidth: '500px',
-                padding: '2rem', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', border: '1px solid #334155'
-            }} onClick={e => e.stopPropagation()}>
+        <div className={styles.modalOverlay} onClick={onClose}>
+            <div className={styles.modal} onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h2 style={{ margin: 0, color: 'white', fontSize: '1.25rem', fontWeight: 700 }}>Novo Agendamento</h2>
+                    <h2 className={styles.modalTitle} style={{ margin: 0 }}>Novo Agendamento</h2>
                     <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#cbd5e1' }}>✕</button>
                 </div>
                 <form onSubmit={handleSubmit}>
-                    <div style={{ marginBottom: '1rem', position: 'relative' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Pet * (Busque por nome ou tutor)</label>
+                    <div className={styles.formGroup} style={{ position: 'relative' }}>
+                        <label className={styles.label}>Pet * (Busque por nome ou tutor)</label>
                         <input
                             type="text"
                             placeholder="🔍 Buscar pet ou tutor..."
+                            className={styles.input}
                             value={petSearchTerm}
                             onChange={(e) => {
                                 setPetSearchTerm(e.target.value)
@@ -533,7 +527,6 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
                             }}
                             onFocus={() => setShowPetResults(true)}
                             required={!selectedPetId}
-                            style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }}
                         />
 
                         {showPetResults && petSearchTerm.length > 0 && (
@@ -582,10 +575,10 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
                             </div>
                         )}
                     </div>
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Serviço *</label>
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Serviço *</label>
                         <select required value={selectedServiceId} onChange={e => setSelectedServiceId(e.target.value)}
-                            style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }}>
+                            className={styles.select}>
                             <option value="">Selecione...</option>
                             {services.map(s => <option key={s.id} value={s.id}>{s.name} - R$ {(dynamicPrices[s.id] ?? s.base_price)?.toFixed(2)}</option>)}
                         </select>
@@ -595,30 +588,28 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
                             </div>
                         )}
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Data *</label>
+                    <div className={styles.row}>
+                        <div className={styles.formGroup}>
+                            <label className={styles.label}>Data *</label>
                             <input type="date" required value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-                                style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }} />
+                                className={styles.input} />
                         </div>
-                        <div>
-                            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Hora *</label>
+                        <div className={styles.formGroup}>
+                            <label className={styles.label}>Hora *</label>
                             <input type="time" required value={selectedTime} onChange={e => setSelectedTime(e.target.value)}
-                                style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }} />
+                                className={styles.input} />
                         </div>
                     </div>
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Observações</label>
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Observações</label>
                         <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-                            style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white', fontFamily: 'inherit', resize: 'vertical' }} />
+                            className={styles.textarea} />
                     </div>
-                    <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
-                        <button type="button" onClick={onClose}
-                            style={{ padding: '0.75rem 1.5rem', border: '1px solid #334155', borderRadius: '8px', background: 'transparent', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
+                    <div className={styles.modalActions}>
+                        <button type="button" onClick={onClose} className={styles.cancelBtn}>
                             Cancelar
                         </button>
-                        <button type="submit" disabled={loading}
-                            style={{ padding: '0.75rem 1.5rem', border: 'none', borderRadius: '8px', background: '#10B981', color: 'white', cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 600, opacity: loading ? 0.6 : 1 }}>
+                        <button type="submit" disabled={loading} className={styles.submitBtn}>
                             {loading ? 'Criando...' : 'Criar Agendamento'}
                         </button>
                     </div>
