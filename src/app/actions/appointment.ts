@@ -440,6 +440,15 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
         return { message: 'Dados incompletos.', success: false }
     }
 
+    // 1. Fetch current appointment to get pet_id
+    const { data: currentAppt } = await supabase
+        .from('appointments')
+        .select('pet_id, service_id')
+        .eq('id', id)
+        .single()
+
+    if (!currentAppt) return { message: 'Agendamento não encontrado.', success: false }
+
     let scheduledAt: string
     try {
         // Ensure time is in HH:MM format (removing seconds if they came from toLocaleTimeString)
@@ -449,18 +458,33 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
         return { message: 'Data inválida.', success: false }
     }
 
-    // Fetch service category
+    // 2. Fetch service category and base price
     const { data: serviceData } = await supabase
         .from('services')
-        .select('category_id')
+        .select('category_id, base_price')
         .eq('id', serviceId)
         .single()
+
+    // 3. Recalculate price if service changed OR just for safety
+    let calculatedPrice = serviceData?.base_price || 0
+    
+    // Call RPC for dynamic pricing (same as createAppointment)
+    const { data: rpcPrice } = await supabase.rpc('get_price', {
+        p_pet_id: currentAppt.pet_id,
+        p_service_id: serviceId,
+        p_date: date || checkInDate || new Date().toISOString().split('T')[0]
+    })
+    if (rpcPrice) calculatedPrice = rpcPrice
 
     const updateData: any = {
         service_id: serviceId,
         service_category_id: serviceData?.category_id,
         scheduled_at: scheduledAt,
-        notes: notes || null
+        notes: notes || null,
+        calculated_price: calculatedPrice,
+        final_price: calculatedPrice, // Reset final price to new base price
+        discount_percent: 0, // Reset discount when service changes
+        discount: 0
     }
 
     if (checkInDate) updateData.check_in_date = checkInDate
@@ -474,8 +498,10 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
     if (error) return { message: error.message, success: false }
 
     revalidatePath('/owner/agenda')
+    revalidatePath('/owner/banho-tosa')
     revalidatePath('/owner/hospedagem')
-    return { message: 'Agendamento atualizado!', success: true }
+    revalidatePath('/owner/creche')
+    return { message: 'Agendamento atualizado com sucesso!', success: true }
 }
 
 export async function updatePetPreferences(petId: string, prefs: { perfume_allowed?: boolean, accessories_allowed?: boolean }) {
