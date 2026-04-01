@@ -54,6 +54,7 @@ export default function FinanceiroPage() {
     const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false)
     const [newExpense, setNewExpense] = useState({
         category: 'Outros',
+        name: '',
         amount: '',
         description: '',
         date: new Date().toISOString().split('T')[0],
@@ -281,8 +282,8 @@ export default function FinanceiroPage() {
 
     const handleAddExpense = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!newExpense.amount || !newExpense.category) {
-            alert('Por favor, preencha o valor e a categoria.')
+        if (!newExpense.amount || !newExpense.category || !newExpense.name) {
+            alert('Por favor, preencha o nome, o valor e a categoria.')
             return
         }
 
@@ -291,6 +292,7 @@ export default function FinanceiroPage() {
             const res = await addFinancialTransaction({
                 type: 'expense',
                 category: newExpense.category,
+                name: newExpense.name,
                 amount: parseFloat(newExpense.amount),
                 description: newExpense.description,
                 date: new Date(newExpense.date).toISOString(),
@@ -302,6 +304,7 @@ export default function FinanceiroPage() {
                 setIsAddExpenseModalOpen(false)
                 setNewExpense({
                     category: 'Outros',
+                    name: '',
                     amount: '',
                     description: '',
                     date: new Date().toISOString().split('T')[0],
@@ -513,12 +516,6 @@ export default function FinanceiroPage() {
                     <Link href="/owner" className={styles.backLink}>← Voltar</Link>
                     <h1 className={styles.title}>💰 Controle Financeiro</h1>
                     <p className={styles.subtitle}>Visão geral das finanças do seu pet shop</p>
-                    <button
-                        className={styles.addExpenseBtn}
-                        onClick={() => setIsAddExpenseModalOpen(true)}
-                    >
-                        ➕ Nova Despesa
-                    </button>
                 </div>
                 <div className={styles.filters}>
                     <div className={styles.filterGroup}>
@@ -577,6 +574,15 @@ export default function FinanceiroPage() {
                 >
                     <div className={styles.cardHeader}>
                         <span className={styles.cardIcon}>📉</span>
+                        <button
+                            className={styles.addExpenseBtnMini}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setIsAddExpenseModalOpen(true);
+                            }}
+                        >
+                            ➕ Nova
+                        </button>
                     </div>
                     <span className={`${styles.cardValue} ${styles.expenses}`}>{formatCurrency(activeExpenses)}</span>
                     <span className={styles.cardLabel}>Despesas</span>
@@ -690,8 +696,11 @@ export default function FinanceiroPage() {
                                 .map(tx => (
                                     <div key={tx.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
-                                            <strong>{tx.category}</strong>
-                                            <span>{tx.description}</span>
+                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                                                <strong>{tx.name || tx.category}</strong>
+                                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({tx.category})</span>
+                                            </div>
+                                            {tx.description && <span>{tx.description}</span>}
                                             <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
                                         </div>
                                         <div className={styles.extractActions}>
@@ -736,6 +745,17 @@ export default function FinanceiroPage() {
                         </div>
 
                         <form onSubmit={handleAddExpense} className={styles.expenseForm}>
+                            <div className={styles.formGroup}>
+                                <label>Nome da Despesa</label>
+                                <input
+                                    type="text"
+                                    placeholder="Ex: Compra de Shampoos, Conta de Luz..."
+                                    value={newExpense.name}
+                                    onChange={e => setNewExpense({ ...newExpense, name: e.target.value })}
+                                    required
+                                />
+                            </div>
+
                             <div className={styles.formGrid}>
                                 <div className={styles.formGroup}>
                                     <label>Categoria</label>

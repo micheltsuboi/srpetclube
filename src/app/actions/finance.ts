@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 export async function addFinancialTransaction(data: {
     type: 'income' | 'expense'
     category: string
+    name: string
     amount: number
     description?: string
     date?: string
@@ -35,6 +36,7 @@ export async function addFinancialTransaction(data: {
                 org_id: profile.org_id,
                 type: data.type,
                 category: data.category,
+                name: data.name,
                 amount: data.amount,
                 description: data.description,
                 date: data.date || new Date().toISOString(),
