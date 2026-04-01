@@ -15,9 +15,9 @@ CREATE INDEX IF NOT EXISTS idx_appointments_multiday
 ON public.appointments(check_in_date, check_out_date) 
 WHERE check_in_date IS NOT NULL;
 
--- Índice para Busca de Pets (Ordenação e Filtragem)
-CREATE INDEX IF NOT EXISTS idx_pets_org_name 
-ON public.pets(org_id, name ASC);
+-- Índice para Busca de Pets (Ordenação e Filtragem por tutor)
+CREATE INDEX IF NOT EXISTS idx_pets_customer_name 
+ON public.pets(customer_id, name ASC);
 
 -- Índice para Clientes (Busca por nome/tutor)
 CREATE INDEX IF NOT EXISTS idx_customers_org_name 

@@ -336,8 +336,12 @@ export async function searchPets(query: string, limit = 10) {
 
     const { data, error } = await supabase
         .from('pets')
-        .select('id, name, species, breed, customers(name), perfume_allowed, accessories_allowed, special_care, is_adapted')
-        .eq('org_id', profile.org_id)
+        .select(`
+            id, name, species, breed, 
+            customers!inner(id, name, org_id), 
+            perfume_allowed, accessories_allowed, special_care, is_adapted
+        `)
+        .eq('customers.org_id', profile.org_id)
         .ilike('name', `%${query}%`)
         .order('name')
         .limit(limit)
