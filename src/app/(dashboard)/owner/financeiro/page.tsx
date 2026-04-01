@@ -9,6 +9,7 @@ import { exportToCsv } from '@/utils/export'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { payPetshopSale } from '@/app/actions/petshop'
+import { addFinancialTransaction } from '@/app/actions/finance'
 
 interface MonthlyData {
     month: string
@@ -50,6 +51,15 @@ export default function FinanceiroPage() {
         pendingSales: []
     })
     const [isExtractModalOpen, setIsExtractModalOpen] = useState(false)
+    const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false)
+    const [newExpense, setNewExpense] = useState({
+        category: 'Outros',
+        amount: '',
+        description: '',
+        date: new Date().toISOString().split('T')[0],
+        payment_method: 'pix'
+    })
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
     const fetchFinancials = useCallback(async () => {
         try {
@@ -269,6 +279,46 @@ export default function FinanceiroPage() {
         }
     }
 
+    const handleAddExpense = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!newExpense.amount || !newExpense.category) {
+            alert('Por favor, preencha o valor e a categoria.')
+            return
+        }
+
+        try {
+            setIsSubmitting(true)
+            const res = await addFinancialTransaction({
+                type: 'expense',
+                category: newExpense.category,
+                amount: parseFloat(newExpense.amount),
+                description: newExpense.description,
+                date: new Date(newExpense.date).toISOString(),
+                payment_method: newExpense.payment_method
+            })
+
+            if (res.success) {
+                alert(res.message)
+                setIsAddExpenseModalOpen(false)
+                setNewExpense({
+                    category: 'Outros',
+                    amount: '',
+                    description: '',
+                    date: new Date().toISOString().split('T')[0],
+                    payment_method: 'pix'
+                })
+                fetchFinancials()
+            } else {
+                alert(res.message)
+            }
+        } catch (error) {
+            console.error('Erro ao adicionar despesa:', error)
+            alert('Erro ao adicionar despesa.')
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
     const currentMonthData = monthlyData.length > 0 ? monthlyData[monthlyData.length - 1] : { revenue: 0, expenses: 0, profit: 0 }
     const previousMonthData = monthlyData.length > 1 ? monthlyData[monthlyData.length - 2] : { revenue: 0, expenses: 0, profit: 0 }
 
@@ -463,6 +513,12 @@ export default function FinanceiroPage() {
                     <Link href="/owner" className={styles.backLink}>← Voltar</Link>
                     <h1 className={styles.title}>💰 Controle Financeiro</h1>
                     <p className={styles.subtitle}>Visão geral das finanças do seu pet shop</p>
+                    <button
+                        className={styles.addExpenseBtn}
+                        onClick={() => setIsAddExpenseModalOpen(true)}
+                    >
+                        ➕ Nova Despesa
+                    </button>
                 </div>
                 <div className={styles.filters}>
                     <div className={styles.filterGroup}>
@@ -667,6 +723,106 @@ export default function FinanceiroPage() {
                 </div >
             )
             }
+
+            {/* Add Expense Modal */}
+            {isAddExpenseModalOpen && (
+                <div className={styles.modalOverlay} onClick={() => setIsAddExpenseModalOpen(false)}>
+                    <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
+                        <button className={styles.closeButton} onClick={() => setIsAddExpenseModalOpen(false)}>×</button>
+
+                        <div className={styles.modalHeader}>
+                            <h2>📉 Cadastrar Nova Despesa</h2>
+                            <p>Registre gastos variáveis para controle de caixa</p>
+                        </div>
+
+                        <form onSubmit={handleAddExpense} className={styles.expenseForm}>
+                            <div className={styles.formGrid}>
+                                <div className={styles.formGroup}>
+                                    <label>Categoria</label>
+                                    <select
+                                        value={newExpense.category}
+                                        onChange={e => setNewExpense({ ...newExpense, category: e.target.value })}
+                                        required
+                                    >
+                                        <option value="Aluguel">Aluguel</option>
+                                        <option value="Energia">Energia</option>
+                                        <option value="Água">Água</option>
+                                        <option value="Internet">Internet</option>
+                                        <option value="Pró-Labore">Pró-Labore</option>
+                                        <option value="Marketing">Marketing</option>
+                                        <option value="Manutenção">Manutenção</option>
+                                        <option value="Limpeza">Limpeza</option>
+                                        <option value="Reposição de Estoque">Reposição de Estoque</option>
+                                        <option value="Impostos">Impostos</option>
+                                        <option value="Outros">Outros</option>
+                                    </select>
+                                </div>
+
+                                <div className={styles.formGroup}>
+                                    <label>Valor (R$)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        placeholder="0,00"
+                                        value={newExpense.amount}
+                                        onChange={e => setNewExpense({ ...newExpense, amount: e.target.value })}
+                                        required
+                                    />
+                                </div>
+
+                                <div className={styles.formGroup}>
+                                    <label>Data</label>
+                                    <input
+                                        type="date"
+                                        value={newExpense.date}
+                                        onChange={e => setNewExpense({ ...newExpense, date: e.target.value })}
+                                        required
+                                    />
+                                </div>
+
+                                <div className={styles.formGroup}>
+                                    <label>Forma de Pagamento</label>
+                                    <select
+                                        value={newExpense.payment_method}
+                                        onChange={e => setNewExpense({ ...newExpense, payment_method: e.target.value })}
+                                    >
+                                        <option value="pix">PIX</option>
+                                        <option value="cash">Dinheiro</option>
+                                        <option value="credit">Cartão de Crédito</option>
+                                        <option value="debit">Cartão de Débito</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div className={styles.formGroup} style={{ marginTop: '1rem' }}>
+                                <label>Descrição/Observação (Opcional)</label>
+                                <textarea
+                                    placeholder="Ex: Ref. troca de lâmpada da recepção"
+                                    value={newExpense.description}
+                                    onChange={e => setNewExpense({ ...newExpense, description: e.target.value })}
+                                />
+                            </div>
+
+                            <div className={styles.formActions}>
+                                <button
+                                    type="button"
+                                    className={styles.cancelBtn}
+                                    onClick={() => setIsAddExpenseModalOpen(false)}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="submit"
+                                    className={styles.submitBtn}
+                                    disabled={isSubmitting}
+                                >
+                                    {isSubmitting ? 'Salvando...' : 'Salvar Despesa'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Revenue Chart */}
             <div className={styles.chartSection}>
