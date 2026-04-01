@@ -320,3 +320,32 @@ export async function updatePetVaccineCard(petId: string, urls: string[]) {
     revalidatePath('/owner/pets')
     return { message: 'Carteira de vacinação atualizada!', success: true }
 }
+
+export async function searchPets(query: string, limit = 10) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('org_id')
+        .eq('id', user.id)
+        .single()
+
+    if (!profile?.org_id) return []
+
+    const { data, error } = await supabase
+        .from('pets')
+        .select('id, name, species, breed, customers(name), perfume_allowed, accessories_allowed, special_care, is_adapted')
+        .eq('org_id', profile.org_id)
+        .ilike('name', `%${query}%`)
+        .order('name')
+        .limit(limit)
+
+    if (error) {
+        console.error('Error searching pets:', error)
+        return []
+    }
+
+    return data
+}

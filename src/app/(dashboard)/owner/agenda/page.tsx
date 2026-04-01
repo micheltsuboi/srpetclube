@@ -13,6 +13,7 @@ import {
     updateAppointmentStatus,
     updatePetPreferences
 } from '@/app/actions/appointment'
+import { searchPets } from '@/app/actions/pet'
 import { checkInAppointment, checkOutAppointment } from '@/app/actions/checkInOut'
 import {
     createScheduleBlock,
@@ -148,6 +149,7 @@ export default function AgendaPage() {
     const [modalDynamicPrices, setModalDynamicPrices] = useState<Record<string, number>>({})
     const [petSearchTerm, setPetSearchTerm] = useState('')
     const [showPetResults, setShowPetResults] = useState(false)
+    const [isSearchingPets, setIsSearchingPets] = useState(false)
 
     // Actions
     const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
@@ -168,9 +170,13 @@ export default function AgendaPage() {
             const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
             if (!profile?.org_id) return
 
-            // Load Metadata
+            // Load Metadata (Limited to 30 most recent initially)
             if (pets.length === 0) {
-                const { data: p } = await supabase.from('pets').select('id, name, species, breed, customers(name), perfume_allowed, accessories_allowed, special_care, is_adapted').order('name')
+                const { data: p } = await supabase
+                    .from('pets')
+                    .select('id, name, species, breed, customers(name), perfume_allowed, accessories_allowed, special_care, is_adapted')
+                    .order('created_at', { ascending: false })
+                    .limit(30)
                 if (p) setPets(p as any)
 
                 const { data: s } = await supabase
