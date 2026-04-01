@@ -56,6 +56,7 @@ export async function addFinancialTransaction(data: {
             await processRecurringExpenses()
             
             revalidatePath('/owner/financeiro')
+            revalidatePath('/owner')
             return { success: true, message: 'Despesa fixa cadastrada com sucesso!' }
         } else {
             // Se for despesa variável (normal)
@@ -79,6 +80,7 @@ export async function addFinancialTransaction(data: {
             }
 
             revalidatePath('/owner/financeiro')
+            revalidatePath('/owner')
             return { success: true, message: 'Transação registrada com sucesso!' }
         }
     } catch (error) {
@@ -87,10 +89,6 @@ export async function addFinancialTransaction(data: {
     }
 }
 
-/**
- * Função que sincroniza as despesas recorrentes com as transações reais.
- * Deve ser chamada toda vez que o dashboard carregar ou quando uma nova fixa for criada.
- */
 export async function processRecurringExpenses() {
     const supabase = await createClient()
 
@@ -106,7 +104,6 @@ export async function processRecurringExpenses() {
 
         if (!profile?.org_id) return { success: false, message: 'Organização não encontrada.' }
 
-        // 1. Busca todas as despesas fixas ativas
         const { data: recurringExpenses, error: recurringError } = await supabase
             .from('recurring_expenses')
             .select('*')
@@ -119,19 +116,23 @@ export async function processRecurringExpenses() {
         const currentYear = now.getFullYear()
         const currentMonth = now.getMonth()
 
-        // 2. Para cada despesa fixa, verifica os meses faltantes
         for (const expense of recurringExpenses) {
             const startDate = new Date(expense.start_date)
-            
-            // Loop desde o mês de início até o mês atual
             let checkDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1)
             const limitDate = new Date(currentYear, currentMonth, 1)
 
             while (checkDate <= limitDate) {
                 const monthToCheck = checkDate.getMonth()
                 const yearToCheck = checkDate.getFullYear()
+                const monthKey = `${yearToCheck}-${String(monthToCheck + 1).padStart(2, '0')}`
 
-                // Verifica se já existe transação para esta despesa neste mês/ano
+                // Verifica se este mês está na lista de "pulados"
+                const skipped = expense.skipped_months || []
+                if (skipped.includes(monthKey)) {
+                    checkDate.setMonth(checkDate.getMonth() + 1)
+                    continue
+                }
+
                 const startOfMonth = new Date(yearToCheck, monthToCheck, 1).toISOString()
                 const endOfMonth = new Date(yearToCheck, monthToCheck + 1, 0, 23, 59, 59).toISOString()
 
@@ -145,12 +146,10 @@ export async function processRecurringExpenses() {
                     .limit(1)
 
                 if (!checkError && existing?.length === 0) {
-                    // Não existe transação para este mês. Criamos agora.
-                    // Mantemos o dia da data original, mas ajustamos o mês/ano
                     const day = startDate.getDate()
                     const dayToUse = new Date(yearToCheck, monthToCheck, day).getMonth() === monthToCheck 
                         ? day 
-                        : new Date(yearToCheck, monthToCheck + 1, 0).getDate() // Ajuste para meses com menos dias
+                        : new Date(yearToCheck, monthToCheck + 1, 0).getDate()
                     
                     const transactionDate = new Date(yearToCheck, monthToCheck, dayToUse)
 
@@ -167,16 +166,83 @@ export async function processRecurringExpenses() {
                         recurring_id: expense.id
                     }])
                 }
-
-                // Incrementa um mês
                 checkDate.setMonth(checkDate.getMonth() + 1)
             }
         }
 
         revalidatePath('/owner/financeiro')
+        revalidatePath('/owner')
         return { success: true }
     } catch (error) {
         console.error('Erro ao processar recorrência:', error)
         return { success: false }
+    }
+}
+
+/**
+ * Action para excluir transação com suporte a recorrências
+ */
+export async function deleteFinancialTransaction(txId: string, options?: {
+    cancelRecurrence?: boolean,
+    skipMonth?: boolean
+}) {
+    const supabase = await createClient()
+
+    try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return { success: false, message: 'Não autorizado.' }
+
+        // 1. Busca os detalhes da transação antes de excluir
+        const { data: tx, error: fetchError } = await supabase
+            .from('financial_transactions')
+            .select('*')
+            .eq('id', txId)
+            .single()
+
+        if (fetchError || !tx) return { success: false, message: 'Transação não encontrada.' }
+
+        if (tx.recurring_id) {
+            if (options?.cancelRecurrence) {
+                // Desativa a recorrência futura
+                await supabase
+                    .from('recurring_expenses')
+                    .update({ is_active: false })
+                    .eq('id', tx.recurring_id)
+            } else if (options?.skipMonth) {
+                // Adiciona este mês à lista de meses pulados para não recriar
+                const txDate = new Date(tx.date)
+                const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`
+                
+                // Busca os meses já pulados
+                const { data: rec } = await supabase
+                    .from('recurring_expenses')
+                    .select('skipped_months')
+                    .eq('id', tx.recurring_id)
+                    .single()
+                
+                const currentSkipped = rec?.skipped_months || []
+                if (!currentSkipped.includes(monthKey)) {
+                    await supabase
+                        .from('recurring_expenses')
+                        .update({ skipped_months: [...currentSkipped, monthKey] })
+                        .eq('id', tx.recurring_id)
+                }
+            }
+        }
+
+        // 2. Exclui a transação
+        const { error: deleteError } = await supabase
+            .from('financial_transactions')
+            .delete()
+            .eq('id', txId)
+
+        if (deleteError) throw deleteError
+
+        revalidatePath('/owner/financeiro')
+        revalidatePath('/owner')
+        return { success: true, message: 'Operação realizada com sucesso.' }
+    } catch (error) {
+        console.error('Erro ao excluir transação:', error)
+        return { success: false, message: 'Erro ao processar exclusão.' }
     }
 }

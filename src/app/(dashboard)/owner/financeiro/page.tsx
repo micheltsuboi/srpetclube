@@ -9,7 +9,7 @@ import { exportToCsv } from '@/utils/export'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { payPetshopSale } from '@/app/actions/petshop'
-import { addFinancialTransaction, processRecurringExpenses } from '@/app/actions/finance'
+import { addFinancialTransaction, processRecurringExpenses, deleteFinancialTransaction } from '@/app/actions/finance'
 
 interface MonthlyData {
     month: string
@@ -266,18 +266,41 @@ export default function FinanceiroPage() {
     const [selectedCategory, setSelectedCategory] = useState<string>('all')
 
     const handleDeleteTransaction = async (txId: string) => {
-        if (!confirm('Tem certeza que deseja excluir esta transação?')) return
+        const tx = extractRecords.transactions.find(t => t.id === txId)
+        if (!tx) return
+
+        let options = { cancelRecurrence: false, skipMonth: false }
+
+        if (tx.recurring_id) {
+            const mode = confirm(
+                'Esta é uma despesa FIXA.\n\n' +
+                'OK - Apenas excluir este mês (pular)\n' +
+                'CANCELAR - Ver mais opções'
+            )
+
+            if (mode) {
+                options.skipMonth = true
+            } else {
+                const stopAll = confirm('Deseja INTERROMPER todas as renovações futuras desta despesa?')
+                if (stopAll) {
+                    options.cancelRecurrence = true
+                } else {
+                    return // Cancelou tudo
+                }
+            }
+        } else {
+            if (!confirm('Tem certeza que deseja excluir esta transação?')) return
+        }
 
         try {
-            const { error } = await supabase
-                .from('financial_transactions')
-                .delete()
-                .eq('id', txId)
+            const res = await deleteFinancialTransaction(txId, options)
 
-            if (error) throw error
-
-            alert('Transação excluída com sucesso!')
-            fetchFinancials()
+            if (res.success) {
+                alert(res.message)
+                fetchFinancials()
+            } else {
+                alert(res.message)
+            }
         } catch (error) {
             console.error('Erro ao excluir transação:', error)
             alert('Erro ao excluir transação.')

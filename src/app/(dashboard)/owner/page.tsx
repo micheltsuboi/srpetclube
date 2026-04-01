@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
-import { processRecurringExpenses } from '@/app/actions/finance'
+import { processRecurringExpenses, deleteFinancialTransaction } from '@/app/actions/finance'
 
 type ServiceArea = 'all' | 'banho_tosa' | 'creche' | 'hotel'
 
@@ -285,18 +285,41 @@ export default function OwnerDashboard() {
     }
 
     const handleDeleteTransaction = async (txId: string) => {
-        if (!confirm('Tem certeza que deseja excluir esta transação?')) return
+        const tx = recentExpenses.find(t => t.id === txId) || extractRecords.transactions.find(t => t.id === txId)
+        if (!tx) return
+
+        let options = { cancelRecurrence: false, skipMonth: false }
+
+        if (tx.recurring_id) {
+            const mode = confirm(
+                'Esta é uma despesa FIXA.\n\n' +
+                'OK - Apenas excluir este mês (pular)\n' +
+                'CANCELAR - Ver mais opções'
+            )
+
+            if (mode) {
+                options.skipMonth = true
+            } else {
+                const stopAll = confirm('Deseja INTERROMPER todas as renovações futuras desta despesa?')
+                if (stopAll) {
+                    options.cancelRecurrence = true
+                } else {
+                    return // Cancelou tudo
+                }
+            }
+        } else {
+            if (!confirm('Tem certeza que deseja excluir esta transação?')) return
+        }
 
         try {
-            const { error } = await supabase
-                .from('financial_transactions')
-                .delete()
-                .eq('id', txId)
+            const res = await deleteFinancialTransaction(txId, options)
 
-            if (error) throw error
-
-            alert('Transação excluída com sucesso!')
-            window.location.reload()
+            if (res.success) {
+                alert(res.message)
+                window.location.reload()
+            } else {
+                alert(res.message)
+            }
         } catch (error) {
             console.error('Erro ao excluir transação:', error)
             alert('Erro ao excluir transação.')
