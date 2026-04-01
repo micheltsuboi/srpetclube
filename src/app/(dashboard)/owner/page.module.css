@@ -147,6 +147,11 @@
     color: #2ecc71;
 }
 
+.growth.negative {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+}
+
 /* Area Tabs */
 .areaTabs {
     display: flex;
@@ -404,6 +409,24 @@
     font-size: 0.8rem;
     color: var(--primary);
     font-weight: 500;
+}
+
+.addExpenseBtn {
+    padding: 0.4rem 0.8rem;
+    background: rgba(139, 92, 246, 0.1);
+    color: #8b5cf6;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s;
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.addExpenseBtn:hover {
+    background: #8b5cf6;
+    color: white;
+    transform: translateY(-2px);
 }
 
 .petMeta {

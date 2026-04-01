@@ -58,7 +58,7 @@ export async function payPetshopSale(saleId: string, paymentMethod: string) {
                 description: `Pagamento Pendente: Venda de ${sale.quantity}x ${sale.product_name}`,
                 payment_method: paymentMethod,
                 created_by: user.id,
-                date: new Date().toISOString()
+                date: new Date().toISOString().split('T')[0] + 'T12:00:00'
             })
             .select()
             .single()

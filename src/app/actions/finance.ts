@@ -42,7 +42,7 @@ export async function addFinancialTransaction(data: {
                     amount: data.amount,
                     description: data.description,
                     payment_method: data.payment_method,
-                    start_date: data.date || new Date().toISOString()
+                    start_date: data.date ? `${data.date}T12:00:00` : new Date().toISOString()
                 }])
                 .select()
                 .single()
@@ -70,7 +70,9 @@ export async function addFinancialTransaction(data: {
                     name: data.name,
                     amount: data.amount,
                     description: data.description,
-                    date: data.date || new Date().toISOString(),
+                    date: data.date 
+                        ? (data.date.includes('T') ? data.date : `${data.date}T12:00:00`)
+                        : new Date().toISOString(),
                     payment_method: data.payment_method || 'cash',
                     created_by: user.id
                 }])
@@ -143,11 +145,11 @@ export async function processRecurringExpenses(specificId?: string) {
             let startDate = expense.start_date ? new Date(expense.start_date) : new Date()
             if (lastTx) {
                 const lastDate = new Date(lastTx.date)
-                startDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1)
+                startDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1, 12, 0, 0)
             }
             
             // Loop apenas se a startDate for anterior ou igual ao mês atual
-            let checkDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1)
+            let checkDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1, 12, 0, 0)
             const limitDate = new Date(currentYear, currentMonth, 1)
 
             while (checkDate <= limitDate) {
@@ -169,7 +171,7 @@ export async function processRecurringExpenses(specificId?: string) {
                     ? originalStartDay 
                     : new Date(yearToCheck, monthToCheck + 1, 0).getDate()
                 
-                const transactionDate = new Date(yearToCheck, monthToCheck, dayToUse)
+                const transactionDate = new Date(yearToCheck, monthToCheck, dayToUse, 12, 0, 0)
 
                 await supabase.from('financial_transactions').insert([{
                     org_id: profile.org_id,
@@ -222,8 +224,10 @@ export async function deleteFinancialTransaction(txId: string, options?: {
                     .update({ is_active: false })
                     .eq('id', tx.recurring_id)
             } else if (options?.skipMonth) {
-                const txDate = new Date(tx.date)
-                const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`
+                // Previne erro de fuso horário ao extrair o mês da transação
+                // Se a data vier como string "YYYY-MM-DD...", pegamos o prefixo
+                const dateStr = typeof tx.date === 'string' ? tx.date : new Date(tx.date).toISOString()
+                const monthKey = dateStr.substring(0, 7) // Pega "YYYY-MM"
                 
                 const { data: rec } = await supabase
                     .from('recurring_expenses')

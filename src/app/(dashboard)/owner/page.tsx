@@ -15,6 +15,7 @@ interface FinancialMetrics {
     profit: number
     pendingPayments: number
     monthlyGrowth: number
+    expenseGrowth: number
 }
 
 interface PetToday {
@@ -56,7 +57,8 @@ export default function OwnerDashboard() {
         expenses: 0,
         profit: 0,
         pendingPayments: 0,
-        monthlyGrowth: 0
+        monthlyGrowth: 0,
+        expenseGrowth: 0
     })
     const router = useRouter()
     const pathname = usePathname()
@@ -143,7 +145,7 @@ export default function OwnerDashboard() {
                     .filter(a => a.payment_status === 'paid')
                     .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
 
-                const growth = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 : 0
+                const revenueGrowth = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 : 0
 
                 // 2. Process recurring expenses incrementally (throttled to once per session)
                 const lastSync = sessionStorage.getItem('last_recurring_sync')
@@ -177,15 +179,28 @@ export default function OwnerDashboard() {
                     .eq('type', 'expense')
                     .order('date', { ascending: false })
                     .limit(5)
-
+                
                 setRecentExpenses(recentExp || [])
+
+                // Calculate Expense Growth
+                const { data: prevMonthTxs } = await supabase
+                    .from('financial_transactions')
+                    .select('amount')
+                    .eq('org_id', profile.org_id)
+                    .eq('type', 'expense')
+                    .gte('date', startOfPreviousMonth)
+                    .lte('date', endOfPreviousMonth)
+                
+                const prevExpenses = (prevMonthTxs || []).reduce((sum, t) => sum + t.amount, 0)
+                const expenseGrowth = prevExpenses > 0 ? ((expenses - prevExpenses) / prevExpenses) * 100 : 0
 
                 setFinancials({
                     revenue: totalRevenue,
                     expenses,
                     profit: totalRevenue - expenses,
                     pendingPayments,
-                    monthlyGrowth: parseFloat(growth.toFixed(1))
+                    monthlyGrowth: parseFloat(revenueGrowth.toFixed(1)),
+                    expenseGrowth: parseFloat(expenseGrowth.toFixed(1))
                 })
 
                 // Store records for extract
@@ -436,6 +451,9 @@ export default function OwnerDashboard() {
                         <span className={styles.cardValue}>{formatCurrency(financials.expenses)}</span>
                         <span className={styles.cardLabel}>Despesas</span>
                     </div>
+                    <span className={`${styles.growth} ${financials.expenseGrowth <= 0 ? styles.positive : styles.negative}`}>
+                        {financials.expenseGrowth >= 0 ? '+' : ''}{financials.expenseGrowth}%
+                    </span>
                 </div>
                 <div
                     className={`${styles.financialCard} ${styles.clickable}`}
@@ -524,7 +542,10 @@ export default function OwnerDashboard() {
                 <div className={styles.sidebarSection}>
                     <div className={styles.sectionHeader}>
                         <h2 className={styles.sectionTitle}>📉 Últimas Despesas</h2>
-                        <Link href="/owner/financeiro" className={styles.viewMoreLink}>Ver Tudo</Link>
+                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                            <Link href="/owner/financeiro" className={styles.addExpenseBtn}>+ Nova</Link>
+                            <Link href="/owner/financeiro" className={styles.viewMoreLink}>Ver Tudo</Link>
+                        </div>
                     </div>
                     <div className={styles.recentExpensesList}>
                         {recentExpenses.map(expense => (

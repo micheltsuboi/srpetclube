@@ -169,7 +169,10 @@ export default function FinanceiroPage() {
             // --- Process Summary and Categories (filtered by startDate/endDate) ---
             const filterByPeriod = (dateStr: string) => {
                 const d = new Date(dateStr)
-                return d >= new Date(startDate) && d <= new Date(endDate + 'T23:59:59')
+                // Usamos 12:00:00 para garantir que a comparação seja segura contra timezone shifts
+                const start = new Date(startDate + 'T00:00:00')
+                const end = new Date(endDate + 'T23:59:59')
+                return d >= start && d <= end
             }
 
             const activeAppts = appointments.filter(a => filterByPeriod(a.payment_status === 'paid' ? a.paid_at! : a.scheduled_at))

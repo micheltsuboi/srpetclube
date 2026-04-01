@@ -558,7 +558,7 @@ export async function updatePaymentStatus(id: string, paymentStatus: string, pay
     }
 
     if (paymentStatus === 'paid') {
-        updateData.paid_at = new Date().toISOString()
+        updateData.paid_at = new Date().toISOString().split('T')[0] + 'T12:00:00'
         if (paymentMethod) {
             updateData.payment_method = paymentMethod
         }
