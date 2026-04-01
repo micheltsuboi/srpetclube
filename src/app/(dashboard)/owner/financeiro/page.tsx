@@ -9,7 +9,7 @@ import { exportToCsv } from '@/utils/export'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { payPetshopSale } from '@/app/actions/petshop'
-import { addFinancialTransaction } from '@/app/actions/finance'
+import { addFinancialTransaction, processRecurringExpenses } from '@/app/actions/finance'
 
 interface MonthlyData {
     month: string
@@ -58,7 +58,8 @@ export default function FinanceiroPage() {
         amount: '',
         description: '',
         date: new Date().toISOString().split('T')[0],
-        payment_method: 'pix'
+        payment_method: 'pix',
+        type: 'variable' as 'variable' | 'fixed'
     })
     const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -76,7 +77,10 @@ export default function FinanceiroPage() {
 
             if (!profile?.org_id) return
 
-            // 1. Fetch data for Chart (Last 6 months)
+            // 1. Process recurring expenses before fetching
+            await processRecurringExpenses()
+
+            // 2. Fetch data for Chart (Last 6 months)
             const sixMonthsAgo = new Date()
             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
             sixMonthsAgo.setDate(1)
@@ -296,7 +300,8 @@ export default function FinanceiroPage() {
                 amount: parseFloat(newExpense.amount),
                 description: newExpense.description,
                 date: new Date(newExpense.date).toISOString(),
-                payment_method: newExpense.payment_method
+                payment_method: newExpense.payment_method,
+                is_recurring: newExpense.type === 'fixed'
             })
 
             if (res.success) {
@@ -308,7 +313,8 @@ export default function FinanceiroPage() {
                     amount: '',
                     description: '',
                     date: new Date().toISOString().split('T')[0],
-                    payment_method: 'pix'
+                    payment_method: 'pix',
+                    type: 'variable'
                 })
                 fetchFinancials()
             } else {
@@ -745,6 +751,25 @@ export default function FinanceiroPage() {
                         </div>
 
                         <form onSubmit={handleAddExpense} className={styles.expenseForm}>
+                            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                                <div className={styles.typeSelector}>
+                                    <button
+                                        type="button"
+                                        className={newExpense.type === 'variable' ? styles.activeType : ''}
+                                        onClick={() => setNewExpense({ ...newExpense, type: 'variable' })}
+                                    >
+                                        Variável
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={newExpense.type === 'fixed' ? styles.activeType : ''}
+                                        onClick={() => setNewExpense({ ...newExpense, type: 'fixed' })}
+                                    >
+                                        Fixa (Recorrente)
+                                    </button>
+                                </div>
+                            </div>
+
                             <div className={styles.formGroup}>
                                 <label>Nome da Despesa</label>
                                 <input
@@ -764,6 +789,7 @@ export default function FinanceiroPage() {
                                         onChange={e => setNewExpense({ ...newExpense, category: e.target.value })}
                                         required
                                     >
+                                        <option value="Salário">Salário</option>
                                         <option value="Aluguel">Aluguel</option>
                                         <option value="Energia">Energia</option>
                                         <option value="Água">Água</option>
