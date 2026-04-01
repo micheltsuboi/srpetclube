@@ -26,4 +26,4 @@ ON public.customers(org_id, name ASC);
 -- Comentários
 COMMENT ON INDEX idx_financial_transactions_org_date_type IS 'Otimiza o dashboard financeiro e extratos mensais.';
 COMMENT ON INDEX idx_appointments_org_scheduled IS 'Otimiza o carregamento da agenda diária/semanal.';
-COMMENT ON INDEX idx_pets_org_name IS 'Otimiza a listagem e busca de animais.';
+COMMENT ON INDEX idx_pets_customer_name IS 'Otimiza a listagem e busca de animais.';
