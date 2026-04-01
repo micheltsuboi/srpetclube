@@ -53,7 +53,8 @@ export async function addFinancialTransaction(data: {
             }
 
             // Agora processa para gerar a primeira transação (mês atual)
-            await processRecurringExpenses()
+            // Chamamos de forma otimizada passando o ID para evitar loop global
+            await processRecurringExpenses(recurringData.id)
             
             revalidatePath('/owner/financeiro')
             revalidatePath('/owner')
@@ -89,7 +90,11 @@ export async function addFinancialTransaction(data: {
     }
 }
 
-export async function processRecurringExpenses() {
+/**
+ * Função otimizada para sincronizar despesas recorrentes.
+ * @param specificId se fornecido, processa apenas este ID (reduz CPU)
+ */
+export async function processRecurringExpenses(specificId?: string) {
     const supabase = await createClient()
 
     try {
@@ -104,11 +109,18 @@ export async function processRecurringExpenses() {
 
         if (!profile?.org_id) return { success: false, message: 'Organização não encontrada.' }
 
-        const { data: recurringExpenses, error: recurringError } = await supabase
+        // 1. Busca as despesas fixas ativas (ou apenas uma específica)
+        let query = supabase
             .from('recurring_expenses')
             .select('*')
             .eq('org_id', profile.org_id)
             .eq('is_active', true)
+        
+        if (specificId) {
+            query = query.eq('id', specificId)
+        }
+
+        const { data: recurringExpenses, error: recurringError } = await query
 
         if (recurringError || !recurringExpenses) return { success: false, message: 'Nenhuma despesa fixa encontrada.' }
 
@@ -117,7 +129,24 @@ export async function processRecurringExpenses() {
         const currentMonth = now.getMonth()
 
         for (const expense of recurringExpenses) {
-            const startDate = new Date(expense.start_date)
+            // OTIMIZAÇÃO: Buscar apenas a transação mais recente deste recurring_id
+            const { data: lastTx } = await supabase
+                .from('financial_transactions')
+                .select('date')
+                .eq('recurring_id', expense.id)
+                .order('date', { ascending: false })
+                .limit(1)
+                .single()
+
+            // Se existir transação anterior, começamos do mês seguinte a ela.
+            // Se não, usamos a start_date original.
+            let startDate = expense.start_date ? new Date(expense.start_date) : new Date()
+            if (lastTx) {
+                const lastDate = new Date(lastTx.date)
+                startDate = new Date(lastDate.getFullYear(), lastDate.getMonth() + 1, 1)
+            }
+            
+            // Loop apenas se a startDate for anterior ou igual ao mês atual
             let checkDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1)
             const limitDate = new Date(currentYear, currentMonth, 1)
 
@@ -133,39 +162,28 @@ export async function processRecurringExpenses() {
                     continue
                 }
 
-                const startOfMonth = new Date(yearToCheck, monthToCheck, 1).toISOString()
-                const endOfMonth = new Date(yearToCheck, monthToCheck + 1, 0, 23, 59, 59).toISOString()
+                // OTIMIZAÇÃO: Como já buscamos a última transação acima, 
+                // não precisamos re-verificar no meio do loop unless we created one.
+                const originalStartDay = expense.start_date ? new Date(expense.start_date).getDate() : 1
+                const dayToUse = new Date(yearToCheck, monthToCheck, originalStartDay).getMonth() === monthToCheck 
+                    ? originalStartDay 
+                    : new Date(yearToCheck, monthToCheck + 1, 0).getDate()
+                
+                const transactionDate = new Date(yearToCheck, monthToCheck, dayToUse)
 
-                const { data: existing, error: checkError } = await supabase
-                    .from('financial_transactions')
-                    .select('id')
-                    .eq('org_id', profile.org_id)
-                    .eq('recurring_id', expense.id)
-                    .gte('date', startOfMonth)
-                    .lte('date', endOfMonth)
-                    .limit(1)
+                await supabase.from('financial_transactions').insert([{
+                    org_id: profile.org_id,
+                    type: 'expense',
+                    category: expense.category,
+                    name: expense.name,
+                    amount: expense.amount,
+                    description: `[Fixa] ${expense.description || ''}`,
+                    payment_method: expense.payment_method,
+                    date: transactionDate.toISOString(),
+                    created_by: user.id,
+                    recurring_id: expense.id
+                }])
 
-                if (!checkError && existing?.length === 0) {
-                    const day = startDate.getDate()
-                    const dayToUse = new Date(yearToCheck, monthToCheck, day).getMonth() === monthToCheck 
-                        ? day 
-                        : new Date(yearToCheck, monthToCheck + 1, 0).getDate()
-                    
-                    const transactionDate = new Date(yearToCheck, monthToCheck, dayToUse)
-
-                    await supabase.from('financial_transactions').insert([{
-                        org_id: profile.org_id,
-                        type: 'expense',
-                        category: expense.category,
-                        name: expense.name,
-                        amount: expense.amount,
-                        description: `[Fixa] ${expense.description || ''}`,
-                        payment_method: expense.payment_method,
-                        date: transactionDate.toISOString(),
-                        created_by: user.id,
-                        recurring_id: expense.id
-                    }])
-                }
                 checkDate.setMonth(checkDate.getMonth() + 1)
             }
         }
@@ -179,9 +197,6 @@ export async function processRecurringExpenses() {
     }
 }
 
-/**
- * Action para excluir transação com suporte a recorrências
- */
 export async function deleteFinancialTransaction(txId: string, options?: {
     cancelRecurrence?: boolean,
     skipMonth?: boolean
@@ -192,7 +207,6 @@ export async function deleteFinancialTransaction(txId: string, options?: {
         const { data: { user } } = await supabase.auth.getUser()
         if (!user) return { success: false, message: 'Não autorizado.' }
 
-        // 1. Busca os detalhes da transação antes de excluir
         const { data: tx, error: fetchError } = await supabase
             .from('financial_transactions')
             .select('*')
@@ -203,17 +217,14 @@ export async function deleteFinancialTransaction(txId: string, options?: {
 
         if (tx.recurring_id) {
             if (options?.cancelRecurrence) {
-                // Desativa a recorrência futura
                 await supabase
                     .from('recurring_expenses')
                     .update({ is_active: false })
                     .eq('id', tx.recurring_id)
             } else if (options?.skipMonth) {
-                // Adiciona este mês à lista de meses pulados para não recriar
                 const txDate = new Date(tx.date)
                 const monthKey = `${txDate.getFullYear()}-${String(txDate.getMonth() + 1).padStart(2, '0')}`
                 
-                // Busca os meses já pulados
                 const { data: rec } = await supabase
                     .from('recurring_expenses')
                     .select('skipped_months')
@@ -230,7 +241,6 @@ export async function deleteFinancialTransaction(txId: string, options?: {
             }
         }
 
-        // 2. Exclui a transação
         const { error: deleteError } = await supabase
             .from('financial_transactions')
             .delete()

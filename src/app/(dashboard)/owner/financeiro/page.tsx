@@ -77,8 +77,14 @@ export default function FinanceiroPage() {
 
             if (!profile?.org_id) return
 
-            // 1. Process recurring expenses before fetching
-            await processRecurringExpenses()
+            // 1. Process recurring expenses incrementally (throttled to once per session)
+            const lastSync = sessionStorage.getItem('last_recurring_sync')
+            const today = new Date().toISOString().split('T')[0]
+
+            if (lastSync !== today) {
+                await processRecurringExpenses()
+                sessionStorage.setItem('last_recurring_sync', today)
+            }
 
             // 2. Fetch data for Chart (Last 6 months)
             const sixMonthsAgo = new Date()

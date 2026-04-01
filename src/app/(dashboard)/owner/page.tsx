@@ -145,8 +145,14 @@ export default function OwnerDashboard() {
 
                 const growth = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 : 0
 
-                // 2. Process recurring expenses before showing totals
-                await processRecurringExpenses()
+                // 2. Process recurring expenses incrementally (throttled to once per session)
+                const lastSync = sessionStorage.getItem('last_recurring_sync')
+                const today = new Date().toISOString().split('T')[0]
+                
+                if (lastSync !== today) {
+                    await processRecurringExpenses()
+                    sessionStorage.setItem('last_recurring_sync', today)
+                }
 
                 // 3. Fetch all financial transactions (income and expenses) for the month
                 const { data: transactions } = await supabase
