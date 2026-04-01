@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
+import { processRecurringExpenses } from '@/app/actions/finance'
 
 type ServiceArea = 'all' | 'banho_tosa' | 'creche' | 'hotel'
 
@@ -66,6 +67,7 @@ export default function OwnerDashboard() {
         pets: 0,
         appointmentsToday: 0
     })
+    const [recentExpenses, setRecentExpenses] = useState<any[]>([])
 
     // Records for drill-down
     const [extractRecords, setExtractRecords] = useState<{
@@ -143,6 +145,9 @@ export default function OwnerDashboard() {
 
                 const growth = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 : 0
 
+                // 2. Process recurring expenses before showing totals
+                await processRecurringExpenses()
+
                 // 3. Fetch all financial transactions (income and expenses) for the month
                 const { data: transactions } = await supabase
                     .from('financial_transactions')
@@ -157,6 +162,17 @@ export default function OwnerDashboard() {
                 const expenses = expenseTxs.reduce((sum, t) => sum + t.amount, 0)
 
                 const totalRevenue = currentRevenue + productRevenue
+
+                // Get recent 5 expenses for the new section
+                const { data: recentExp } = await supabase
+                    .from('financial_transactions')
+                    .select('*')
+                    .eq('org_id', profile.org_id)
+                    .eq('type', 'expense')
+                    .order('date', { ascending: false })
+                    .limit(5)
+
+                setRecentExpenses(recentExp || [])
 
                 setFinancials({
                     revenue: totalRevenue,
@@ -433,63 +449,77 @@ export default function OwnerDashboard() {
                 ))}
             </div>
 
-            {/* Area Stats */}
-            <div className={styles.areaStats}>
-                <div className={styles.statItem}>
-                    <span className={styles.statValue}>{currentStats.todayCount}</span>
-                    <span className={styles.statLabel}>Hoje</span>
-                </div>
-                <div className={styles.statDivider} />
-                <div className={styles.statItem}>
-                    <span className={styles.statValue}>{currentStats.monthCount}</span>
-                    <span className={styles.statLabel}>Este Mês</span>
-                </div>
-                <div className={styles.statDivider} />
-                <div className={styles.statItem}>
-                    <span className={styles.statValue}>{formatCurrency(currentStats.revenue)}</span>
-                    <span className={styles.statLabel}>Receita</span>
-                </div>
-            </div>
+            {/* Dashboard Content Grid */}
+            <div className={styles.mainGrid}>
+                {/* Pets List */}
+                <div className={styles.petsSection}>
+                    <h2 className={styles.sectionTitle}>
+                        {areaLabels[selectedArea]} - Pets de Hoje
+                    </h2>
 
-            {/* Pets List */}
-            <div className={styles.petsSection}>
-                <h2 className={styles.sectionTitle}>
-                    {areaLabels[selectedArea]} - Pets de Hoje
-                </h2>
-
-                <div className={styles.petsList}>
-                    {filteredPets.map(pet => (
-                        <div key={pet.id} className={styles.petCard}>
-                            <div className={styles.petAvatar}>
-                                <span>{areaIcons[pet.area]}</span>
+                    <div className={styles.petsList}>
+                        {filteredPets.map(pet => (
+                            <div key={pet.id} className={styles.petCard}>
+                                <div className={styles.petAvatar}>
+                                    <span>{areaIcons[pet.area]}</span>
+                                </div>
+                                <div className={styles.petInfo}>
+                                    <div className={styles.petHeader}>
+                                        <span className={styles.petName}>{pet.name}</span>
+                                        <span className={`${styles.statusBadge} ${styles[pet.status]}`}>
+                                            {statusLabels[pet.status]}
+                                        </span>
+                                    </div>
+                                    <span className={styles.petBreed}>{pet.breed}</span>
+                                    <span className={styles.petService}>{pet.service}</span>
+                                </div>
+                                <div className={styles.petMeta}>
+                                    <span className={styles.ownerName}>{pet.ownerName}</span>
+                                    {pet.checkedInAt && (
+                                        <span className={styles.checkInTime}>Check-in: {pet.checkedInAt}</span>
+                                    )}
+                                </div>
                             </div>
-                            <div className={styles.petInfo}>
-                                <div className={styles.petHeader}>
-                                    <span className={styles.petName}>{pet.name}</span>
-                                    <span className={`${styles.statusBadge} ${styles[pet.status]}`}>
-                                        {statusLabels[pet.status]}
+                        ))}
+                    </div>
+
+                    {filteredPets.length === 0 && (
+                        <div className={styles.emptyState}>
+                            <span>🐾</span>
+                            <p>Nenhum pet nesta área hoje (Agendamentos em breve)</p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Recent Expenses Section */}
+                <div className={styles.sidebarSection}>
+                    <div className={styles.sectionHeader}>
+                        <h2 className={styles.sectionTitle}>📉 Últimas Despesas</h2>
+                        <Link href="/owner/financeiro" className={styles.viewMoreLink}>Ver Tudo</Link>
+                    </div>
+                    <div className={styles.recentExpensesList}>
+                        {recentExpenses.map(expense => (
+                            <div key={expense.id} className={styles.expenseItem}>
+                                <div className={styles.expenseMain}>
+                                    <span className={styles.expenseName}>{expense.name || expense.category}</span>
+                                    <span className={styles.expenseDate}>
+                                        {new Date(expense.date).toLocaleDateString('pt-BR')}
                                     </span>
                                 </div>
-                                <span className={styles.petBreed}>{pet.breed}</span>
-                                <span className={styles.petService}>{pet.service}</span>
+                                <span className={styles.expenseAmount}>
+                                    {formatCurrency(expense.amount)}
+                                </span>
                             </div>
-                            <div className={styles.petMeta}>
-                                <span className={styles.ownerName}>{pet.ownerName}</span>
-                                {pet.checkedInAt && (
-                                    <span className={styles.checkInTime}>Check-in: {pet.checkedInAt}</span>
-                                )}
+                        ))}
+                        {recentExpenses.length === 0 && (
+                            <div className={styles.emptyRecent}>
+                                <p>Nenhuma despesa registrada.</p>
                             </div>
-                        </div>
-                    ))}
-                </div>
-
-                {filteredPets.length === 0 && (
-                    <div className={styles.emptyState}>
-                        <span>🐾</span>
-                        <p>Nenhum pet nesta área hoje (Agendamentos em breve)</p>
+                        )}
                     </div>
-                )}
+                </div>
             </div>
+
             {/* Extract Modal */}
             {isExtractModalOpen && extractRecords.type && (
                 <div className={styles.modalOverlay} onClick={() => setIsExtractModalOpen(false)}>

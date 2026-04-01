@@ -299,7 +299,7 @@ export default function FinanceiroPage() {
                 name: newExpense.name,
                 amount: parseFloat(newExpense.amount),
                 description: newExpense.description,
-                date: new Date(newExpense.date).toISOString(),
+                date: new Date(newExpense.date + 'T12:00:00').toISOString(),
                 payment_method: newExpense.payment_method,
                 is_recurring: newExpense.type === 'fixed'
             })
