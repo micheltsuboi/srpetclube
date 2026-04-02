@@ -151,7 +151,7 @@
 .packageHeaderBadge {
     position: absolute;
     top: -10px;
-    right: 15px;
+    left: 95px;
     background: #9b59b6;
     color: white;
     padding: 4px 10px;
