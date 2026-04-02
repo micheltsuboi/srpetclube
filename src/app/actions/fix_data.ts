@@ -128,37 +128,41 @@ export async function fixPackageUsageIndices() {
         // 4. Tentar vincular "órfãos" (agendamentos de serviços que deveriam ser de pacote mas não têm o ID)
         console.log(`Checking ${orphans.length} orphan appointments...`)
         for (const orphan of orphans) {
-            // Buscar se o pet tem um crédito ativo para esse serviço
-            const { data: credits } = await supabase
-                .from('package_credits')
-                .select('id, customer_package_id, total_quantity, used_quantity')
-                .eq('service_id', orphan.service_id)
-                .is('customer_package_id', orphan.pet_id ? (
-                    // Aqui precisaríamos de um join complexo, vamos buscar o pacote do pet primeiro
-                    null 
-                ) : null)
+            if (!orphan.pet_id) continue;
+
+            // Buscar o dono do pet
+            const { data: petData } = await supabase
+                .from('pets')
+                .select('customer_id')
+                .eq('id', orphan.pet_id)
+                .single()
             
-            // Busca mais simples: Créditos desse pet (via customer_package)
+            if (!petData?.customer_id) continue;
+
+            // Busca Créditos: 1) Específicos do pet, 2) Gerais do cliente
             const { data: petCredits } = await supabase
                 .from('package_credits')
-                .select('id, customer_package_id, total_quantity')
+                .select(`
+                    id, 
+                    customer_packages!inner (id, pet_id, customer_id, is_active)
+                `)
                 .eq('service_id', orphan.service_id)
-                .in('customer_package_id', 
-                    (await supabase.from('customer_packages').select('id').eq('pet_id', orphan.pet_id).eq('is_active', true)).data?.map(cp => cp.id) || []
-                )
+                .eq('customer_packages.is_active', true)
+                .or(`pet_id.eq.${orphan.pet_id},and(pet_id.is.null,customer_id.eq.${petData.customer_id})`, { foreignTable: 'customer_packages' })
 
             if (petCredits && petCredits.length > 0) {
-                const creditToLink = petCredits[0] // Pega o primeiro crédito ativo encontrado
+                // Priorizar o que tem pet_id
+                const creditToLink = petCredits.sort((a: any, b: any) => 
+                    (a.customer_packages.pet_id === orphan.pet_id ? -1 : 1)
+                )[0]
+
                 const { error: linkErr } = await supabase
                     .from('appointments')
                     .update({ package_credit_id: creditToLink.id })
                     .eq('id', orphan.id)
                 
                 if (!linkErr) {
-                    console.log(`Linked orphan appt ${orphan.id} to credit ${creditToLink.id}`)
                     updatedCount++
-                    // Agora que vinculou, precisamos recalcular o índice desse grupo depois
-                    // Mas para simplificar, o usuário pode clicar no botão 2 vezes se necessário.
                 }
             }
         }

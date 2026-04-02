@@ -23,6 +23,7 @@ import DateRangeFilter, { DateRange, getDateRange } from '@/components/DateRange
 import PaymentControls from '@/components/PaymentControls'
 import EditAppointmentModal from '@/components/EditAppointmentModal'
 import BookingModal from '@/components/BookingModal'
+import { Package } from 'lucide-react'
 
 interface Customer {
     name: string
@@ -284,7 +285,11 @@ export default function AgendaPage() {
             }
 
             if (error) console.error(error)
-            if (appts) setAppointments(appts as unknown as Appointment[])
+            if (appts) {
+                console.log(`[Agenda] Loaded ${appts.length} appointments. Package links:`, 
+                    (appts as any[]).filter(a => a.package_credit_id).length)
+                setAppointments(appts as unknown as Appointment[])
+            }
 
         } catch (error) {
             console.error('Error fetching data:', error)
@@ -422,7 +427,7 @@ export default function AgendaPage() {
             >
                 {isPackage && (
                     <div className={styles.packageIconBadge} title="Este agendamento é parte de um pacote">
-                        📦
+                        <Package size={18} />
                     </div>
                 )}
                 <div className={styles.timeDisplay}>{formatTime(appt.scheduled_at)}</div>

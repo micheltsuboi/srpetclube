@@ -38,6 +38,7 @@ export default function DebugPage() {
                 .from('appointments')
                 .select(`
                     id, scheduled_at, check_in_date, check_out_date, status,
+                    package_credit_id, package_usage_index,
                     pets(name),
                     services(name, service_categories(name))
                 `)
@@ -213,6 +214,8 @@ export default function DebugPage() {
                                 <th style={{ padding: '0.5rem', textAlign: 'left' }}>Check-in</th>
                                 <th style={{ padding: '0.5rem', textAlign: 'left' }}>Check-out</th>
                                 <th style={{ padding: '0.5rem', textAlign: 'left' }}>Status</th>
+                                <th style={{ padding: '0.5rem', textAlign: 'left' }}>Pacote?</th>
+                                <th style={{ padding: '0.5rem', textAlign: 'left' }}>ID Crédito</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -224,6 +227,10 @@ export default function DebugPage() {
                                     <td style={{ padding: '0.5rem' }}>{a.check_in_date || '-'}</td>
                                     <td style={{ padding: '0.5rem' }}>{a.check_out_date || '-'}</td>
                                     <td style={{ padding: '0.5rem' }}>{a.status}</td>
+                                    <td style={{ padding: '0.5rem' }}>
+                                        {a.package_credit_id ? `✅ (${a.package_usage_index || '?'})` : '❌'}
+                                    </td>
+                                    <td style={{ padding: '0.5rem', fontSize: '0.6rem' }}>{a.package_credit_id || '-'}</td>
                                     <td style={{ padding: '0.5rem' }}>
                                         <button
                                             onClick={async () => {
