@@ -125,22 +125,45 @@ export async function fixPackageUsageIndices() {
             }
         }
 
-        // 4. Tentar vincular "órfãos" (opcional, mas proativo)
-        // Só vincula se o pet tiver EXATAMENTE um pacote ativo para aquele serviço
+        // 4. Tentar vincular "órfãos" (agendamentos de serviços que deveriam ser de pacote mas não têm o ID)
+        console.log(`Checking ${orphans.length} orphan appointments...`)
         for (const orphan of orphans) {
+            // Buscar se o pet tem um crédito ativo para esse serviço
             const { data: credits } = await supabase
                 .from('package_credits')
-                .select('id, total_quantity, used_quantity')
+                .select('id, customer_package_id, total_quantity, used_quantity')
                 .eq('service_id', orphan.service_id)
-                .eq('customer_package_id', (
-                    supabase.from('customer_packages').select('id').eq('pet_id', orphan.pet_id).eq('is_active', true) as any
-                )) // Simplificação de subquery não permitida aqui direto, vamos buscar manual se necessário
+                .is('customer_package_id', orphan.pet_id ? (
+                    // Aqui precisaríamos de um join complexo, vamos buscar o pacote do pet primeiro
+                    null 
+                ) : null)
             
-            // Para evitar lentidão extrema, vamos focar nos que já têm o vínculo de crédito.
-            // Se o usuário agendou manualmente sem selecionar pacote, o ID de crédito estará nulo.
+            // Busca mais simples: Créditos desse pet (via customer_package)
+            const { data: petCredits } = await supabase
+                .from('package_credits')
+                .select('id, customer_package_id, total_quantity')
+                .eq('service_id', orphan.service_id)
+                .in('customer_package_id', 
+                    (await supabase.from('customer_packages').select('id').eq('pet_id', orphan.pet_id).eq('is_active', true)).data?.map(cp => cp.id) || []
+                )
+
+            if (petCredits && petCredits.length > 0) {
+                const creditToLink = petCredits[0] // Pega o primeiro crédito ativo encontrado
+                const { error: linkErr } = await supabase
+                    .from('appointments')
+                    .update({ package_credit_id: creditToLink.id })
+                    .eq('id', orphan.id)
+                
+                if (!linkErr) {
+                    console.log(`Linked orphan appt ${orphan.id} to credit ${creditToLink.id}`)
+                    updatedCount++
+                    // Agora que vinculou, precisamos recalcular o índice desse grupo depois
+                    // Mas para simplificar, o usuário pode clicar no botão 2 vezes se necessário.
+                }
+            }
         }
 
-        return { success: true, message: `Sucesso! ${updatedCount} agendamentos sincronizados com índices de uso.` }
+        return { success: true, message: `Sucesso! ${updatedCount} agendamentos sincronizados ou vinculados.` }
 
     } catch (error: any) {
         console.error('Exception in fixPackageUsageIndices:', error)

@@ -223,7 +223,8 @@ export default function AgendaPage() {
             const startDayStr = startDateStr.split('T')[0]
             const endDayStr = endDateStr.split('T')[0]
 
-            const { data: appts, error } = await supabase
+            // Defensive query: try with package_usage_index, fallback if it doesn't exist yet
+            let { data: appts, error } = await supabase
                 .from('appointments')
                 .select(`
                     id, pet_id, service_id, scheduled_at, status, checklist, notes,
@@ -249,6 +250,38 @@ export default function AgendaPage() {
                 .eq('org_id', profile.org_id)
                 .or(`and(scheduled_at.gte.${startDateStr},scheduled_at.lte.${endDateStr}),and(check_in_date.lte.${endDayStr},check_out_date.gte.${startDayStr})`)
                 .neq('status', 'cancelled')
+
+            if (error && error.message.includes('package_usage_index')) {
+                console.warn('[Agenda] package_usage_index column missing, falling back...')
+                const fallback = await supabase
+                    .from('appointments')
+                    .select(`
+                        id, pet_id, service_id, scheduled_at, status, checklist, notes,
+                        calculated_price,
+                        final_price, discount_percent, payment_status, payment_method,
+                        actual_check_in, actual_check_out,
+                        check_in_date, check_out_date,
+                        package_credit_id, package_slot_id,
+                        package_credits:package_credit_id (
+                            total_quantity,
+                            used_quantity
+                        ),
+                        pets ( 
+                            name, species, breed, 
+                            perfume_allowed, accessories_allowed, special_care, is_adapted,
+                            customers ( name )
+                        ),
+                        services ( 
+                            name, duration_minutes, base_price, category_id,
+                            service_categories ( name, color, icon )
+                        )
+                    `)
+                    .eq('org_id', profile.org_id)
+                    .or(`and(scheduled_at.gte.${startDateStr},scheduled_at.lte.${endDateStr}),and(check_in_date.lte.${endDayStr},check_out_date.gte.${startDayStr})`)
+                    .neq('status', 'cancelled')
+                appts = fallback.data as any
+                error = fallback.error
+            }
 
             if (error) console.error(error)
             if (appts) setAppointments(appts as unknown as Appointment[])
@@ -421,11 +454,17 @@ export default function AgendaPage() {
                     {appt.services?.name}
                     {isPackage && (
                         <div className={styles.packageProgressBadge}>
-                            {appt.package_usage_index && appt.package_credits
-                                ? `Sessão ${appt.package_usage_index} de ${appt.package_credits.total_quantity}`
-                                : (appt.package_credits 
-                                    ? `Sessão ${appt.package_credits.used_quantity} de ${appt.package_credits.total_quantity}`
-                                    : 'Pacote')}
+                            {(() => {
+                                // Extract data handling both object and array from Supabase join
+                                const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                                if (appt.package_usage_index && pg) {
+                                    return `Sessão ${appt.package_usage_index} de ${pg.total_quantity}`;
+                                }
+                                if (pg) {
+                                    return `Sessão ${pg.used_quantity} de ${pg.total_quantity}`;
+                                }
+                                return 'Pacote';
+                            })()}
                         </div>
                     )}
                 </div>
