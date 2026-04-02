@@ -22,6 +22,7 @@ import {
 import DateRangeFilter, { DateRange, getDateRange } from '@/components/DateRangeFilter'
 import PaymentControls from '@/components/PaymentControls'
 import EditAppointmentModal from '@/components/EditAppointmentModal'
+import BookingModal from '@/components/BookingModal'
 
 interface Customer {
     name: string
@@ -140,20 +141,10 @@ export default function AgendaPage() {
     const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
     const [isEditing, setIsEditing] = useState(false)
 
-    // Checklist State
-    const [currentChecklist, setCurrentChecklist] = useState<any[]>([])
-
-    // Validation State
-    const [bookingError, setBookingError] = useState<string | null>(null)
-    const [loadingDynamicPrice, setLoadingDynamicPrice] = useState(false)
-    const [modalDynamicPrices, setModalDynamicPrices] = useState<Record<string, number>>({})
-    const [petSearchTerm, setPetSearchTerm] = useState('')
-    const [showPetResults, setShowPetResults] = useState(false)
-    const [isSearchingPets, setIsSearchingPets] = useState(false)
-
-    // Actions
-    const [createState, createAction, isCreatePending] = useActionState(createAppointment, initialState)
     const [blockState, blockAction, isBlockPending] = useActionState(createScheduleBlock, initialState)
+
+    // Checklist State (Still needed for detail modal)
+    const [currentChecklist, setCurrentChecklist] = useState<any[]>([])
 
     // Debug state change
     useEffect(() => {
@@ -264,18 +255,6 @@ export default function AgendaPage() {
         fetchData()
     }, [fetchData])
 
-    useEffect(() => {
-        if (createState.success) {
-            setShowNewModal(false)
-            fetchData()
-            // Reset selection
-            setSelectedServiceId('')
-            setPreSelectedPetId(null)
-            setBookingError(null)
-        } else if (createState.message) {
-            alert(createState.message)
-        }
-    }, [createState, fetchData])
 
     useEffect(() => {
         if (blockState.success) {
@@ -286,162 +265,16 @@ export default function AgendaPage() {
         }
     }, [blockState, fetchData])
 
-    const validateScheduling = (dateStr: string, svcId: string, pId: string) => {
-        if (!dateStr || !svcId || !pId) {
-            setBookingError(null)
-            return true
-        }
 
-        const svc = services.find(s => s.id === svcId)
-        const pet = pets.find(p => p.id === pId)
-
-        if (!svc || !pet) {
-            setBookingError(null)
-            return true
-        }
-
-        const petSpecies = pet.species.toLowerCase() === 'cão' || pet.species.toLowerCase() === 'dog' ? 'dog' : 'cat'
-
-        // 1. Check Service Target Species
-        if (svc.target_species && svc.target_species !== 'both' && svc.target_species !== petSpecies) {
-            setBookingError(`Este serviço é exclusivo para ${svc.target_species === 'dog' ? 'Cães' : 'Gatos'}.`)
-            return false
-        }
-
-        // 2. Check Schedule Rules (Day of week)
-        if (svc.scheduling_rules && svc.scheduling_rules.length > 0) {
-            const [y, m, d] = dateStr.split('-').map(Number)
-            const dayOfWeek = new Date(y, m - 1, d).getDay()
-            const rule = svc.scheduling_rules.find(r => r.day === dayOfWeek)
-
-            if (rule && !rule.species.includes(petSpecies)) {
-                const allowed = rule.species.map(s => s === 'dog' ? 'Cães' : 'Gatos').join(' ou ')
-                const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-                setBookingError(`Este serviço só é permitido para ${allowed} às ${days[dayOfWeek]}s.`)
-                return false
-            }
-        }
-
-        // 3. Check Schedule Blocks (The new Logic)
-        // Exempt categories
-        const categoryName = (svc.service_categories?.name || svc.category || '').toLowerCase()
-        const isExempt = categoryName.includes('creche') || categoryName.includes('hospedagem') || categoryName.includes('hotel')
-
-        if (!isExempt) {
-            // Find blocks for this day
-            // We need to check if the selected time (or the whole day) is blocked.
-            // Since we only have dateStr here, we can check if there are blocks that cover the *start* time.
-            // But wait, validateScheduling is called when DATE changes. We might not have TIME yet.
-            // However, usually blocks are for specific times or full days.
-            // If we have selectedHourSlot, we should check it.
-
-            if (selectedHourSlot) {
-                const startDateTime = `${dateStr}T${selectedHourSlot}:00`
-                const endDateTimeNumber = parseInt(selectedHourSlot) + (svc.duration_minutes || 60) / 60
-                // Simple check: is the START time inside a block?
-                // A block is: start_at <= my_start < end_at
-
-                // We need the blocks state. We have 'scheduleBlocks'.
-                // Blocks are in ISO or similar. We need to compare properly.
-
-                const myStart = new Date(startDateTime).getTime()
-
-                const conflictingBlock = blocks.find((b: any) => {
-                    const blockStart = new Date(b.start_at).getTime()
-                    const blockEnd = new Date(b.end_at).getTime()
-                    return myStart >= blockStart && myStart < blockEnd
-                })
-
-                if (conflictingBlock) {
-                    const blockTags: string[] = conflictingBlock.allowed_species || []
-                    const allowedSpecies = blockTags.filter(t => !t.startsWith('blocked_cat_'))
-                    const blockedCategories = blockTags.filter(t => t.startsWith('blocked_cat_')).map(t => t.replace('blocked_cat_', ''))
-
-                    let blockApplies = false
-
-                    if (blockedCategories.length > 0) {
-                        // Block only applies if the service's category is in the blocked list
-                        if (blockedCategories.includes(categoryName)) {
-                            blockApplies = true
-                        }
-                    } else {
-                        // General block applies to all non-exempt services
-                        blockApplies = true
-                    }
-
-                    if (blockApplies) {
-                        if (allowedSpecies.length > 0) {
-                            if (!allowedSpecies.includes(petSpecies)) {
-                                const allowed = allowedSpecies.map(s => s === 'dog' ? 'Cães' : 'Gatos').join(' e ')
-                                setBookingError(`Horário reservado exclusivamente para ${allowed}.`)
-                                return false
-                            }
-                        } else {
-                            // General block (no species allowance)
-                            setBookingError(`Horário bloqueado: ${conflictingBlock.reason}`)
-                            return false
-                        }
-                    }
-                }
-            }
-        }
-
-        setBookingError(null)
-        return true
-    }
-
-    // Recalculate dynamic prices for all visible services in the modal
-    useEffect(() => {
-        const fetchModalPrices = async () => {
-            if (showNewModal && preSelectedPetId && selectedDate) {
-                // Filter services first to avoid unnecessary RPC calls
-                const pet = pets.find(p => p.id === preSelectedPetId);
-                if (!pet) return;
-                const petSpecies = pet.species.toLowerCase() === 'cão' || pet.species.toLowerCase() === 'dog' ? 'dog' : 'cat';
-                const eligibleServices = services.filter(s => !s.target_species || s.target_species === 'both' || s.target_species === petSpecies);
-
-                setLoadingDynamicPrice(true)
-                try {
-                    const { calculateManyDynamicPrices } = await import('@/app/actions/pricing')
-                    const serviceIds = eligibleServices.map(s => s.id)
-                    const results = await calculateManyDynamicPrices(preSelectedPetId, serviceIds, selectedDate)
-
-                    const newPrices: Record<string, number> = {}
-                    eligibleServices.forEach(s => {
-                        newPrices[s.id] = results[s.id] ?? s.base_price
-                    })
-                    setModalDynamicPrices(newPrices)
-                } catch (err) {
-                    console.error('Error fetching modal prices:', err)
-                } finally {
-                    setLoadingDynamicPrice(false)
-                }
-            } else {
-                setModalDynamicPrices({})
-            }
-        }
-        fetchModalPrices()
-    }, [showNewModal, preSelectedPetId, selectedDate, services, pets])
 
     const handleNewAppointment = (date?: string, hour?: number, petId?: string, serviceId?: string) => {
-        let finalDate = date || selectedDate
-        let finalSvcId = serviceId || ''
-        let finalPetId = petId || ''
-
-        // Check for blocks only for Banho e Tosa or if we want stricter blocking
-        // For now, let's allow opening the modal to pick service
-
+        const finalDate = date || selectedDate
         setSelectedDate(finalDate)
         if (hour) setSelectedHourSlot(hour.toString().padStart(2, '0'))
         if (petId) setPreSelectedPetId(petId)
         if (serviceId) setSelectedServiceId(serviceId)
         else setSelectedServiceId('')
 
-        // Trigger validation
-        validateScheduling(finalDate, finalSvcId, finalPetId)
-
-        setPetSearchTerm('') // Reset search when opening
-        setShowPetResults(false) // Hide results initially
         setShowNewModal(true)
     }
 
@@ -930,216 +763,18 @@ export default function AgendaPage() {
                 </>
             )}
 
-            {/* New Appointment Modal */}
-            {showNewModal && (
-                <div className={styles.modalOverlay} onClick={() => setShowNewModal(false)}>
-                    <div className={styles.modal} onClick={e => e.stopPropagation()}>
-                        <h2 className={styles.modalTitle}>Novo Agendamento</h2>
-                        <form action={createAction}>
-                            <div className={styles.formGroup}>
-                                <label className={styles.label}>Pet *</label>
-                                <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                                    <input
-                                        type="text"
-                                        placeholder="🔍 Pesquisar pet ou tutor..."
-                                        className={styles.input}
-                                        value={petSearchTerm}
-                                        onChange={(e) => {
-                                            setPetSearchTerm(e.target.value)
-                                            setShowPetResults(true)
-                                        }}
-                                        onFocus={() => setShowPetResults(true)}
-                                        style={{ fontSize: '0.85rem', padding: '0.75rem' }}
-                                    />
-
-                                    {showPetResults && petSearchTerm.length > 0 && (
-                                        <div className={styles.searchResultsContainer}>
-                                            {pets
-                                                .filter(p => {
-                                                    const search = petSearchTerm.toLowerCase()
-                                                    return p.name.toLowerCase().includes(search) ||
-                                                        p.customers?.name?.toLowerCase().includes(search) ||
-                                                        p.breed?.toLowerCase().includes(search)
-                                                })
-                                                .slice(0, 8)
-                                                .map(p => (
-                                                    <div
-                                                        key={p.id}
-                                                        className={styles.searchResultItem}
-                                                        onClick={() => {
-                                                            setPreSelectedPetId(p.id)
-                                                            setPetSearchTerm(p.name)
-                                                            setShowPetResults(false)
-                                                            validateScheduling(selectedDate, selectedServiceId, p.id)
-                                                        }}
-                                                    >
-                                                        <span className={styles.resultPetName}>{p.name}</span>
-                                                        <span className={styles.resultTutorName}>
-                                                            👤 {p.customers?.name || 'Sem tutor'} • {p.breed || 'SRD'}
-                                                        </span>
-                                                    </div>
-                                                ))
-                                            }
-                                            {pets.filter(p => {
-                                                const search = petSearchTerm.toLowerCase()
-                                                return p.name.toLowerCase().includes(search) ||
-                                                    p.customers?.name?.toLowerCase().includes(search) ||
-                                                    p.breed?.toLowerCase().includes(search)
-                                            }).length === 0 && (
-                                                    <div className={styles.searchResultItem} style={{ cursor: 'default', color: '#ef4444' }}>
-                                                        Nenhum pet encontrado.
-                                                    </div>
-                                                )}
-                                        </div>
-                                    )}
-
-                                    {/* Select oculto para manter compatibilidade com o form action */}
-                                    <select
-                                        name="petId"
-                                        required
-                                        value={preSelectedPetId || ""}
-                                        onChange={(e) => setPreSelectedPetId(e.target.value)}
-                                        style={{ display: 'none' }}
-                                    >
-                                        <option value="">Selecione...</option>
-                                        {pets.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                                    </select>
-
-                                    {preSelectedPetId && !showPetResults && (
-                                        <span style={{ fontSize: '0.75rem', color: 'var(--success)', fontWeight: '600', marginTop: '2px' }}>
-                                            ✓ Selecionado: {pets.find(p => p.id === preSelectedPetId)?.name} ({pets.find(p => p.id === preSelectedPetId)?.customers?.name})
-                                        </span>
-                                    )}
-                                </div>
-                            </div>
-                            <div className={styles.formGroup}>
-                                <label className={styles.label}>Serviço *</label>
-                                <select
-                                    name="serviceId"
-                                    className={styles.select}
-                                    required
-                                    value={selectedServiceId}
-                                    onChange={(e) => {
-                                        setSelectedServiceId(e.target.value)
-                                        validateScheduling(selectedDate, e.target.value, preSelectedPetId || "")
-                                    }}
-                                >
-                                    <option value="" disabled>Selecione...</option>
-                                    {Object.entries(services
-                                        .filter(s => {
-                                            if (!preSelectedPetId) return true;
-                                            const pet = pets.find(p => p.id === preSelectedPetId);
-                                            if (!pet) return true;
-                                            const petSpecies = pet.species.toLowerCase() === 'cão' || pet.species.toLowerCase() === 'dog' ? 'dog' : 'cat';
-                                            return !s.target_species || s.target_species === 'both' || s.target_species === petSpecies;
-                                        })
-                                        .reduce((acc, s) => {
-                                            const cat = s.service_categories?.name || 'Outros'
-                                            if (!acc[cat]) acc[cat] = []
-                                            acc[cat].push(s)
-                                            return acc
-                                        }, {} as Record<string, typeof services>)).map(([category, catServices]) => (
-                                            <optgroup key={category} label={category}>
-                                                {catServices.map(s => (
-                                                    <option key={s.id} value={s.id}>
-                                                        {s.name} (R$ {(modalDynamicPrices[s.id] ?? s.base_price).toFixed(2)})
-                                                    </option>
-                                                ))}
-                                            </optgroup>
-                                        ))}
-                                </select>
-                                {selectedServiceId && (
-                                    <div style={{ marginTop: '0.5rem', fontSize: '0.9rem', color: 'var(--primary)', fontWeight: '600' }}>
-                                        {loadingDynamicPrice ? (
-                                            <span>Atualizando preços...</span>
-                                        ) : modalDynamicPrices[selectedServiceId] !== undefined ? (
-                                            <span>Preço para este pet: R$ {modalDynamicPrices[selectedServiceId].toFixed(2)}</span>
-                                        ) : (
-                                            <span>Preço base: R$ {services.find(s => s.id === selectedServiceId)?.base_price.toFixed(2)}</span>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            {/* Conditional Rendering for Hospedagem */}
-                            {(() => {
-                                const selectedService = services.find(s => s.id === selectedServiceId)
-                                const categoryName = selectedService?.service_categories?.name || ''
-                                const isHospedagem = categoryName.toLowerCase().includes('hospedagem') || categoryName.toLowerCase().includes('hotel')
-
-                                if (isHospedagem) {
-                                    return (
-                                        <div className={styles.row}>
-                                            <div className={styles.formGroup}>
-                                                <label className={styles.label}>Data Check-in *</label>
-                                                <input
-                                                    name="checkInDate"
-                                                    type="date"
-                                                    className={styles.input}
-                                                    required
-                                                    defaultValue={selectedDate}
-                                                    onChange={(e) => {
-                                                        setSelectedDate(e.target.value)
-                                                        validateScheduling(e.target.value, selectedServiceId, preSelectedPetId || "")
-                                                    }}
-                                                />
-                                                <input type="hidden" name="date" value={selectedDate} />
-                                                <input type="hidden" name="time" value="14:00" />
-                                            </div>
-                                            <div className={styles.formGroup}>
-                                                <label className={styles.label}>Data Check-out *</label>
-                                                <input
-                                                    name="checkOutDate"
-                                                    type="date"
-                                                    className={styles.input}
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-                                    )
-                                }
-
-                                return (
-                                    <div className={styles.row}>
-                                        <div className={styles.formGroup}>
-                                            <label className={styles.label}>Data *</label>
-                                            <input
-                                                name="date"
-                                                type="date"
-                                                className={styles.input}
-                                                required
-                                                defaultValue={selectedDate}
-                                                onChange={(e) => {
-                                                    setSelectedDate(e.target.value)
-                                                    validateScheduling(e.target.value, selectedServiceId, preSelectedPetId || "")
-                                                }}
-                                            />
-                                        </div>
-                                        <div className={styles.formGroup}>
-                                            <label className={styles.label}>Hora *</label>
-                                            <input name="time" type="time" className={styles.input} required defaultValue={selectedHourSlot ? `${selectedHourSlot}:00` : ''} />
-                                        </div>
-                                    </div>
-                                )
-                            })()}
-                            <div className={styles.formGroup}>
-                                <label className={styles.label}>Observações</label>
-                                <textarea name="notes" className={styles.textarea} rows={3} />
-                            </div>
-
-                            {bookingError && (
-                                <div style={{ color: '#ef4444', padding: '0.5rem', background: '#fee2e2', borderRadius: '4px', marginBottom: '1rem', fontSize: '0.9rem' }}>
-                                    ⚠️ {bookingError}
-                                </div>
-                            )}
-
-                            <div className={styles.modalActions}>
-                                <button type="button" className={styles.cancelBtn} onClick={() => setShowNewModal(false)}>Cancelar</button>
-                                <button type="submit" className={styles.submitBtn} disabled={isCreatePending || !!bookingError}>Agendar</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            {/* Booking Modal */}
+            <BookingModal
+                isOpen={showNewModal}
+                onClose={() => setShowNewModal(false)}
+                onSuccess={fetchData}
+                services={services}
+                initialDate={selectedDate}
+                initialPetId={preSelectedPetId || ''}
+                initialServiceId={selectedServiceId}
+                initialHour={selectedHourSlot || ''}
+                blocks={blocks}
+            />
 
             {/* Detail/Edit Modal */}
             {showDetailModal && selectedAppointment && (

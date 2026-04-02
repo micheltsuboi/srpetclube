@@ -16,6 +16,7 @@ import PetAssessmentForm from '@/components/PetAssessmentForm'
 import ImageUpload from '@/components/ImageUpload'
 import PackagePaymentControls from '@/components/PackagePaymentControls'
 import { maskPhone, getWhatsAppLink } from '@/utils/mask'
+import BookingModal from '@/components/BookingModal'
 
 // Interfaces
 interface Pet {
@@ -87,6 +88,12 @@ function PetsContent() {
     const [petAssessment, setPetAssessment] = useState<any>(null)
     const [isViewingAssessment, setIsViewingAssessment] = useState(false)
     const [isEditingAssessment, setIsEditingAssessment] = useState(false)
+
+    // Booking Modal States
+    const [showBookingModal, setShowBookingModal] = useState(false)
+    const [bookingCategory, setBookingCategory] = useState<string | undefined>(undefined)
+    const [allServices, setAllServices] = useState<any[]>([])
+    const [scheduleBlocks, setScheduleBlocks] = useState<any[]>([])
 
     // Server Action State
     const [createState, createAction, isCreatePending] = useActionState(createPet, initialState)
@@ -187,6 +194,22 @@ function PetsContent() {
                 .single()
 
             if (!profile?.org_id) return
+
+            // Fetch Services and Blocks once (cached in ref or state)
+            if (allServices.length === 0) {
+                const { data: s } = await supabase
+                    .from('services')
+                    .select('id, name, duration_minutes, base_price, category_id, target_species, scheduling_rules, service_categories (id, name, color, icon)')
+                    .eq('org_id', profile.org_id)
+                    .order('name')
+                if (s) setAllServices(s as any)
+
+                const { data: blks } = await supabase
+                    .from('schedule_blocks')
+                    .select('*')
+                    .eq('org_id', profile.org_id)
+                if (blks) setScheduleBlocks(blks)
+            }
 
             // Fetch Pets
             let query = supabase
@@ -360,6 +383,11 @@ function PetsContent() {
         setSelectedCustomerId(pet.customer_id)
         setResponsible2Phone(pet.responsible2_phone || '')
         setShowModal(true)
+    }
+
+    const handleOpenBooking = (category: string) => {
+        setBookingCategory(category)
+        setShowBookingModal(true)
     }
 
     const handleNewPet = () => {
@@ -938,7 +966,7 @@ function PetsContent() {
                                             <>
                                                 <div style={{ marginBottom: '1rem' }}>
                                                     <button
-                                                        onClick={() => router.push(`/owner/agenda?petId=${selectedPet.id}&category=Banho e Tosa&mode=new`)}
+                                                        onClick={() => handleOpenBooking('Banho e Tosa')}
                                                         className={styles.submitButton}
                                                         style={{ width: '100%' }}>
                                                         + Novo Agendamento de Banho e Tosa
@@ -1279,7 +1307,7 @@ function PetsContent() {
                                                         </div>
                                                     )}
                                                     <button
-                                                        onClick={() => router.push(`/owner/agenda?petId=${selectedPet.id}&category=Creche&mode=new`)}
+                                                        onClick={() => handleOpenBooking('Creche')}
                                                         className={styles.submitButton}
                                                         style={{ width: '100%' }}>
                                                         + Novo Agendamento de Creche
@@ -1327,7 +1355,7 @@ function PetsContent() {
                                                         </div>
                                                     )}
                                                     <button
-                                                        onClick={() => router.push(`/owner/agenda?petId=${selectedPet.id}&category=Hospedagem&mode=new`)}
+                                                        onClick={() => handleOpenBooking('Hospedagem')}
                                                         className={styles.submitButton}
                                                         style={{ width: '100%' }}>
                                                         + Novo Agendamento de Hospedagem
@@ -1581,6 +1609,23 @@ function PetsContent() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {selectedPet && (
+                <BookingModal
+                    isOpen={showBookingModal}
+                    onClose={() => setShowBookingModal(false)}
+                    onSuccess={() => {
+                        setShowBookingModal(false);
+                        fetchData(); // Refresh history
+                        // Optionally refresh specific history sections if needed
+                    }}
+                    services={allServices}
+                    blocks={scheduleBlocks}
+                    initialPetId={selectedPet.id}
+                    initialCategory={bookingCategory}
+                    initialDate={new Date().toISOString().split('T')[0]}
+                />
             )}
         </div>
     )

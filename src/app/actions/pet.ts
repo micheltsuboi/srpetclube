@@ -334,7 +334,7 @@ export async function searchPets(query: string, limit = 10) {
 
     if (!profile?.org_id) return []
 
-    const { data, error } = await supabase
+    const { data: results, error } = await supabase
         .from('pets')
         .select(`
             id, name, species, breed, 
@@ -342,7 +342,7 @@ export async function searchPets(query: string, limit = 10) {
             perfume_allowed, accessories_allowed, special_care, is_adapted
         `)
         .eq('customers.org_id', profile.org_id)
-        .ilike('name', `%${query}%`)
+        .or(`name.ilike.%${query}%,customers.name.ilike.%${query}%`)
         .order('name')
         .limit(limit)
 
@@ -351,5 +351,5 @@ export async function searchPets(query: string, limit = 10) {
         return []
     }
 
-    return data
+    return results
 }
