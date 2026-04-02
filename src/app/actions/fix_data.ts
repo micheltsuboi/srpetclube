@@ -178,10 +178,9 @@ export async function fixPackageUsageIndices() {
                 if (!idxErr) indexedCount++
             }
         }
-
         return { 
             success: true, 
-            message: `Sincronização Concluída! \n- ${linkedCount} agendamentos vinculados (Banho, Tosa, Creche, etc).\n- ${indexedCount} índices de progresso (ex: 1/4) atualizados.` 
+            message: `Sincronização Concluída! \n- ${linkedCount} novos vínculos realizados.\n- ${indexedCount} posições de progresso (ex: 1/4) calculadas.` 
         }
 
     } catch (error: any) {
