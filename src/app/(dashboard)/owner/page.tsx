@@ -76,10 +76,12 @@ export default function OwnerDashboard() {
         type: 'revenue' | 'expenses' | 'pending' | null;
         appointments: any[];
         transactions: any[];
+        allPending: any[];
     }>({
         type: null,
         appointments: [],
-        transactions: []
+        transactions: [],
+        allPending: []
     })
 
     const [isExtractModalOpen, setIsExtractModalOpen] = useState(false)
@@ -109,8 +111,9 @@ export default function OwnerDashboard() {
 
                 // 1. Fetch Financial Data from APPOINTMENTS
                 const now = new Date()
-                const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-                const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
+                const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).toISOString()
+                const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
+                const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0).toISOString()
                 const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString()
 
                 // Current month appointments (paid and unpaid)
@@ -123,6 +126,19 @@ export default function OwnerDashboard() {
                     `)
                     .eq('org_id', profile.org_id)
                     .gte('scheduled_at', startOfCurrentMonth)
+                    .lte('scheduled_at', endOfCurrentMonth)
+
+                // Fetch ALL pending appointments (for the "A Receber" general total)
+                const { data: allPendingAppts } = await supabase
+                    .from('appointments')
+                    .select(`
+                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at,
+                        pets ( name ),
+                        services ( name, service_categories ( name ) )
+                    `)
+                    .eq('org_id', profile.org_id)
+                    .neq('payment_status', 'paid')
+                    .neq('status', 'cancelled')
 
                 // Previous month paid appointments (for growth)
                 const { data: prevMonthAppts } = await supabase
@@ -133,7 +149,7 @@ export default function OwnerDashboard() {
                     .lte('scheduled_at', endOfPreviousMonth)
 
                 const paidAppts = (currentMonthAppts || []).filter(a => a.payment_status === 'paid')
-                const pendingAppts = (currentMonthAppts || []).filter(a => a.payment_status !== 'paid')
+                const pendingAppts = allPendingAppts || []
 
                 const currentRevenue = paidAppts
                     .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
@@ -162,6 +178,7 @@ export default function OwnerDashboard() {
                     .select('*')
                     .eq('org_id', profile.org_id)
                     .gte('date', startOfCurrentMonth)
+                    .lte('date', endOfCurrentMonth)
 
                 const incomeTxs = (transactions || []).filter(t => t.type === 'income')
                 const expenseTxs = (transactions || []).filter(t => t.type === 'expense')
@@ -177,6 +194,8 @@ export default function OwnerDashboard() {
                     .select('*')
                     .eq('org_id', profile.org_id)
                     .eq('type', 'expense')
+                    .gte('date', startOfCurrentMonth)
+                    .lte('date', endOfCurrentMonth)
                     .order('date', { ascending: false })
                     .limit(5)
                 
@@ -207,7 +226,8 @@ export default function OwnerDashboard() {
                 setExtractRecords({
                     type: null, // Keep null until a card is clicked
                     appointments: currentMonthAppts || [],
-                    transactions: transactions || []
+                    transactions: transactions || [],
+                    allPending: allPendingAppts || []
                 })
 
                 // 2. Fetch Operational Stats
@@ -584,8 +604,8 @@ export default function OwnerDashboard() {
 
                         <div className={styles.extractList}>
                             {/* Appointments list (for Revenue and Pending) */}
-                            {extractRecords.type !== 'expenses' && extractRecords.appointments
-                                .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
+                            {extractRecords.type === 'revenue' && extractRecords.appointments
+                                .filter(a => a.payment_status === 'paid')
                                 .map(appt => (
                                     <div key={appt.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
@@ -596,14 +616,27 @@ export default function OwnerDashboard() {
                                             <span className={styles.extractAmount}>
                                                 {formatCurrency(appt.final_price || appt.calculated_price || 0)}
                                             </span>
-                                            {extractRecords.type === 'pending' && (
-                                                <button
-                                                    className={styles.confirmPayBtn}
-                                                    onClick={() => handleConfirmPayment(appt.id)}
-                                                >
-                                                    Confirmar Pago
-                                                </button>
-                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+
+                            {extractRecords.type === 'pending' && extractRecords.allPending
+                                .map((appt: any) => (
+                                    <div key={appt.id} className={styles.extractItem}>
+                                        <div className={styles.extractInfo}>
+                                            <strong>{appt.pets?.name || 'Pet'} • {appt.services?.name || 'Serviço'}</strong>
+                                            <span>{new Date(appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                        <div className={styles.extractActions}>
+                                            <span className={styles.extractAmount}>
+                                                {formatCurrency(appt.final_price || appt.calculated_price || 0)}
+                                            </span>
+                                            <button
+                                                className={styles.confirmPayBtn}
+                                                onClick={() => handleConfirmPayment(appt.id)}
+                                            >
+                                                Confirmar Pago
+                                            </button>
                                         </div>
                                     </div>
                                 ))}
@@ -633,7 +666,7 @@ export default function OwnerDashboard() {
                                 ))}
 
                             {/* Empty State */}
-                            {((extractRecords.type === 'pending' && extractRecords.appointments.filter(a => a.payment_status !== 'paid').length === 0) ||
+                            {((extractRecords.type === 'pending' && extractRecords.allPending.length === 0) ||
                                 (extractRecords.type === 'expenses' && extractRecords.transactions.filter(t => t.type === 'expense').length === 0) ||
                                 (extractRecords.type === 'revenue' &&
                                     extractRecords.appointments.filter(a => a.payment_status === 'paid').length === 0 &&
