@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { createNotification } from './notification'
+import { fixPackageUsageIndices } from './fix_data'
 
 interface CreateAppointmentState {
     message: string
@@ -320,6 +321,9 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
         return { message: `Erro ao agendar: ${error.message}`, success: false }
     }
 
+    // Sincronizar índices do pacote para este pet
+    await fixPackageUsageIndices(petId)
+
     revalidatePath('/owner/agenda')
     revalidatePath('/owner/pets')
     revalidatePath('/owner/creche') // Revalidate new dashboards
@@ -491,12 +495,23 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
     if (checkInDate) updateData.check_in_date = checkInDate
     if (checkOutDate) updateData.check_out_date = checkOutDate
 
+    // Se NÃO for hospedagem, garantir que as datas de check-in/out sejam removidas
+    // Isso evita que o card fique "preso" em um range de datas antigo na agenda
+    const isActuallyHospedagem = (serviceData as any)?.service_categories?.name === 'Hospedagem';
+    if (!isActuallyHospedagem) {
+        updateData.check_in_date = null
+        updateData.check_out_date = null
+    }
+
     const { error } = await supabase
         .from('appointments')
         .update(updateData)
         .eq('id', id)
 
     if (error) return { message: error.message, success: false }
+
+    // Sincronizar índices do pacote para este pet
+    await fixPackageUsageIndices(currentAppt.pet_id)
 
     revalidatePath('/owner/agenda')
     revalidatePath('/owner/banho-tosa')

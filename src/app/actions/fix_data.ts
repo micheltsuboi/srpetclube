@@ -78,56 +78,70 @@ export async function listServicesWithCategories() {
     return { services: services || [], categories: categories || [] }
 }
 
-export async function fixPackageUsageIndices() {
-    console.log('Starting universal package usage index fix...')
+export async function fixPackageUsageIndices(petId?: string) {
+    console.log(`Starting package usage index fix... ${petId ? '(pet: ' + petId + ')' : ''}`)
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { success: false, message: 'Não autorizado.' }
 
     try {
-        // 1. Carregar Catálogo de Serviços e Categorias (para saber o category_id de cada serviço)
+        const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+        if (!profile?.org_id) return { success: false, message: 'Organização não encontrada.' }
+
+        // 1. Carregar Catálogo de Serviços
         const { data: services } = await supabase
             .from('services')
             .select('id, name, category_id')
         
-        const serviceMap: Record<string, string> = {} // service_id -> category_id
+        const serviceMap: Record<string, string> = {}
         services?.forEach(s => { serviceMap[s.id] = s.category_id })
 
-        // 2. Buscar todos os agendamentos (não cancelados)
-        const { data: appts, error: apptError } = await supabase
+        // 2. Buscar agendamentos (não cancelados)
+        let query = supabase
             .from('appointments')
             .select('id, scheduled_at, package_credit_id, pet_id, service_id, status, pets(customer_id)')
+            .eq('org_id', profile.org_id)
             .not('status', 'eq', 'cancelled')
             .order('scheduled_at', { ascending: true })
 
+        if (petId) {
+            query = query.eq('pet_id', petId)
+        }
+
+        const { data: appts, error: apptError } = await query
+
         if (apptError || !appts) return { success: false, message: 'Erro ao buscar agendamentos.' }
 
-        // 3. Buscar todos os créditos de pacotes ativos na organização
-        const { data: allCredits } = await supabase
+        // 3. Buscar créditos de pacotes ativos
+        let creditQuery = supabase
             .from('package_credits')
             .select(`
                 id, service_id, total_quantity, used_quantity,
-                customer_packages!inner (id, pet_id, customer_id, is_active)
+                customer_packages!inner (id, pet_id, customer_id, is_active, org_id)
             `)
             .eq('customer_packages.is_active', true)
+            .eq('customer_packages.org_id', profile.org_id)
+
+        if (petId) {
+            creditQuery = creditQuery.eq('customer_packages.pet_id', petId)
+        }
+
+        const { data: allCredits } = await creditQuery
 
         if (!allCredits) return { success: false, message: 'Nenhum crédito de pacote encontrado.' }
 
         let linkedCount = 0
         let indexedCount = 0
 
-        // 4. Primeiro Passo: Vincular Órfãos (Busca Inteligente por Categoria)
+        // 4. Vincular Órfãos
         for (const appt of appts) {
-            if (appt.package_credit_id) continue // Já está vinculado
+            if (appt.package_credit_id) continue
 
             const apptCategoryId = serviceMap[appt.service_id]
             if (!apptCategoryId) continue
 
             const petCustomerId = (appt.pets as any)?.customer_id
 
-            // Buscar um crédito que combine:
-            // - Mesmo serviço OU Mesma categoria
-            // - Mesmo PET OU Mesmo CLIENTE (se o pacote do pet for nulo)
             const possibleCredits = allCredits.filter(c => {
                 const cp = Array.isArray(c.customer_packages) ? c.customer_packages[0] : c.customer_packages;
                 if (!cp) return false;
@@ -144,21 +158,19 @@ export async function fixPackageUsageIndices() {
 
             if (possibleCredits.length > 0) {
                 const creditToLink = possibleCredits[0]
-                const cpMatch = Array.isArray(creditToLink.customer_packages) ? creditToLink.customer_packages[0] : creditToLink.customer_packages;
                 const { error: updErr } = await supabase
                     .from('appointments')
                     .update({ package_credit_id: creditToLink.id })
                     .eq('id', appt.id)
                 
                 if (!updErr) {
-                    appt.package_credit_id = creditToLink.id // Atualiza na memória para o passo 5
+                    appt.package_credit_id = creditToLink.id
                     linkedCount++
                 }
             }
         }
 
-        // 5. Segundo Passo: Recalcular Índices (1/4, 2/4...)
-        // Agrupar agendamentos agora vinculados por credit_id
+        // 5. Recalcular Índices
         const groups: Record<string, any[]> = {}
         appts.forEach(a => {
             if (a.package_credit_id) {
@@ -170,17 +182,21 @@ export async function fixPackageUsageIndices() {
         for (const creditId in groups) {
             const sorted = groups[creditId].sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
             for (let i = 0; i < sorted.length; i++) {
-                const { error: idxErr } = await supabase
-                    .from('appointments')
-                    .update({ package_usage_index: i + 1 })
-                    .eq('id', sorted[i].id)
-                
-                if (!idxErr) indexedCount++
+                const newIndex = i + 1
+                // Only update if changed
+                if ((sorted[i] as any).package_usage_index !== newIndex) {
+                    const { error: idxErr } = await supabase
+                        .from('appointments')
+                        .update({ package_usage_index: newIndex })
+                        .eq('id', sorted[i].id)
+                    
+                    if (!idxErr) indexedCount++
+                }
             }
         }
         return { 
             success: true, 
-            message: `Sincronização Concluída! \n- ${linkedCount} novos vínculos realizados.\n- ${indexedCount} posições de progresso (ex: 1/4) calculadas.` 
+            message: `Sincronização Concluída! \n- ${linkedCount} novos vínculos efetuados.\n- ${indexedCount} posições atualizadas.` 
         }
 
     } catch (error: any) {
