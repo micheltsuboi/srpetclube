@@ -39,6 +39,12 @@ interface Appointment {
         base_price: number | null
         service_categories: { name: string, color: string, icon: string }
     }
+    package_credit_id?: string | null
+    package_usage_index?: number | null
+    package_credits?: {
+        total_quantity: number
+        used_quantity: number
+    } | null
 }
 
 export default function HospedagemPage() {
@@ -81,6 +87,11 @@ export default function HospedagemPage() {
                     final_price, discount_percent, payment_status, payment_method,
                     check_in_date, check_out_date,
                     actual_check_in, actual_check_out,
+                    package_credit_id, package_usage_index,
+                    package_credits:package_credit_id (
+                        total_quantity,
+                        used_quantity
+                    ),
                     pets ( name, species, breed, customers ( name ) ),
                     services!inner ( 
                         name, 
@@ -233,13 +244,21 @@ export default function HospedagemPage() {
                         return (
                             <div
                                 key={appt.id}
-                                className={styles.appointmentCard}
+                                className={`${styles.appointmentCard} ${appt.package_credit_id ? styles.packageCard : ''}`}
                                 style={{
                                     borderLeft: `4px solid ${categoryColor}`,
-                                    background: 'var(--bg-secondary)',
+                                    background: appt.package_credit_id ? 'rgba(155, 89, 182, 0.05)' : 'var(--bg-secondary)',
                                     opacity: 1,
-                                    cursor: 'default'
+                                    cursor: 'default',
+                                    position: 'relative'
                                 }}>
+                                
+                                {appt.package_credit_id && (
+                                    <div className={styles.packageHeaderBadge} title={`Sessão do pacote ${appt.package_usage_index || ''}`}>
+                                        Sessão {appt.package_usage_index || '1'} 
+                                        {appt.package_credits?.total_quantity ? ` de ${appt.package_credits.total_quantity}` : ''}
+                                    </div>
+                                )}
                                 {/* Date Badge */}
                                 <div style={{
                                     position: 'absolute',

@@ -420,7 +420,7 @@ export default function AgendaPage() {
                 onClick={(e) => { e.stopPropagation(); handleOpenDetail(appt) }}
                 style={{
                     minWidth: '300px',
-                    borderLeft: isPackage ? '6px solid #9b59b6' : `4px solid ${needsAdaptation ? '#f1c40f' : categoryColor}`,
+                    borderLeft: `4px solid ${needsAdaptation ? '#f1c40f' : categoryColor}`,
                     backgroundColor: appt.status === 'done' ? 'var(--bg-tertiary)' : (isPackage ? 'rgba(155, 89, 182, 0.05)' : (needsAdaptation ? 'rgba(241, 196, 15, 0.05)' : 'var(--bg-secondary)')),
                     opacity: appt.status === 'done' ? 0.7 : 1
                 }}
