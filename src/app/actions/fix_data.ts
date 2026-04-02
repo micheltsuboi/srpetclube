@@ -79,95 +79,110 @@ export async function listServicesWithCategories() {
 }
 
 export async function fixPackageUsageIndices() {
-    console.log('Starting package usage index fix...')
+    console.log('Starting universal package usage index fix...')
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, message: 'Não autorizado.' }
 
     try {
-        // 1. Buscar todos os agendamentos que pertencem a pacotes (ou deveriam pertencer)
-        // Vamos focar nos que já têm o ID do crédito primeiro
-        const { data: appts, error } = await supabase
+        // 1. Carregar Catálogo de Serviços e Categorias (para saber o category_id de cada serviço)
+        const { data: services } = await supabase
+            .from('services')
+            .select('id, name, category_id')
+        
+        const serviceMap: Record<string, string> = {} // service_id -> category_id
+        services?.forEach(s => { serviceMap[s.id] = s.category_id })
+
+        // 2. Buscar todos os agendamentos (não cancelados)
+        const { data: appts, error: apptError } = await supabase
             .from('appointments')
-            .select('id, scheduled_at, package_credit_id, pet_id, service_id, status')
+            .select('id, scheduled_at, package_credit_id, pet_id, service_id, status, pets(customer_id)')
             .not('status', 'eq', 'cancelled')
             .order('scheduled_at', { ascending: true })
 
-        if (error || !appts) {
-            return { success: false, message: 'Erro ao buscar agendamentos: ' + error?.message }
-        }
+        if (apptError || !appts) return { success: false, message: 'Erro ao buscar agendamentos.' }
 
-        console.log(`Found ${appts.length} candidate appointments.`)
+        // 3. Buscar todos os créditos de pacotes ativos na organização
+        const { data: allCredits } = await supabase
+            .from('package_credits')
+            .select(`
+                id, service_id, total_quantity, used_quantity,
+                customer_packages!inner (id, pet_id, customer_id, is_active)
+            `)
+            .eq('customer_packages.is_active', true)
 
-        // 2. Agrupar por package_credit_id
-        const groups: Record<string, any[]> = {}
-        const orphans: any[] = []
+        if (!allCredits) return { success: false, message: 'Nenhum crédito de pacote encontrado.' }
 
-        appts.forEach(a => {
-            if (a.package_credit_id) {
-                if (!groups[a.package_credit_id]) groups[a.package_credit_id] = []
-                groups[a.package_credit_id].push(a)
-            } else {
-                orphans.push(a)
-            }
-        })
+        let linkedCount = 0
+        let indexedCount = 0
 
-        let updatedCount = 0
+        // 4. Primeiro Passo: Vincular Órfãos (Busca Inteligente por Categoria)
+        for (const appt of appts) {
+            if (appt.package_credit_id) continue // Já está vinculado
 
-        // 3. Atualizar índices dos vinculados
-        for (const creditId in groups) {
-            const sorted = groups[creditId].sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
-            for (let i = 0; i < sorted.length; i++) {
+            const apptCategoryId = serviceMap[appt.service_id]
+            if (!apptCategoryId) continue
+
+            const petCustomerId = (appt.pets as any)?.customer_id
+
+            // Buscar um crédito que combine:
+            // - Mesmo serviço OU Mesma categoria
+            // - Mesmo PET OU Mesmo CLIENTE (se o pacote do pet for nulo)
+            const possibleCredits = allCredits.filter(c => {
+                const cp = Array.isArray(c.customer_packages) ? c.customer_packages[0] : c.customer_packages;
+                if (!cp) return false;
+
+                const creditCategoryId = serviceMap[c.service_id]
+                const isSameService = c.service_id === appt.service_id
+                const isSameCategory = creditCategoryId === apptCategoryId
+                
+                const isPetMatch = cp.pet_id === appt.pet_id
+                const isCustomerMatch = !cp.pet_id && cp.customer_id === petCustomerId
+
+                return (isSameService || isSameCategory) && (isPetMatch || isCustomerMatch)
+            })
+
+            if (possibleCredits.length > 0) {
+                const creditToLink = possibleCredits[0]
+                const cpMatch = Array.isArray(creditToLink.customer_packages) ? creditToLink.customer_packages[0] : creditToLink.customer_packages;
                 const { error: updErr } = await supabase
                     .from('appointments')
-                    .update({ package_usage_index: i + 1 })
-                    .eq('id', sorted[i].id)
-                
-                if (!updErr) updatedCount++
-            }
-        }
-
-        // 4. Tentar vincular "órfãos" (agendamentos de serviços que deveriam ser de pacote mas não têm o ID)
-        console.log(`Checking ${orphans.length} orphan appointments...`)
-        for (const orphan of orphans) {
-            if (!orphan.pet_id) continue;
-
-            // Buscar o dono do pet
-            const { data: petData } = await supabase
-                .from('pets')
-                .select('customer_id')
-                .eq('id', orphan.pet_id)
-                .single()
-            
-            if (!petData?.customer_id) continue;
-
-            // Busca Créditos: 1) Específicos do pet, 2) Gerais do cliente
-            const { data: petCredits } = await supabase
-                .from('package_credits')
-                .select(`
-                    id, 
-                    customer_packages!inner (id, pet_id, customer_id, is_active)
-                `)
-                .eq('service_id', orphan.service_id)
-                .eq('customer_packages.is_active', true)
-                .or(`pet_id.eq.${orphan.pet_id},and(pet_id.is.null,customer_id.eq.${petData.customer_id})`, { foreignTable: 'customer_packages' })
-
-            if (petCredits && petCredits.length > 0) {
-                // Priorizar o que tem pet_id
-                const creditToLink = petCredits.sort((a: any, b: any) => 
-                    (a.customer_packages.pet_id === orphan.pet_id ? -1 : 1)
-                )[0]
-
-                const { error: linkErr } = await supabase
-                    .from('appointments')
                     .update({ package_credit_id: creditToLink.id })
-                    .eq('id', orphan.id)
+                    .eq('id', appt.id)
                 
-                if (!linkErr) {
-                    updatedCount++
+                if (!updErr) {
+                    appt.package_credit_id = creditToLink.id // Atualiza na memória para o passo 5
+                    linkedCount++
                 }
             }
         }
 
-        return { success: true, message: `Sucesso! ${updatedCount} agendamentos sincronizados ou vinculados.` }
+        // 5. Segundo Passo: Recalcular Índices (1/4, 2/4...)
+        // Agrupar agendamentos agora vinculados por credit_id
+        const groups: Record<string, any[]> = {}
+        appts.forEach(a => {
+            if (a.package_credit_id) {
+                if (!groups[a.package_credit_id]) groups[a.package_credit_id] = []
+                groups[a.package_credit_id].push(a)
+            }
+        })
+
+        for (const creditId in groups) {
+            const sorted = groups[creditId].sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+            for (let i = 0; i < sorted.length; i++) {
+                const { error: idxErr } = await supabase
+                    .from('appointments')
+                    .update({ package_usage_index: i + 1 })
+                    .eq('id', sorted[i].id)
+                
+                if (!idxErr) indexedCount++
+            }
+        }
+
+        return { 
+            success: true, 
+            message: `Sincronização Concluída! \n- ${linkedCount} agendamentos vinculados (Banho, Tosa, Creche, etc).\n- ${indexedCount} índices de progresso (ex: 1/4) atualizados.` 
+        }
 
     } catch (error: any) {
         console.error('Exception in fixPackageUsageIndices:', error)
