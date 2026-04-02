@@ -143,6 +143,41 @@
     border-color: rgba(255, 255, 255, 0.2);
 }
 
+.packageCard {
+    border: 2px solid rgba(139, 92, 246, 0.3) !important;
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%) !important;
+}
+
+.packageIconBadge {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: rgba(139, 92, 246, 0.2);
+    color: #a78bfa;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.2);
+    z-index: 2;
+}
+
+.packageProgressBadge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(139, 92, 246, 0.15);
+    color: #a78bfa;
+    padding: 0.2rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-top: 0.5rem;
+}
+
 .timeDisplay {
     display: inline-block;
     background: rgba(var(--primary-rgb), 0.1);

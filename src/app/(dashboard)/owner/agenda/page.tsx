@@ -80,6 +80,7 @@ interface Appointment {
     payment_method?: string | null
     package_credit_id?: string | null
     package_slot_id?: string | null
+    package_usage_index?: number | null
     package_credits?: {
         total_quantity: number
         used_quantity: number
@@ -230,8 +231,8 @@ export default function AgendaPage() {
                     final_price, discount_percent, payment_status, payment_method,
                     actual_check_in, actual_check_out,
                     check_in_date, check_out_date,
-                    package_credit_id, package_slot_id,
-                    package_credits (
+                    package_credit_id, package_slot_id, package_usage_index,
+                    package_credits:package_credit_id (
                         total_quantity,
                         used_quantity
                     ),
@@ -370,13 +371,14 @@ export default function AgendaPage() {
         const isCrecheOrHotel = serviceNameLower.includes('creche') || serviceNameLower.includes('hospedagem') || serviceNameLower.includes('hotel') || serviceNameLower.includes('day care')
         const needsAdaptation = isCrecheOrHotel && appt.pets && !appt.pets.is_adapted
 
+        const isPackage = !!(appt.package_credit_id || appt.package_slot_id)
         const petName = appt.pets?.name || 'Pet Desconhecido'
         const ownerName = appt.pets?.customers?.name || 'Cliente'
 
         return (
             <div
                 key={appt.id}
-                className={styles.appointmentCard}
+                className={`${styles.appointmentCard} ${isPackage ? styles.packageCard : ''}`}
                 onClick={(e) => { e.stopPropagation(); handleOpenDetail(appt) }}
                 style={{
                     minWidth: '300px',
@@ -385,6 +387,11 @@ export default function AgendaPage() {
                     opacity: appt.status === 'done' ? 0.7 : 1
                 }}
             >
+                {isPackage && (
+                    <div className={styles.packageIconBadge} title="Este agendamento é parte de um pacote">
+                        📦
+                    </div>
+                )}
                 <div className={styles.timeDisplay}>{formatTime(appt.scheduled_at)}</div>
                 <div className={styles.cardTop}>
                     <div className={styles.petInfoMain}>
@@ -412,24 +419,14 @@ export default function AgendaPage() {
                 <div className={styles.serviceLine}>
                     <span style={{ marginRight: '0.25rem' }}>{categoryIcon}</span>
                     {appt.services?.name}
-                    {(appt.package_credit_id || appt.package_slot_id) && (
-                        <span style={{ 
-                            marginLeft: '0.5rem', 
-                            fontSize: '0.7rem', 
-                            padding: '0.1rem 0.4rem', 
-                            background: 'rgba(139,92,246,0.2)', 
-                            color: '#a78bfa', 
-                            borderRadius: '4px', 
-                            fontWeight: 600, 
-                            whiteSpace: 'nowrap',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '4px'
-                        }}>
-                            📦 {appt.package_credits 
-                                ? `Sessão ${appt.package_credits.used_quantity} de ${appt.package_credits.total_quantity}`
-                                : 'Pacote'}
-                        </span>
+                    {isPackage && (
+                        <div className={styles.packageProgressBadge}>
+                            {appt.package_usage_index && appt.package_credits
+                                ? `Sessão ${appt.package_usage_index} de ${appt.package_credits.total_quantity}`
+                                : (appt.package_credits 
+                                    ? `Sessão ${appt.package_credits.used_quantity} de ${appt.package_credits.total_quantity}`
+                                    : 'Pacote')}
+                        </div>
                     )}
                 </div>
                 <PaymentControls

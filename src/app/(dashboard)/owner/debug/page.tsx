@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteAppointment } from '@/app/actions/appointment'
-import { fixServiceCategories, listServicesWithCategories } from '@/app/actions/fix_data'
+import { fixServiceCategories, listServicesWithCategories, fixPackageUsageIndices } from '@/app/actions/fix_data'
 import { searchPets } from '@/app/actions/pet'
 
 export default function DebugPage() {
@@ -76,6 +76,18 @@ export default function DebugPage() {
                     style={{ background: 'blue', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', border: 'none', cursor: 'pointer' }}
                 >
                     Corrigir Categorias de Hospedagem
+                </button>
+
+                <button
+                    onClick={async () => {
+                        if (confirm('Isso vai re-calcular a ordem das sessões (1/4, 2/4...) de todos os agendamentos vinculados a pacotes. Continuar?')) {
+                            const res = await fixPackageUsageIndices()
+                            alert(res.message)
+                        }
+                    }}
+                    style={{ background: '#7c3aed', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', border: 'none', cursor: 'pointer', marginLeft: '1rem' }}
+                >
+                    🔄 Sincronizar Índices de Pacote
                 </button>
 
                 <div style={{ marginTop: '2rem', padding: '1rem', background: 'white', borderRadius: '4px' }}>
