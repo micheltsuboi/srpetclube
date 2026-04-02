@@ -80,6 +80,10 @@ interface Appointment {
     payment_method?: string | null
     package_credit_id?: string | null
     package_slot_id?: string | null
+    package_credits?: {
+        total_quantity: number
+        used_quantity: number
+    } | null
 }
 
 interface ScheduleBlock {
@@ -227,6 +231,10 @@ export default function AgendaPage() {
                     actual_check_in, actual_check_out,
                     check_in_date, check_out_date,
                     package_credit_id, package_slot_id,
+                    package_credits (
+                        total_quantity,
+                        used_quantity
+                    ),
                     pets ( 
                         name, species, breed, 
                         perfume_allowed, accessories_allowed, special_care, is_adapted,
@@ -405,8 +413,22 @@ export default function AgendaPage() {
                     <span style={{ marginRight: '0.25rem' }}>{categoryIcon}</span>
                     {appt.services?.name}
                     {(appt.package_credit_id || appt.package_slot_id) && (
-                        <span style={{ marginLeft: '0.5rem', fontSize: '0.7rem', padding: '0.1rem 0.4rem', background: 'rgba(139,92,246,0.2)', color: '#a78bfa', borderRadius: '4px', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                            📦 Pacote
+                        <span style={{ 
+                            marginLeft: '0.5rem', 
+                            fontSize: '0.7rem', 
+                            padding: '0.1rem 0.4rem', 
+                            background: 'rgba(139,92,246,0.2)', 
+                            color: '#a78bfa', 
+                            borderRadius: '4px', 
+                            fontWeight: 600, 
+                            whiteSpace: 'nowrap',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px'
+                        }}>
+                            📦 {appt.package_credits 
+                                ? `Sessão ${appt.package_credits.used_quantity} de ${appt.package_credits.total_quantity}`
+                                : 'Pacote'}
                         </span>
                     )}
                 </div>
