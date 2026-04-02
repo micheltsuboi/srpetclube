@@ -342,12 +342,12 @@ export async function searchPets(query: string, limit = 10) {
             perfume_allowed, accessories_allowed, special_care, is_adapted
         `)
         .eq('customers.org_id', profile.org_id)
-        .or(`name.ilike.%${query}%,customers.name.ilike.%${query}%`)
+        .ilike('name', `%${query}%`)
         .order('name')
         .limit(limit)
 
     if (error) {
-        console.error('Error searching pets:', error)
+        console.error('SERVER ACTION: Error searching pets:', error)
         return []
     }
 

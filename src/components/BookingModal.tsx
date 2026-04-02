@@ -256,11 +256,11 @@ export default function BookingModal({
                                 onFocus={() => setShowPetResults(true)}
                             />
                             
-                            {showPetResults && (isSearching || searchResults.length > 0) && (
+                            {showPetResults && (isSearching || petSearchTerm.length >= 2) && (
                                 <div className={styles.searchResultsContainer}>
                                     {isSearching ? (
                                         <div className={styles.searchResultItem}>Buscando...</div>
-                                    ) : (
+                                    ) : searchResults.length > 0 ? (
                                         searchResults.map((p: Pet) => (
                                             <div
                                                 key={p.id}
@@ -278,6 +278,8 @@ export default function BookingModal({
                                                 </span>
                                             </div>
                                         ))
+                                    ) : (
+                                        <div className={styles.searchResultItem}>Nenhum pet encontrado</div>
                                     )}
                                 </div>
                             )}

@@ -41,6 +41,7 @@
 
 .formGroup {
     margin-bottom: 1.25rem;
+    position: relative;
 }
 
 .label {

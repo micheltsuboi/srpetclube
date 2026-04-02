@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { deleteAppointment } from '@/app/actions/appointment'
 import { fixServiceCategories, listServicesWithCategories } from '@/app/actions/fix_data'
+import { searchPets } from '@/app/actions/pet'
 
 export default function DebugPage() {
     const [assessments, setAssessments] = useState<any[]>([])
@@ -11,6 +12,9 @@ export default function DebugPage() {
     const [loading, setLoading] = useState(true)
     const [servicesDebug, setServicesDebug] = useState<any[]>([])
     const [categoriesDebug, setCategoriesDebug] = useState<any[]>([])
+    const [debugSearchTerm, setDebugSearchTerm] = useState('')
+    const [debugSearchResults, setDebugSearchResults] = useState<any>(null)
+    const [isDebugSearching, setIsDebugSearching] = useState(false)
     const supabase = createClient()
 
     useEffect(() => {
@@ -73,6 +77,41 @@ export default function DebugPage() {
                 >
                     Corrigir Categorias de Hospedagem
                 </button>
+
+                <div style={{ marginTop: '2rem', padding: '1rem', background: 'white', borderRadius: '4px' }}>
+                    <h3>Teste de Busca de Pets (Server Action)</h3>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <input 
+                            type="text" 
+                            value={debugSearchTerm}
+                            onChange={(e) => setDebugSearchTerm(e.target.value)}
+                            placeholder="Nome do pet ou tutor..."
+                            style={{ flex: 1, padding: '0.5rem', borderRadius: '4px', border: '1px solid #ccc' }}
+                        />
+                        <button 
+                            onClick={async () => {
+                                setIsDebugSearching(true)
+                                try {
+                                    const res = await searchPets(debugSearchTerm)
+                                    setDebugSearchResults(res)
+                                } catch (err: any) {
+                                    setDebugSearchResults({ error: err.message })
+                                } finally {
+                                    setIsDebugSearching(false)
+                                }
+                            }}
+                            disabled={isDebugSearching}
+                            style={{ background: '#059669', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', border: 'none', cursor: 'pointer' }}
+                        >
+                            {isDebugSearching ? 'Buscando...' : 'Testar Busca'}
+                        </button>
+                    </div>
+                    {debugSearchResults && (
+                        <pre style={{ marginTop: '1rem', background: '#f8fafc', padding: '1rem', borderRadius: '4px', overflow: 'auto', maxHeight: '300px', fontSize: '0.8rem' }}>
+                            {JSON.stringify(debugSearchResults, null, 2)}
+                        </pre>
+                    )}
+                </div>
             </section>
 
             {/* Services & Categories Debug */}
