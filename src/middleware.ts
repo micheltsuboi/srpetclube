@@ -7,15 +7,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
     matcher: [
-        /*
-         * Match all request paths except for the ones starting with:
-         * - api (API routes)
-         * - _next/static (static files)
-         * - _next/image (image optimization files)
-         * - favicon.ico (favicon file)
-         * - *.png, *.jpg, *.jpeg, *.gif, *.svg, *.webp (images)
-         * - *.css, *.js (assets)
-         */
-        '/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)',
+        '/master-admin/:path*',
+        '/owner/:path*',
+        '/staff/:path*',
+        '/tutor/:path*',
     ],
 }

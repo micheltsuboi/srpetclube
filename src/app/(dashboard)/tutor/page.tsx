@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
@@ -58,7 +58,7 @@ const eventIcons: Record<string, string> = {
 }
 
 export default function TutorPage() {
-    const supabase = createClient()
+    const supabase = useMemo(() => createClient(), [])
     const [pets, setPets] = useState<Pet[]>([])
     const [selectedPet, setSelectedPet] = useState<Pet | null>(null)
     const [appointments, setAppointments] = useState<CurrentAppointment[]>([])
