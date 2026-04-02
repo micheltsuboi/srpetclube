@@ -152,14 +152,14 @@ export default function OwnerDashboard() {
                 const pendingAppts = allPendingAppts || []
 
                 const currentRevenue = paidAppts
-                    .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
+                    .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
 
                 const pendingPayments = pendingAppts
-                    .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
+                    .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
 
                 const prevRevenue = (prevMonthAppts || [])
                     .filter(a => a.payment_status === 'paid')
-                    .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
+                    .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
 
                 const revenueGrowth = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 : 0
 
@@ -395,7 +395,7 @@ export default function OwnerDashboard() {
         const monthCount = monthAppts.length
         const revenue = monthAppts
             .filter(a => a.payment_status === 'paid')
-            .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
+            .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
 
         return { todayCount, monthCount, revenue }
     }
@@ -614,7 +614,7 @@ export default function OwnerDashboard() {
                                         </div>
                                         <div className={styles.extractActions}>
                                             <span className={styles.extractAmount}>
-                                                {formatCurrency(appt.final_price || appt.calculated_price || 0)}
+                                                {formatCurrency(appt.final_price ?? appt.calculated_price ?? 0)}
                                             </span>
                                         </div>
                                     </div>
@@ -629,7 +629,7 @@ export default function OwnerDashboard() {
                                         </div>
                                         <div className={styles.extractActions}>
                                             <span className={styles.extractAmount}>
-                                                {formatCurrency(appt.final_price || appt.calculated_price || 0)}
+                                                {formatCurrency(appt.final_price ?? appt.calculated_price ?? 0)}
                                             </span>
                                             <button
                                                 className={styles.confirmPayBtn}
