@@ -634,7 +634,7 @@ export default function FinanceiroPage() {
                     <div className={styles.cardHeader}>
                         <span className={styles.cardIcon}>📈</span>
                     </div>
-                    <span className={`${styles.cardValue} ${styles.profit}`}>{formatCurrency(activeProfit)}</span>
+                    <span className={`${styles.cardValue} ${styles.profit} ${activeProfit < 0 ? styles.negative : ''}`}>{formatCurrency(activeProfit)}</span>
                     <span className={styles.cardLabel}>Lucro Líquido</span>
                 </div>
 
@@ -779,7 +779,7 @@ export default function FinanceiroPage() {
                                             <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
                                         </div>
                                         <div className={styles.extractActions}>
-                                            <span className={styles.extractAmount}>
+                                            <span className={`${styles.extractAmount} ${tx.type === 'expense' ? styles.negativeValue : ''}`}>
                                                 {formatCurrency(tx.amount)}
                                             </span>
                                             <button

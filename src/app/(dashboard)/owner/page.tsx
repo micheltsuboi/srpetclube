@@ -469,7 +469,7 @@ export default function OwnerDashboard() {
                 >
                     <div className={styles.cardIcon}>📉</div>
                     <div className={styles.cardContent}>
-                        <span className={styles.cardValue}>{formatCurrency(financials.expenses)}</span>
+                        <span className={`${styles.cardValue} ${styles.expense}`}>{formatCurrency(financials.expenses)}</span>
                         <span className={styles.cardLabel}>Despesas</span>
                     </div>
                     <span className={`${styles.growth} ${financials.expenseGrowth <= 0 ? styles.positive : styles.negative}`}>
@@ -478,11 +478,13 @@ export default function OwnerDashboard() {
                 </div>
                 <div
                     className={`${styles.financialCard} ${styles.clickable}`}
-                    onClick={() => handleOpenExtract('revenue')} // Show revenue for profit too
+                    onClick={() => handleOpenExtract('revenue')}
                 >
                     <div className={styles.cardIcon}>📈</div>
                     <div className={styles.cardContent}>
-                        <span className={`${styles.cardValue} ${styles.profit}`}>{formatCurrency(financials.profit)}</span>
+                        <span className={`${styles.cardValue} ${styles.profit} ${financials.profit < 0 ? styles.negative : ''}`}>
+                            {formatCurrency(financials.profit)}
+                        </span>
                         <span className={styles.cardLabel}>Lucro Líquido</span>
                     </div>
                 </div>
@@ -694,7 +696,7 @@ export default function OwnerDashboard() {
                                             <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
                                         </div>
                                         <div className={styles.extractActions}>
-                                            <span className={styles.extractAmount}>
+                                            <span className={`${styles.extractAmount} ${tx.type === 'expense' ? styles.negativeValue : ''}`}>
                                                 {formatCurrency(tx.amount)}
                                             </span>
                                             <button

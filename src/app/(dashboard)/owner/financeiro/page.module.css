@@ -138,6 +138,14 @@
     color: #2ecc71;
 }
 
+.cardValue.profit.negative {
+    color: #e74c3c;
+}
+
+.negativeValue {
+    color: #e74c3c !important;
+}
+
 .cardLabel {
     font-size: 0.8rem;
     color: var(--text-secondary);
