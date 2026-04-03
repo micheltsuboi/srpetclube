@@ -103,7 +103,7 @@ export default function FinanceiroPage() {
                 supabase
                     .from('appointments')
                     .select(`
-                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at,
+                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
                         pets ( name ),
                         services (
                             name,

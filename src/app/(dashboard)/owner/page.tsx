@@ -117,11 +117,10 @@ export default function OwnerDashboard() {
                 const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0).toISOString()
                 const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString()
 
-                // Current month appointments (paid and unpaid)
                 const { data: currentMonthAppts } = await supabase
                     .from('appointments')
                     .select(`
-                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at,
+                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
                         pets ( name ),
                         services ( name, service_categories ( name ) )
                     `)
@@ -129,11 +128,10 @@ export default function OwnerDashboard() {
                     .gte('scheduled_at', startOfCurrentMonth)
                     .lte('scheduled_at', endOfCurrentMonth)
 
-                // Fetch ALL pending appointments (for the "A Receber" general total)
                 const { data: allPendingAppts } = await supabase
                     .from('appointments')
                     .select(`
-                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at,
+                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
                         pets ( name ),
                         services ( name, service_categories ( name ) )
                     `)
@@ -144,7 +142,7 @@ export default function OwnerDashboard() {
                 // Previous month paid appointments (for growth)
                 const { data: prevMonthAppts } = await supabase
                     .from('appointments')
-                    .select('final_price, calculated_price, payment_status')
+                    .select('final_price, calculated_price, payment_status, package_credit_id')
                     .eq('org_id', profile.org_id)
                     .gte('scheduled_at', startOfPreviousMonth)
                     .lte('scheduled_at', endOfPreviousMonth)
