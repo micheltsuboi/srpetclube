@@ -91,7 +91,7 @@ export default function FinanceiroPage() {
             const sixMonthsAgo = new Date()
             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
             sixMonthsAgo.setDate(1)
-            const chartStart = sixMonthsAgo.toISOString()
+            const chartStart = sixMonthsAgo.toISOString().split('T')[0] + 'T00:00:00Z'
 
             // 2. Fetch data for Summary and Categories (Selected Period)
             // We fetch a bit more for the previous month to calculate growth

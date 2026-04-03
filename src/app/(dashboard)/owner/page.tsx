@@ -112,10 +112,11 @@ export default function OwnerDashboard() {
 
                 // 1. Fetch Financial Data from APPOINTMENTS
                 const now = new Date()
-                const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0).toISOString()
-                const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
-                const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1, 0, 0, 0).toISOString()
-                const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString()
+                // Usando format YYYY-MM-DD para evitar problemas de fuso horário na busca do banco
+                const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+                const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0] + 'T23:59:59Z'
+                const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0]
+                const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0] + 'T23:59:59Z'
 
                 const { data: currentMonthAppts } = await supabase
                     .from('appointments')
