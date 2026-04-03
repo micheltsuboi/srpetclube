@@ -150,7 +150,7 @@ export async function processRecurringExpenses(specificId?: string) {
             
             // Loop apenas se a startDate for anterior ou igual ao mês atual
             let checkDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1, 12, 0, 0)
-            const limitDate = new Date(currentYear, currentMonth, 1)
+            const limitDate = new Date(currentYear, currentMonth, 1, 23, 59, 59)
 
             while (checkDate <= limitDate) {
                 const monthToCheck = checkDate.getMonth()
