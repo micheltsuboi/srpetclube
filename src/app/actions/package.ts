@@ -325,9 +325,43 @@ export async function deleteCustomerPackage(customerPackageId: string): Promise<
 
 export async function updatePackagePaymentStatus(id: string, status: string, method?: string) {
     const supabase = await createClient()
+    
+    // Se estiver marcando como pago, precisamos registrar no financeiro
+    if (status === 'paid') {
+        const { data: pkg, error: pkgError } = await supabase
+            .from('customer_packages')
+            .select(`
+                id, total_paid, calculated_price, 
+                service_packages(name), 
+                pets(name),
+                customers(name)
+            `)
+            .eq('id', id)
+            .single()
+
+        if (!pkgError && pkg) {
+            const amount = pkg.total_paid || pkg.calculated_price || 0
+            const packageName = (pkg.service_packages as any)?.name || 'Pacote'
+            const targetName = (pkg.pets as any)?.name || (pkg.customers as any)?.name || 'Cliente'
+
+            await addFinancialTransaction({
+                type: 'income',
+                category: 'Pacotes',
+                name: `Venda de Pacote: ${packageName}`,
+                amount: amount,
+                date: new Date().toISOString(),
+                payment_method: method || 'other',
+                description: `Pet: ${targetName}`
+            })
+        }
+    }
+
     await supabase.from('customer_packages').update({ payment_status: status, payment_method: method }).eq('id', id)
+    
     revalidatePath('/owner/pets')
     revalidatePath('/owner/packages')
+    revalidatePath('/owner')
+    revalidatePath('/owner/financeiro')
 }
 
 export async function applyPackageDiscount(id: string, value: number, type: 'percent' | 'fixed', basePrice: number) {
@@ -477,17 +511,6 @@ export async function sellPackageToPet(
     revalidatePath('/owner/pets')
     revalidatePath('/staff')
     revalidatePath('/owner/agenda')
-
-    // Registrar transação financeira
-    await addFinancialTransaction({
-        type: 'income',
-        category: 'Pacotes',
-        name: `Venda de Pacote: ${packageData.name}`,
-        amount: totalPaid,
-        date: new Date().toISOString(),
-        payment_method: paymentMethod,
-        description: `Pet: ${petData.name}`
-    })
 
     return { message: `Pacote "${packageData.name}" ativado para ${petData.name}!`, success: true }
 }

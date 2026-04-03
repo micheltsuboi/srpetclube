@@ -685,8 +685,11 @@ export default function OwnerDashboard() {
                                 .map(tx => (
                                     <div key={tx.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
-                                            <strong>{tx.category}</strong>
-                                            <span>{tx.description}</span>
+                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                                                <strong>{tx.name || tx.category}</strong>
+                                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({tx.category})</span>
+                                            </div>
+                                            {tx.description && <span>{tx.description}</span>}
                                             <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
                                         </div>
                                         <div className={styles.extractActions}>
@@ -704,12 +707,16 @@ export default function OwnerDashboard() {
                                 ))}
 
                             {/* Empty State */}
-                            {((extractRecords.type === 'pending' && extractRecords.allPending.length === 0) ||
-                                (extractRecords.type === 'expenses' && extractRecords.transactions.filter(t => t.type === 'expense').length === 0) ||
+                            {((extractRecords.type === 'pending' && extractRecords.allPending.filter((a: any) => {
+                                if (!extractSearchTerm) return true
+                                const search = extractSearchTerm.toLowerCase()
+                                return a.pets?.name?.toLowerCase().includes(search) || a.services?.name?.toLowerCase().includes(search)
+                            }).length === 0) ||
+                                (extractRecords.type === 'expenses' && extractRecords.transactions.filter(t => t.type === 'expense' && (!extractSearchTerm || t.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()) || t.description?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0) ||
                                 (extractRecords.type === 'revenue' &&
-                                    extractRecords.appointments.filter(a => a.payment_status === 'paid').length === 0 &&
-                                    extractRecords.transactions.filter(t => t.type === 'income').length === 0)) && (
-                                    <p className={styles.emptyExtract}>Nenhum registro encontrado para este período.</p>
+                                    extractRecords.appointments.filter(a => a.payment_status === 'paid' && (!extractSearchTerm || a.pets?.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0 &&
+                                    extractRecords.transactions.filter(t => t.type === 'income' && (!extractSearchTerm || t.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()) || t.description?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0)) && (
+                                    <p className={styles.emptyExtract}>Nenhum registro encontrado para este termo/período.</p>
                                 )}
                         </div>
                     </div>

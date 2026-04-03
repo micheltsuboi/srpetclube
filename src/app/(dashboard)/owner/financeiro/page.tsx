@@ -794,13 +794,13 @@ export default function FinanceiroPage() {
 
                             {/* Empty State */}
                             {((extractRecords.type === 'pending' &&
-                                extractRecords.appointments.filter(a => a.payment_status !== 'paid' && (selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)).length === 0 &&
-                                extractRecords.pendingSales.filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto').length === 0) ||
-                                (extractRecords.type === 'expenses' && extractRecords.transactions.filter(t => t.type === 'expense' && (selectedCategory === 'all' || t.category === selectedCategory)).length === 0) ||
+                                extractRecords.appointments.filter(a => a.payment_status !== 'paid' && (selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory) && (!extractSearchTerm || a.pets?.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()) || a.services?.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0 &&
+                                extractRecords.pendingSales.filter(s => (selectedCategory === 'all' || selectedCategory === 'Venda Produto') && (!extractSearchTerm || s.pets?.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()) || s.product_name?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0) ||
+                                (extractRecords.type === 'expenses' && extractRecords.transactions.filter(t => t.type === 'expense' && (selectedCategory === 'all' || t.category === selectedCategory) && (!extractSearchTerm || t.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()) || t.description?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0) ||
                                 (extractRecords.type === 'revenue' &&
-                                    extractRecords.appointments.filter(a => a.payment_status === 'paid' && (selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)).length === 0 &&
-                                    extractRecords.transactions.filter(t => t.type === 'income' && (selectedCategory === 'all' || t.category === selectedCategory)).length === 0)) && (
-                                    <p className={styles.emptyExtract}>Nenhum registro encontrado para este período/categoria.</p>
+                                    extractRecords.appointments.filter(a => a.payment_status === 'paid' && (selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory) && (!extractSearchTerm || a.pets?.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0 &&
+                                    extractRecords.transactions.filter(t => t.type === 'income' && (selectedCategory === 'all' || t.category === selectedCategory) && (!extractSearchTerm || t.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()) || t.description?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0)) && (
+                                    <p className={styles.emptyExtract}>Nenhum registro encontrado para este termo/período/categoria.</p>
                                 )}
                         </div>
                     </div>
