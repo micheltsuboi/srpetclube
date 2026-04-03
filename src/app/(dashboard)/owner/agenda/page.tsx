@@ -484,6 +484,7 @@ export default function AgendaPage() {
                     paymentMethod={appt.payment_method ?? null}
                     onUpdate={() => fetchData()}
                     compact
+                    isPackage={isPackage}
                 />
 
                 <div className={styles.quickActions}>

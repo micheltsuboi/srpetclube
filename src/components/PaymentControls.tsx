@@ -13,6 +13,7 @@ interface PaymentControlsProps {
     paymentMethod: string | null
     onUpdate?: () => void
     compact?: boolean
+    isPackage?: boolean
 }
 
 const paymentMethodLabels: Record<string, string> = {
@@ -31,7 +32,8 @@ export default function PaymentControls({
     paymentStatus,
     paymentMethod,
     onUpdate,
-    compact = false
+    compact = false,
+    isPackage = false
 }: PaymentControlsProps) {
     const [showModal, setShowModal] = useState(false)
     const [discountValue, setDiscountValue] = useState(discountPercent?.toString() || '0')
@@ -340,7 +342,7 @@ export default function PaymentControls({
                         fontWeight: 700,
                         color: isPaid ? '#10b981' : '#f59e0b'
                     }}>
-                        R$ {displayPrice.toFixed(2)}
+                        {isPackage ? 'PACOTE' : `R$ ${displayPrice.toFixed(2)}`}
                     </span>
                     <span style={{
                         width: '1px',

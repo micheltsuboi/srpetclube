@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { addFinancialTransaction } from '@/app/actions/finance'
 
 interface ActionState {
     message: string
@@ -176,7 +177,7 @@ export async function sellPackageToCustomer(prevState: ActionState, formData: Fo
     // Buscar informações do pacote
     const { data: packageData, error: packageError } = await supabase
         .from('service_packages')
-        .select('id, validity_days, package_items(service_id, quantity)')
+        .select('id, name, validity_days, package_items(service_id, quantity)')
         .eq('id', package_id)
         .single()
 
@@ -234,6 +235,18 @@ export async function sellPackageToCustomer(prevState: ActionState, formData: Fo
     revalidatePath('/owner/packages')
     revalidatePath('/owner/pets')
     revalidatePath('/staff')
+
+    // Registrar transação financeira
+    await addFinancialTransaction({
+        type: 'income',
+        category: 'Pacotes',
+        name: `Venda de Pacote: ${packageData.name || 'Serviço'}`,
+        amount: total_paid,
+        date: new Date().toISOString(),
+        payment_method: payment_method,
+        description: `Cliente ID: ${customer_id}${notes ? ` - ${notes}` : ''}`
+    })
+
     return { message: 'Pacote vendido com sucesso!', success: true }
 }
 
@@ -464,6 +477,18 @@ export async function sellPackageToPet(
     revalidatePath('/owner/pets')
     revalidatePath('/staff')
     revalidatePath('/owner/agenda')
+
+    // Registrar transação financeira
+    await addFinancialTransaction({
+        type: 'income',
+        category: 'Pacotes',
+        name: `Venda de Pacote: ${packageData.name}`,
+        amount: totalPaid,
+        date: new Date().toISOString(),
+        payment_method: paymentMethod,
+        description: `Pet: ${petData.name}`
+    })
+
     return { message: `Pacote "${packageData.name}" ativado para ${petData.name}!`, success: true }
 }
 

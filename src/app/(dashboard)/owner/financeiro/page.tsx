@@ -62,6 +62,7 @@ export default function FinanceiroPage() {
         type: 'variable' as 'variable' | 'fixed'
     })
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [extractSearchTerm, setExtractSearchTerm] = useState('')
 
     const fetchFinancials = useCallback(async () => {
         try {
@@ -129,7 +130,7 @@ export default function FinanceiroPage() {
             if (txsResponse.error) throw txsResponse.error
             if (pendingSalesResponse.error) throw pendingSalesResponse.error
 
-            const appointments = apptsResponse.data || []
+            const appointments = (apptsResponse.data || []).filter((a: any) => !a.package_credit_id)
             const transactions = txsResponse.data || []
             const pendingSales = pendingSalesResponse.data || []
 
@@ -655,25 +656,42 @@ export default function FinanceiroPage() {
                     <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
                         <button className={styles.closeButton} onClick={() => setIsExtractModalOpen(false)}>×</button>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', paddingRight: '2rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', paddingRight: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
                             <h2 style={{ margin: 0 }}>
                                 {extractRecords.type === 'revenue' && '📜 Extrato de Faturamento'}
                                 {extractRecords.type === 'expenses' && '📉 Extrato de Despesas'}
                                 {extractRecords.type === 'pending' && '⏳ Valores a Receber'}
                             </h2>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button
-                                    onClick={handleExportCSV}
-                                    style={{ padding: '0.4rem 0.8rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
-                                >
-                                    Exportar CSV
-                                </button>
-                                <button
-                                    onClick={handleExportPDF}
-                                    style={{ padding: '0.4rem 0.8rem', background: '#3498db', border: 'none', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500 }}
-                                >
-                                    Exportar PDF
-                                </button>
+                            <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1, minWidth: '300px' }}>
+                                <input
+                                    type="text"
+                                    placeholder="🔍 Pesquisar por nome..."
+                                    value={extractSearchTerm}
+                                    onChange={(e) => setExtractSearchTerm(e.target.value)}
+                                    style={{
+                                        flex: 1,
+                                        padding: '0.4rem 0.8rem',
+                                        background: 'rgba(0,0,0,0.2)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '6px',
+                                        color: 'white',
+                                        fontSize: '0.9rem'
+                                    }}
+                                />
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button
+                                        onClick={handleExportCSV}
+                                        style={{ padding: '0.4rem 0.8rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+                                    >
+                                        Exportar CSV
+                                    </button>
+                                    <button
+                                        onClick={handleExportPDF}
+                                        style={{ padding: '0.4rem 0.8rem', background: '#3498db', border: 'none', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500 }}
+                                    >
+                                        Exportar PDF
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
@@ -682,6 +700,12 @@ export default function FinanceiroPage() {
                             {extractRecords.type !== 'expenses' && extractRecords.appointments
                                 .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
                                 .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
+                                .filter(a => {
+                                    if (!extractSearchTerm) return true
+                                    const search = extractSearchTerm.toLowerCase()
+                                    return a.pets?.name?.toLowerCase().includes(search) || 
+                                           a.services?.name?.toLowerCase().includes(search)
+                                })
                                 .map(appt => (
                                     <div key={appt.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
@@ -707,6 +731,12 @@ export default function FinanceiroPage() {
                             {/* Pending Pet Shop Sales list */}
                             {extractRecords.type === 'pending' && extractRecords.pendingSales
                                 .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
+                                .filter(s => {
+                                    if (!extractSearchTerm) return true
+                                    const search = extractSearchTerm.toLowerCase()
+                                    return s.pets?.name?.toLowerCase().includes(search) || 
+                                           s.product_name?.toLowerCase().includes(search)
+                                })
                                 .map(sale => (
                                     <div key={sale.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
@@ -731,6 +761,13 @@ export default function FinanceiroPage() {
                             {extractRecords.type !== 'pending' && extractRecords.transactions
                                 .filter(t => extractRecords.type === 'revenue' ? t.type === 'income' : t.type === 'expense')
                                 .filter(t => selectedCategory === 'all' || t.category === selectedCategory)
+                                .filter(t => {
+                                    if (!extractSearchTerm) return true
+                                    const search = extractSearchTerm.toLowerCase()
+                                    return t.name?.toLowerCase().includes(search) || 
+                                           t.category?.toLowerCase().includes(search) ||
+                                           (t.description || '').toLowerCase().includes(search)
+                                })
                                 .map(tx => (
                                     <div key={tx.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>

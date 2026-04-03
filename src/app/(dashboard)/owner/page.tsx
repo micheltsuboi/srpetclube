@@ -85,6 +85,7 @@ export default function OwnerDashboard() {
     })
 
     const [isExtractModalOpen, setIsExtractModalOpen] = useState(false)
+    const [extractSearchTerm, setExtractSearchTerm] = useState('')
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -148,8 +149,9 @@ export default function OwnerDashboard() {
                     .gte('scheduled_at', startOfPreviousMonth)
                     .lte('scheduled_at', endOfPreviousMonth)
 
-                const paidAppts = (currentMonthAppts || []).filter(a => a.payment_status === 'paid')
-                const pendingAppts = allPendingAppts || []
+                const paidAppts = (currentMonthAppts || []).filter(a => a.payment_status === 'paid' && !(a as any).package_credit_id)
+                const pendingAppts = (allPendingAppts || []).filter(a => !(a as any).package_credit_id)
+                
 
                 const currentRevenue = paidAppts
                     .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
@@ -158,7 +160,7 @@ export default function OwnerDashboard() {
                     .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
 
                 const prevRevenue = (prevMonthAppts || [])
-                    .filter(a => a.payment_status === 'paid')
+                    .filter(a => a.payment_status === 'paid' && !(a as any).package_credit_id)
                     .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
 
                 const revenueGrowth = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 : 0
@@ -225,9 +227,9 @@ export default function OwnerDashboard() {
                 // Store records for extract
                 setExtractRecords({
                     type: null, // Keep null until a card is clicked
-                    appointments: currentMonthAppts || [],
+                    appointments: (currentMonthAppts || []).filter(a => !(a as any).package_credit_id),
                     transactions: transactions || [],
-                    allPending: allPendingAppts || []
+                    allPending: (allPendingAppts || []).filter(a => !(a as any).package_credit_id)
                 })
 
                 // 2. Fetch Operational Stats
@@ -596,16 +598,41 @@ export default function OwnerDashboard() {
                     <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
                         <button className={styles.closeButton} onClick={() => setIsExtractModalOpen(false)}>×</button>
 
-                        <h2>
-                            {extractRecords.type === 'revenue' && '📜 Extrato de Faturamento'}
-                            {extractRecords.type === 'expenses' && '📉 Extrato de Despesas'}
-                            {extractRecords.type === 'pending' && '⏳ Valores a Receber'}
-                        </h2>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', paddingRight: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
+                            <h2 style={{ margin: 0 }}>
+                                {extractRecords.type === 'revenue' && '📜 Extrato de Faturamento'}
+                                {extractRecords.type === 'expenses' && '📉 Extrato de Despesas'}
+                                {extractRecords.type === 'pending' && '⏳ Valores a Receber'}
+                            </h2>
+                            <div style={{ flex: 1, minWidth: '200px' }}>
+                                <input
+                                    type="text"
+                                    placeholder="🔍 Pesquisar por nome..."
+                                    value={extractSearchTerm}
+                                    onChange={(e) => setExtractSearchTerm(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.4rem 0.8rem',
+                                        background: 'rgba(0,0,0,0.2)',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '6px',
+                                        color: 'white',
+                                        fontSize: '0.9rem'
+                                    }}
+                                />
+                            </div>
+                        </div>
 
                         <div className={styles.extractList}>
                             {/* Appointments list (for Revenue and Pending) */}
                             {extractRecords.type === 'revenue' && extractRecords.appointments
                                 .filter(a => a.payment_status === 'paid')
+                                .filter(a => {
+                                    if (!extractSearchTerm) return true
+                                    const search = extractSearchTerm.toLowerCase()
+                                    return a.pets?.name?.toLowerCase().includes(search) || 
+                                           a.services?.name?.toLowerCase().includes(search)
+                                })
                                 .map(appt => (
                                     <div key={appt.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
@@ -621,6 +648,12 @@ export default function OwnerDashboard() {
                                 ))}
 
                             {extractRecords.type === 'pending' && extractRecords.allPending
+                                .filter((a: any) => {
+                                    if (!extractSearchTerm) return true
+                                    const search = extractSearchTerm.toLowerCase()
+                                    return a.pets?.name?.toLowerCase().includes(search) || 
+                                           a.services?.name?.toLowerCase().includes(search)
+                                })
                                 .map((appt: any) => (
                                     <div key={appt.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
@@ -644,6 +677,13 @@ export default function OwnerDashboard() {
                             {/* Transactions list (for Revenue and Expenses) */}
                             {extractRecords.type !== 'pending' && extractRecords.transactions
                                 .filter(t => extractRecords.type === 'revenue' ? t.type === 'income' : t.type === 'expense')
+                                .filter(t => {
+                                    if (!extractSearchTerm) return true
+                                    const search = extractSearchTerm.toLowerCase()
+                                    return t.name?.toLowerCase().includes(search) || 
+                                           t.category?.toLowerCase().includes(search) ||
+                                           (t.description || '').toLowerCase().includes(search)
+                                })
                                 .map(tx => (
                                     <div key={tx.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>

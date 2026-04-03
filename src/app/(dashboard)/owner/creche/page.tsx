@@ -333,6 +333,7 @@ export default function CrechePage() {
                                             paymentMethod={(appt as any).payment_method}
                                             onUpdate={() => fetchCrecheData(true)}
                                             compact
+                                            isPackage={!!appt.package_credit_id}
                                         />
                                         <span style={{ fontSize: '0.8rem', color: '#60a5fa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                             🕐 Agendado: {new Date(appt.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
