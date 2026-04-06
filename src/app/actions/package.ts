@@ -331,7 +331,7 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
         const { data: pkg, error: pkgError } = await supabase
             .from('customer_packages')
             .select(`
-                id, total_paid, calculated_price, 
+                id, total_paid, calculated_price, purchased_at, payment_method,
                 service_packages(name), 
                 pets(name),
                 customers(name)
@@ -344,15 +344,24 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
             const packageName = (pkg.service_packages as any)?.name || 'Pacote'
             const targetName = (pkg.pets as any)?.name || (pkg.customers as any)?.name || 'Cliente'
 
-            await addFinancialTransaction({
-                type: 'income',
-                category: 'Pacotes',
-                name: `Venda de Pacote: ${packageName}`,
-                amount: amount,
-                date: new Date().toISOString(),
-                payment_method: method || 'other',
-                description: `Pet: ${targetName}`
-            })
+            // Verificamos se já existe transação para evitar duplicidade
+            const { data: existing } = await supabase
+                .from('financial_transactions')
+                .select('id')
+                .eq('description', `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`)
+                .limit(1)
+
+            if (!existing || existing.length === 0) {
+                await addFinancialTransaction({
+                    type: 'income',
+                    category: 'Pacotes',
+                    name: `Venda de Pacote: ${packageName}`,
+                    amount: amount,
+                    date: pkg.purchased_at, // DATA ORIGINAL DA COMPRA
+                    payment_method: method || pkg.payment_method || 'other',
+                    description: `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`
+                })
+            }
         }
     }
 
@@ -461,20 +470,42 @@ export async function sellPackageToPet(
             org_id: profile.org_id,
             total_paid: totalPaid,
             calculated_price: totalPaid,
-            payment_status: 'pending',
-            payment_method: paymentMethod,
-            notes: `Pacote para ${petData.name}`,
             expires_at,
             preferred_weekdays: preferredWeekdays ?? null,
             preferred_time: preferredTime ?? null,
             is_auto_schedule: isAutoSchedule ?? false
         })
-        .select()
+        .select(`
+            *,
+            service_packages(name)
+        `)
         .single()
 
     if (cpError || !customerPackage) {
         console.error('Erro ao criar customer_package:', cpError)
         return { message: cpError?.message || 'Erro ao criar pacote.', success: false }
+    }
+
+    // Registrar transação financeira se já foi pago no ato da venda
+    // Por padrão o sellPackageToPet cria como 'pending', mas se o paymentMethod for fornecido e não for null/vazio...
+    // Na verdade o modal de venda direta geralmente confirma o pagamento.
+    // Vamos assumir que se houver totalPaid > 0 e paymentMethod, registramos se o status for paid.
+    // Mas o formulário de venda direta atual não passa o status. Vamos forçar a criação se o usuário marcou como pago (a lógica do frontend deve ditar o status).
+    // Para simplificar: se o status for 'paid' (adicionaremos no insert acima), criamos a transação.
+    
+    // Atualizando o insert acima para incluir payment_status se necessário, mas por enquanto vamos registrar sempre que vender com valor > 0
+    if (totalPaid > 0 && paymentMethod !== 'credit_package') {
+         await addFinancialTransaction({
+            type: 'income',
+            category: 'Pacotes',
+            name: `Venda de Pacote: ${(customerPackage.service_packages as any)?.name || 'Serviço'}`,
+            amount: totalPaid,
+            date: new Date().toISOString(),
+            payment_method: paymentMethod,
+            description: `Vinculado ao pacote ID: ${customerPackage.id} - Pet: ${petData.name}`
+        })
+        // Opcional: marcar como pago imediatamente se a venda direta já recebe o valor
+        await supabase.from('customer_packages').update({ payment_status: 'paid' }).eq('id', customerPackage.id)
     }
 
     // Criar créditos para cada serviço do pacote

@@ -342,7 +342,7 @@ export async function searchPets(query: string, limit = 10) {
             perfume_allowed, accessories_allowed, special_care, is_adapted
         `)
         .eq('customers.org_id', profile.org_id)
-        .ilike('name', `%${query}%`)
+        .or(`name.ilike.%${query}%,name.f_unaccent.ilike.%${query}%`)
         .order('name')
         .limit(limit)
 
