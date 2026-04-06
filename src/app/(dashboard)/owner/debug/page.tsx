@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { deleteAppointment } from '@/app/actions/appointment'
 import { fixServiceCategories, listServicesWithCategories, fixPackageUsageIndices } from '@/app/actions/fix_data'
 import { searchPets } from '@/app/actions/pet'
+import { reconcilePaidPackages } from '@/app/actions/reconcile_packages'
 
 export default function DebugPage() {
     const [assessments, setAssessments] = useState<any[]>([])
@@ -22,7 +23,7 @@ export default function DebugPage() {
             const { data: { user } } = await supabase.auth.getUser()
             if (!user) return
 
-            const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+            const { data: profile } = await supabase.from('profiles').select('org_id, role').eq('id', user.id).single()
             if (!profile?.org_id) return
 
             // Fetch all assessments
@@ -61,8 +62,8 @@ export default function DebugPage() {
     if (loading) return <div style={{ padding: '2rem' }}>Carregando...</div>
 
     return (
-        <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
-            <h1>🔍 Debug Page</h1>
+        <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto', color: '#1f2937', fontFamily: 'sans-serif' }}>
+            <h1 style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '0.5rem' }}>🔍 Debug & Ferramentas do Sistema</h1>
 
             <section style={{ marginTop: '2rem', padding: '1rem', background: '#dbeafe', borderRadius: '8px' }}>
                 <h2>🛠️ Tools</h2>
@@ -86,9 +87,21 @@ export default function DebugPage() {
                             alert(res.message)
                         }
                     }}
-                    style={{ background: '#7c3aed', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', border: 'none', cursor: 'pointer', marginLeft: '1rem' }}
+                    style={{ background: '#7c3aed', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', border: 'none', cursor: 'pointer', marginRight: '1rem' }}
                 >
                     🔄 Sincronizar Índices de Pacote
+                </button>
+
+                <button
+                    onClick={async () => {
+                        if (confirm('Deseja iniciar a reconciliação financeira? Isso criará registros no faturamento para todos os pacotes marcados como "Pagos" que ainda não possuem transação vinculada. Isso usa a data de COMPRA original.')) {
+                            const res = await reconcilePaidPackages()
+                            alert(res.message)
+                        }
+                    }}
+                    style={{ background: '#f59e0b', color: 'white', padding: '0.5rem 1rem', borderRadius: '4px', border: 'none', cursor: 'pointer' }}
+                >
+                    💰 Reconciliar Financeiro (Pacotes Pagos)
                 </button>
 
                 <div style={{ marginTop: '2rem', padding: '1rem', background: 'white', borderRadius: '4px' }}>
