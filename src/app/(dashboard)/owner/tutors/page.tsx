@@ -75,30 +75,29 @@ export default function TutorsPage() {
 
             if (!profile?.org_id) return
 
-            let finalTutors: Customer[] = []
+            let query = supabase
+                .from('customers')
+                .select('*, pets(id, name)')
+                .eq('org_id', profile.org_id)
+                .order('name')
 
             if (debouncedSearch) {
-                // USAR SERVER ACTION COM RPC PARA UNACCENT
-                const results = await searchCustomers(debouncedSearch)
-                finalTutors = results as unknown as Customer[]
-                setHasMore(false)
+                query = query.or(`name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone_1.ilike.%${debouncedSearch}%`)
             } else {
-                const { data, error } = await supabase
-                    .from('customers')
-                    .select('*, pets(id, name)')
-                    .eq('org_id', profile.org_id)
-                    .order('name')
-                    .limit(displayLimit + 1)
+                query = query.limit(displayLimit + 1)
+            }
 
-                if (error) throw error
-                
-                finalTutors = data || []
-                if (finalTutors.length > displayLimit) {
-                    setHasMore(true)
-                    finalTutors = finalTutors.slice(0, displayLimit)
-                } else {
-                    setHasMore(false)
-                }
+            const { data, error } = await query
+
+            if (error) throw error
+            
+            // Handle pagination
+            let finalTutors = data || []
+            if (!debouncedSearch && finalTutors.length > displayLimit) {
+                setHasMore(true)
+                finalTutors = finalTutors.slice(0, displayLimit)
+            } else {
+                setHasMore(false)
             }
 
             if (finalTutors) setTutors(finalTutors)

@@ -212,34 +212,32 @@ function PetsContent() {
             }
 
             // Fetch Pets
-            let finalPets: Pet[] = []
+            let query = supabase
+                .from('pets')
+                .select(`
+                    id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
+                    existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
+                    color, characteristics,
+                    customers ( id, name, phone_1 )
+                `)
+                .order('name')
 
             if (debouncedSearch) {
-                // USAR SERVER ACTION COM RPC PARA UNACCENT
-                const results = await searchPets(debouncedSearch)
-                finalPets = results as unknown as Pet[]
-                setHasMore(false)
+                query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%`)
             } else {
-                const { data: petsData, error: petsError } = await supabase
-                    .from('pets')
-                    .select(`
-                        id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
-                        existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
-                        color, characteristics,
-                        customers ( id, name, phone_1 )
-                    `)
-                    .order('name')
-                    .limit(displayLimit + 1)
+                query = query.limit(displayLimit + 1)
+            }
 
-                if (petsError) throw petsError
+            const { data: petsData, error: petsError } = await query
 
-                finalPets = petsData as unknown as Pet[]
-                if (finalPets.length > displayLimit) {
-                    setHasMore(true)
-                    finalPets = finalPets.slice(0, displayLimit)
-                } else {
-                    setHasMore(false)
-                }
+            if (petsError) throw petsError
+
+            let finalPets = petsData || []
+            if (!debouncedSearch && finalPets.length > displayLimit) {
+                setHasMore(true)
+                finalPets = finalPets.slice(0, displayLimit)
+            } else {
+                setHasMore(false)
             }
 
             if (finalPets) setPets(finalPets as unknown as Pet[])
