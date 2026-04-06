@@ -261,7 +261,6 @@ function PetsContent() {
                 .eq('is_active', true)
                 .order('total_price')
 
-            if (finalPets) setPets(finalPets as unknown as Pet[])
             if (customersData) setCustomers(customersData)
             if (packagesData) setAvailablePackages(packagesData)
 
