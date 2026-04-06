@@ -75,30 +75,45 @@ export default function TutorsPage() {
 
             if (!profile?.org_id) return
 
-            let query = supabase
-                .from('customers')
-                .select('*, pets(id, name)')
-                .eq('org_id', profile.org_id)
-                .order('name')
+            let finalTutors: any[] = []
 
             if (debouncedSearch) {
-                query = query.or(`name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone_1.ilike.%${debouncedSearch}%`)
-            } else {
-                query = query.limit(displayLimit + 1)
-            }
-
-            const { data, error } = await query
-
-            if (error) throw error
-            
-            // Handle pagination
-            let finalTutors = data || []
-            if (!debouncedSearch && finalTutors.length > displayLimit) {
-                setHasMore(true)
-                finalTutors = finalTutors.slice(0, displayLimit)
-            } else {
+                const { data: rpcData, error: rpcError } = await supabase.rpc('search_tutors_rpc', {
+                    search_term: debouncedSearch,
+                    organization_id: profile.org_id,
+                    p_limit: displayLimit + 1
+                })
+                
+                if (rpcError) throw rpcError
+                
+                finalTutors = rpcData || []
+                
+                // Remapear pets_data para pets esperado pela UI
+                finalTutors = finalTutors.map((c: any) => ({
+                    ...c,
+                    pets: c.pets_data
+                }))
+                
                 setHasMore(false)
+            } else {
+                const { data, error } = await supabase
+                    .from('customers')
+                    .select('*, pets(id, name)')
+                    .eq('org_id', profile.org_id)
+                    .order('name')
+                    .limit(displayLimit + 1)
+
+                if (error) throw error
+                
+                finalTutors = data || []
+                if (finalTutors.length > displayLimit) {
+                    setHasMore(true)
+                    finalTutors = finalTutors.slice(0, displayLimit)
+                } else {
+                    setHasMore(false)
+                }
             }
+
 
             if (finalTutors) setTutors(finalTutors)
         } catch (error) {

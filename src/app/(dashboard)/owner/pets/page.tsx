@@ -212,33 +212,42 @@ function PetsContent() {
             }
 
             // Fetch Pets
-            let query = supabase
-                .from('pets')
-                .select(`
-                    id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
-                    existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
-                    color, characteristics,
-                    customers ( id, name, phone_1 )
-                `)
-                .order('name')
+            let finalPets: any[] = []
 
             if (debouncedSearch) {
-                query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%`)
-            } else {
-                query = query.limit(displayLimit + 1)
-            }
-
-            const { data: petsData, error: petsError } = await query
-
-            if (petsError) throw petsError
-
-            let finalPets = petsData || []
-            if (!debouncedSearch && finalPets.length > displayLimit) {
-                setHasMore(true)
-                finalPets = finalPets.slice(0, displayLimit)
-            } else {
+                const { data: rpcData, error: rpcError } = await supabase.rpc('search_pets_rpc', {
+                    search_term: debouncedSearch,
+                    organization_id: profile.org_id,
+                    p_limit: displayLimit + 1
+                })
+                
+                if (rpcError) throw rpcError
+                
+                finalPets = rpcData || []
                 setHasMore(false)
+            } else {
+                const { data: petsData, error: petsError } = await supabase
+                    .from('pets')
+                    .select(`
+                        id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
+                        existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
+                        color, characteristics,
+                        customers ( id, name, phone_1 )
+                    `)
+                    .order('name')
+                    .limit(displayLimit + 1)
+
+                if (petsError) throw petsError
+
+                finalPets = petsData || []
+                if (finalPets.length > displayLimit) {
+                    setHasMore(true)
+                    finalPets = finalPets.slice(0, displayLimit)
+                } else {
+                    setHasMore(false)
+                }
             }
+
 
             if (finalPets) setPets(finalPets as unknown as Pet[])
 
