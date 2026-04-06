@@ -321,7 +321,7 @@ export async function updatePetVaccineCard(petId: string, urls: string[]) {
     return { message: 'Carteira de vacinação atualizada!', success: true }
 }
 
-export async function searchPets(query: string, limit = 10) {
+export async function searchPets(query: string, limit = 50) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return []
@@ -334,22 +334,26 @@ export async function searchPets(query: string, limit = 10) {
 
     if (!profile?.org_id) return []
 
+    // Usar o novo RPC que suporta unaccent
     const { data: results, error } = await supabase
-        .from('pets')
-        .select(`
-            id, name, species, breed, 
-            customers!inner(id, name, org_id), 
-            perfume_allowed, accessories_allowed, special_care, is_adapted
-        `)
-        .eq('customers.org_id', profile.org_id)
-        .or(`name.ilike.%${query}%,name.f_unaccent.ilike.%${query}%`)
-        .order('name')
-        .limit(limit)
+        .rpc('search_pets_rpc', {
+            search_term: query,
+            organization_id: profile.org_id,
+            p_limit: limit
+        })
 
     if (error) {
-        console.error('SERVER ACTION: Error searching pets:', error)
+        console.error('SERVER ACTION: Error searching pets via RPC:', error)
         return []
     }
 
-    return results
+    // Remapear para o formato esperado pela UI (especialmente o objeto customers)
+    return (results || []).map((p: any) => ({
+        ...p,
+        customers: {
+            id: p.customer_id,
+            name: p.customer_name,
+            phone_1: p.customer_phone
+        }
+    }))
 }

@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
-import { createPet, updatePet, deletePet, updatePetVaccineCard } from '@/app/actions/pet'
+import { createPet, updatePet, deletePet, updatePetVaccineCard, searchPets } from '@/app/actions/pet'
 import { sellPackageToPet, getPetPackagesWithUsage, deleteCustomerPackage } from '@/app/actions/package'
 import { getPetAssessment } from '@/app/actions/petAssessment'
 import { getPetAppointmentsByCategory as getPetAppointments } from '@/app/actions/appointment'
@@ -212,38 +212,37 @@ function PetsContent() {
             }
 
             // Fetch Pets
-            let query = supabase
-                .from('pets')
-                .select(`
-                    id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
-                    existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
-                    color, characteristics,
-                    customers ( id, name, phone_1 )
-                `)
-                .order('name')
+            let finalPets: Pet[] = []
 
             if (debouncedSearch) {
-                // A tentativa de usar name.f_unaccent diretamente no .or do JS quebra o Postgrest.
-                // Voltando para a busca básica e preparando RPC se necessário.
-                query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%`)
-            } else {
-                query = query.limit(displayLimit + 1)
-            }
-
-            const { data: petsData, error: petsError } = await query
-
-            if (petsError) throw petsError
-
-            // Handle pagination
-            let finalPets = petsData || []
-            if (!debouncedSearch && finalPets.length > displayLimit) {
-                setHasMore(true)
-                finalPets = finalPets.slice(0, displayLimit)
-            } else {
+                // USAR SERVER ACTION COM RPC PARA UNACCENT
+                const results = await searchPets(debouncedSearch)
+                finalPets = results as unknown as Pet[]
                 setHasMore(false)
+            } else {
+                const { data: petsData, error: petsError } = await supabase
+                    .from('pets')
+                    .select(`
+                        id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
+                        existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
+                        color, characteristics,
+                        customers ( id, name, phone_1 )
+                    `)
+                    .order('name')
+                    .limit(displayLimit + 1)
+
+                if (petsError) throw petsError
+
+                finalPets = petsData as unknown as Pet[]
+                if (finalPets.length > displayLimit) {
+                    setHasMore(true)
+                    finalPets = finalPets.slice(0, displayLimit)
+                } else {
+                    setHasMore(false)
+                }
             }
 
-            if (petsError) throw petsError
+            if (finalPets) setPets(finalPets as unknown as Pet[])
 
             // Fetch Customers for select
             const { data: customersData, error: customersError } = await supabase

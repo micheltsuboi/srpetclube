@@ -290,3 +290,35 @@ export async function updateOwnTutorProfile(prevState: { message: string, succes
     revalidatePath('/tutor/profile')
     return { message: 'Perfil atualizado com sucesso!', success: true }
 }
+
+export async function searchCustomers(query: string, limit = 50) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return []
+
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('org_id')
+        .eq('id', user.id)
+        .single()
+
+    if (!profile?.org_id) return []
+
+    const { data, error } = await supabase
+        .rpc('search_tutors_rpc', {
+            search_term: query,
+            organization_id: profile.org_id,
+            p_limit: limit
+        })
+
+    if (error) {
+        console.error('SERVER ACTION: Error searching tutors via RPC:', error)
+        return []
+    }
+
+    // Remapear pets_data para pets esperado pela UI
+    return (data || []).map((c: any) => ({
+        ...c,
+        pets: c.pets_data
+    }))
+}
