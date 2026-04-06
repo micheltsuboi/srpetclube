@@ -223,7 +223,7 @@ function PetsContent() {
                 .order('name')
 
             if (debouncedSearch) {
-                query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%`)
+                query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%,name.f_unaccent.ilike.%${debouncedSearch}%`)
             } else {
                 query = query.limit(displayLimit + 1)
             }

@@ -40,7 +40,7 @@ export async function reconcilePaidPackages() {
             .from('financial_transactions')
             .select('id')
             .eq('org_id', pkg.org_id)
-            .or(`description.ilike.%${pkg.id}%,description.ilike.%${petMatch}%`)
+            .or(`description.ilike.%${pkg.id}%,description.ilike.%Pet: ${petName}%`)
             .limit(1)
 
         if (!existingTx || existingTx.length === 0) {

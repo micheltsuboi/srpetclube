@@ -82,7 +82,7 @@ export default function TutorsPage() {
                 .order('name')
 
             if (debouncedSearch) {
-                query = query.or(`name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone_1.ilike.%${debouncedSearch}%`)
+                query = query.or(`name.ilike.%${debouncedSearch}%,email.ilike.%${debouncedSearch}%,phone_1.ilike.%${debouncedSearch}%,name.f_unaccent.ilike.%${debouncedSearch}%`)
             } else {
                 query = query.limit(displayLimit + 1)
             }
