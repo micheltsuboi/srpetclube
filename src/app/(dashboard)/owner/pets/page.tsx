@@ -223,7 +223,9 @@ function PetsContent() {
                 .order('name')
 
             if (debouncedSearch) {
-                query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%,name.f_unaccent.ilike.%${debouncedSearch}%`)
+                // A tentativa de usar name.f_unaccent diretamente no .or do JS quebra o Postgrest.
+                // Voltando para a busca básica e preparando RPC se necessário.
+                query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%`)
             } else {
                 query = query.limit(displayLimit + 1)
             }
