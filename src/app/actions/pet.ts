@@ -334,7 +334,7 @@ export async function searchPets(query: string, limit = 50) {
 
     if (!profile?.org_id) return []
 
-    // Usar o novo RPC que suporta unaccent
+    // Usar o novo RPC que suporta unaccent e retorna objeto customers aninhado
     const { data: results, error } = await supabase
         .rpc('search_pets_rpc', {
             search_term: query,
@@ -347,13 +347,5 @@ export async function searchPets(query: string, limit = 50) {
         return []
     }
 
-    // Remapear para o formato esperado pela UI (especialmente o objeto customers)
-    return (results || []).map((p: any) => ({
-        ...p,
-        customers: {
-            id: p.customer_id,
-            name: p.customer_name,
-            phone_1: p.customer_phone
-        }
-    }))
+    return results || []
 }
