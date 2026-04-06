@@ -85,6 +85,9 @@ interface Appointment {
     package_credits?: {
         total_quantity: number
         used_quantity: number
+        customer_packages?: {
+            payment_status: string
+        }
     } | null
 }
 
@@ -236,7 +239,10 @@ export default function AgendaPage() {
                     package_credit_id, package_slot_id, package_usage_index,
                     package_credits:package_credit_id (
                         total_quantity,
-                        used_quantity
+                        used_quantity,
+                        customer_packages:customer_package_id (
+                            payment_status
+                        )
                     ),
                     pets ( 
                         name, species, breed, 
@@ -265,7 +271,10 @@ export default function AgendaPage() {
                         package_credit_id, package_slot_id,
                         package_credits:package_credit_id (
                             total_quantity,
-                            used_quantity
+                            used_quantity,
+                            customer_packages:customer_package_id (
+                                payment_status
+                            )
                         ),
                         pets ( 
                             name, species, breed, 
@@ -480,7 +489,15 @@ export default function AgendaPage() {
                     calculatedPrice={appt.calculated_price ?? (appt.services as any)?.base_price ?? null}
                     finalPrice={appt.final_price ?? null}
                     discountPercent={appt.discount_percent ?? null}
-                    paymentStatus={appt.payment_status ?? null}
+                    paymentStatus={(() => {
+                        if (isPackage) {
+                            const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                            const cp = pg?.customer_packages;
+                            const pkgStatus = Array.isArray(cp) ? cp[0]?.payment_status : cp?.payment_status;
+                            return pkgStatus || 'pending';
+                        }
+                        return appt.payment_status ?? null;
+                    })()}
                     paymentMethod={appt.payment_method ?? null}
                     onUpdate={() => fetchData()}
                     compact
