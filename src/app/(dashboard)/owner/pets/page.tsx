@@ -1149,6 +1149,12 @@ function PetsContent() {
                                                                     }
                                                                 });
                                                                 referenceMonth = Object.entries(monthCounts).reduce((a, b) => (a[1] > b[1] ? a : b))[0];
+                                                            } else {
+                                                                // Fallback: usar data de compra ou validade se não houver sessões
+                                                                const fallbackDate = pkgGroup.purchased_at || pkgGroup.expires_at || new Date().toISOString();
+                                                                referenceMonth = new Date(fallbackDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                                                            }
+                                                            if (referenceMonth) {
                                                                 referenceMonth = referenceMonth.charAt(0).toUpperCase() + referenceMonth.slice(1);
                                                             }
 
@@ -1234,45 +1240,57 @@ function PetsContent() {
                                                                                 </p>
                                                                             ) : (
                                                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                                                    {slots.map((slot: any) => {
-                                                                                        const statusMap: Record<string, { icon: string, label: string, color: string }> = {
-                                                                                            done: { icon: '✅', label: 'Realizado', color: '#10B981' },
-                                                                                            scheduled: { icon: '🕐', label: 'Agendado', color: '#3B82F6' },
-                                                                                            pending: { icon: '📅', label: 'Pendente', color: '#F59E0B' },
-                                                                                            skipped: { icon: '⏭️', label: 'Pulado', color: '#6B7280' },
-                                                                                            rescheduled: { icon: '🔄', label: 'Reagendado', color: '#8B5CF6' },
-                                                                                        }
-                                                                                        const s = statusMap[slot.status] || statusMap.pending
-                                                                                        return (
-                                                                                            <div key={slot.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.75rem', background: 'var(--bg-primary)', borderRadius: '6px', borderLeft: `3px solid ${s.color}` }}>
-                                                                                                <div>
-                                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                                                        <span>{s.icon}</span>
-                                                                                                        <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{slot.services?.name}</span>
-                                                                                                        <span style={{ fontSize: '0.75rem', color: s.color }}>{s.label}</span>
+                                                                                    {(() => {
+                                                                                        // Calcular os índices cronológicos reais antes de renderizar
+                                                                                        // Ordenamos por data ASC para descobrir o índice 1, 2, 3...
+                                                                                        const chronologicalSlots = [...slots].sort((a, b) => 
+                                                                                            new Date(a.slot_date + 'T12:00:00').getTime() - new Date(b.slot_date + 'T12:00:00').getTime()
+                                                                                        );
+                                                                                        const indexMap = new Map();
+                                                                                        chronologicalSlots.forEach((s, i) => indexMap.set(s.id, i + 1));
+                                                                                        
+                                                                                        return slots.map((slot: any) => {
+                                                                                            const sessionIdx = indexMap.get(slot.id);
+                                                                                            const totalInPkg = pkgGroup.services[0]?.total_qty || 0;
+                                                                                            const statusMap: Record<string, { icon: string, label: string, color: string }> = {
+                                                                                                done: { icon: '✅', label: 'Realizado', color: '#10B981' },
+                                                                                                scheduled: { icon: '🕐', label: 'Agendado', color: '#3B82F6' },
+                                                                                                pending: { icon: '📅', label: 'Pendente', color: '#F59E0B' },
+                                                                                                skipped: { icon: '⏭️', label: 'Pulado', color: '#6B7280' },
+                                                                                                rescheduled: { icon: '🔄', label: 'Reagendado', color: '#8B5CF6' },
+                                                                                            }
+                                                                                            const s = statusMap[slot.status] || statusMap.pending
+                                                                                            return (
+                                                                                                <div key={slot.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.75rem', background: 'var(--bg-primary)', borderRadius: '6px', borderLeft: `3px solid ${s.color}` }}>
+                                                                                                    <div>
+                                                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                                                            <span>{s.icon}</span>
+                                                                                                            <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{slot.services?.name} <span style={{ fontWeight: 'normal', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>({sessionIdx} de {totalInPkg})</span></span>
+                                                                                                            <span style={{ fontSize: '0.75rem', color: s.color }}>{s.label}</span>
+                                                                                                        </div>
+                                                                                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
+                                                                                                            {slot.slot_date ? new Date(slot.slot_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                                                                                                            {slot.slot_time ? ` às ${slot.slot_time}` : ''}
+                                                                                                            {slot.period_label ? ` · ${slot.period_label}` : ''}
+                                                                                                        </div>
                                                                                                     </div>
-                                                                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
-                                                                                                        {slot.slot_date ? new Date(slot.slot_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
-                                                                                                        {slot.slot_time ? ` às ${slot.slot_time}` : ''}
-                                                                                                        {slot.period_label ? ` · ${slot.period_label}` : ''}
-                                                                                                    </div>
+                                                                                                    {(slot.status === 'pending' || slot.status === 'skipped' || slot.status === 'scheduled') && (
+                                                                                                        <button
+                                                                                                            type="button"
+                                                                                                            onClick={() => {
+                                                                                                                setReschedulingSlot({ ...slot, customer_package_id: cpId })
+                                                                                                                setSlotNewDate(slot.slot_date || '')
+                                                                                                                setSlotNewTime(slot.slot_time || '09:00')
+                                                                                                            }}
+                                                                                                            style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: 'none', background: 'rgba(139,92,246,0.2)', color: '#8B5CF6', cursor: 'pointer' }}
+                                                                                                        >
+                                                                                                            Reagendar
+                                                                                                        </button>
+                                                                                                    )}
                                                                                                 </div>
-                                                                                                {(slot.status === 'pending' || slot.status === 'skipped' || slot.status === 'scheduled') && (
-                                                                                                    <button
-                                                                                                        type="button"
-                                                                                                        onClick={() => {
-                                                                                                            setReschedulingSlot({ ...slot, customer_package_id: cpId })
-                                                                                                            setSlotNewDate(slot.slot_date || '')
-                                                                                                            setSlotNewTime(slot.slot_time || '09:00')
-                                                                                                        }}
-                                                                                                        style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: 'none', background: 'rgba(139,92,246,0.2)', color: '#8B5CF6', cursor: 'pointer' }}
-                                                                                                    >
-                                                                                                        Reagendar
-                                                                                                    </button>
-                                                                                                )}
-                                                                                            </div>
-                                                                                        )
-                                                                                    })}
+                                                                                            )
+                                                                                        })
+                                                                                    })()}
                                                                                 </div>
                                                                             )}
                                                                         </div>

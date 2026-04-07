@@ -239,7 +239,13 @@ export default function AgendaPage() {
                     package_credit_id, package_slot_id, package_usage_index,
                     package_credits:package_credit_id (
                         total_quantity,
-                        used_quantity
+                        used_quantity,
+                        customer_packages:customer_package_id (
+                            payment_status,
+                            final_price,
+                            payment_method,
+                            paid_at
+                        )
                     ),
                     pets ( 
                         name, species, breed, 
@@ -268,7 +274,13 @@ export default function AgendaPage() {
                         package_credit_id, package_slot_id,
                         package_credits:package_credit_id (
                             total_quantity,
-                            used_quantity
+                            used_quantity,
+                            customer_packages:customer_package_id (
+                                payment_status,
+                                final_price,
+                                payment_method,
+                                paid_at
+                            )
                         ),
                         pets ( 
                             name, species, breed, 
@@ -509,14 +521,29 @@ export default function AgendaPage() {
                     discountPercent={appt.discount_percent ?? null}
                     paymentStatus={(() => {
                         if (isPackage) {
-                            return appt.payment_status || 'paid'; // Fallback para pacotes já vinculados
+                            const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                            const cp = pg?.customer_packages;
+                            const pkgStatus = Array.isArray(cp) ? cp[0]?.payment_status : cp?.payment_status;
+                            return pkgStatus || 'paid';
                         }
                         return appt.payment_status ?? null;
                     })()}
                     paymentMethod={appt.payment_method ?? null}
-                    packageTotal={null}
-                    packageMethod={null}
-                    packageDate={null}
+                    packageTotal={(() => {
+                        const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                        const cp = pg?.customer_packages;
+                        return (Array.isArray(cp) ? cp[0]?.final_price : cp?.final_price) || null;
+                    })()}
+                    packageMethod={(() => {
+                        const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                        const cp = pg?.customer_packages;
+                        return (Array.isArray(cp) ? cp[0]?.payment_method : cp?.payment_method) || null;
+                    })()}
+                    packageDate={(() => {
+                        const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                        const cp = pg?.customer_packages;
+                        return (Array.isArray(cp) ? cp[0]?.paid_at : cp?.paid_at) || null;
+                    })()}
                     onUpdate={() => fetchData()}
                     compact
                     isPackage={isPackage}
