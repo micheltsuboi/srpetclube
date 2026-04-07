@@ -11,6 +11,8 @@ interface PackagePaymentControlsProps {
     discountPercent: number | null
     paymentStatus: string | null
     paymentMethod: string | null
+    hasTaxi?: boolean
+    taxiFee?: number
     onUpdate?: () => void
     compact?: boolean
 }
@@ -29,6 +31,8 @@ export default function PackagePaymentControls({
     discountPercent,
     paymentStatus,
     paymentMethod,
+    hasTaxi = false,
+    taxiFee = 0,
     onUpdate,
     compact = false
 }: PackagePaymentControlsProps) {
@@ -38,7 +42,7 @@ export default function PackagePaymentControls({
 
     const isPaid = paymentStatus === 'paid'
     const displayPrice = totalPaid ?? calculatedPrice ?? 0
-    const basePrice = calculatedPrice ?? 0
+    const basePrice = (calculatedPrice ?? 0) - (hasTaxi ? taxiFee : 0) // Preço do pacote sem o taxi
 
     useEffect(() => {
         setDiscountValue(discountPercent?.toString() || '0')
@@ -72,7 +76,9 @@ export default function PackagePaymentControls({
         if (isNaN(val) || val < 0) return
         setLoading(true)
         try {
-            await applyPackageDiscount(customerPackageId, val, discountType, basePrice)
+            // O desconto é aplicado sobre o preço base (sem taxi) ou sobre o total? 
+            // Geralmente sobre o serviço. Vamos manter coerência com o cálculo feito na venda.
+            await applyPackageDiscount(customerPackageId, val, discountType, basePrice + taxiFee)
             onUpdate?.()
         } finally {
             setLoading(false)
@@ -101,12 +107,19 @@ export default function PackagePaymentControls({
                 </div>
 
                 <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.85rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                        <span>Valor Base:</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        <span>Valor do Pacote:</span>
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {basePrice.toFixed(2)}</span>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.85rem' }}>
+                    {hasTaxi && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.85rem', fontSize: '0.9rem', color: 'var(--status-done)' }}>
+                            <span>🚗 Adicional Taxi Dog:</span>
+                            <span style={{ fontWeight: 600 }}>R$ {taxiFee.toFixed(2)}</span>
+                        </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.85rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Tipo de Desconto:</span>
                             <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
@@ -141,7 +154,7 @@ export default function PackagePaymentControls({
                                     <input
                                         type="number" value={discountValue} disabled={isPaid}
                                         onChange={(e) => setDiscountValue(e.target.value)}
-                                        min="0" max={discountType === 'percent' ? 100 : basePrice}
+                                        min="0" max={discountType === 'percent' ? 100 : basePrice + taxiFee}
                                         style={{
                                             width: '80px', padding: `6px 8px 6px ${discountType === 'fixed' ? '24px' : '8px'}`,
                                             borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', textAlign: 'right', fontSize: '0.85rem'

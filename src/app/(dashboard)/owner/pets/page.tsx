@@ -69,6 +69,8 @@ function PetsContent() {
     const [isSelling, setIsSelling] = useState(false)
     const [prefWeekdays, setPrefWeekdays] = useState<number[]>([])
     const [prefTime, setPrefTime] = useState('')
+    const [hasTaxiPackage, setHasTaxiPackage] = useState(false)
+    const [taxiFeePackage, setTaxiFeePackage] = useState(0)
     const [isAutoSchedule, setIsAutoSchedule] = useState(false)
     const [petSlots, setPetSlots] = useState<Record<string, any[]>>({})
     const [expandedSlotPackage, setExpandedSlotPackage] = useState<string | null>(null)
@@ -424,7 +426,10 @@ function PetsContent() {
         const autoInfo = isAutoSchedule && prefWeekdays.length > 0
             ? ` | Dias: ${selectedDaysNames} às ${prefTime || '09:00'}`
             : ' | Agendamento manual'
-        if (!confirm(`Confirmar contratação do pacote "${pkg.name}" para ${selectedPet.name} por R$ ${pkg.total_price.toFixed(2)}?${autoInfo}`)) return
+        const taxiInfo = hasTaxiPackage ? ` | Taxi Dog: R$ ${taxiFeePackage.toFixed(2)}` : ''
+        const finalTotal = pkg.total_price + (hasTaxiPackage ? taxiFeePackage : 0)
+        
+        if (!confirm(`Confirmar contratação do pacote "${pkg.name}" para ${selectedPet.name} por R$ ${finalTotal.toFixed(2)}?${autoInfo}${taxiInfo}`)) return
 
         setIsSelling(true)
         try {
@@ -435,7 +440,9 @@ function PetsContent() {
                 'other',
                 isAutoSchedule && prefWeekdays.length > 0 ? prefWeekdays : undefined,
                 isAutoSchedule && prefTime ? prefTime : undefined,
-                isAutoSchedule && prefWeekdays.length > 0
+                isAutoSchedule && prefWeekdays.length > 0,
+                hasTaxiPackage,
+                taxiFeePackage
             )
 
             if (res.success) {
@@ -445,6 +452,8 @@ function PetsContent() {
                 setPrefWeekdays([])
                 setPrefTime('')
                 setIsAutoSchedule(false)
+                setHasTaxiPackage(false)
+                setTaxiFeePackage(0)
             } else {
                 alert(res.message)
             }
@@ -1101,11 +1110,36 @@ function PetsContent() {
                                                                     </div>
                                                                 </div>
                                                             )}
-                                                            {!isAutoSchedule && (
-                                                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: 0 }}>
+                                                             {!isAutoSchedule && (
+                                                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.5rem 0 0 0' }}>
                                                                     As sessões serão criadas como disponíveis para agendamento manual.
                                                                 </p>
                                                             )}
+
+                                                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(var(--primary-rgb), 0.2)' }}>
+                                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: hasTaxiPackage ? '0.75rem' : '0', color: 'var(--text-primary)' }}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={hasTaxiPackage}
+                                                                        onChange={e => setHasTaxiPackage(e.target.checked)}
+                                                                    />
+                                                                    <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>🚗 Incluir Taxi Dog no Pacote?</span>
+                                                                </label>
+                                                                
+                                                                {hasTaxiPackage && (
+                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '8px' }}>
+                                                                        <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Taxa Total de Transporte (R$):</label>
+                                                                        <input
+                                                                            type="number"
+                                                                            step="0.01"
+                                                                            value={taxiFeePackage}
+                                                                            onChange={e => setTaxiFeePackage(parseFloat(e.target.value) || 0)}
+                                                                            className={styles.input}
+                                                                            style={{ width: '100px', padding: '0.4rem' }}
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     )}
 
@@ -1138,6 +1172,8 @@ function PetsContent() {
                                                                     discount_percent: curr.discount_percent ?? 0,
                                                                     payment_status: curr.payment_status,
                                                                     payment_method: curr.payment_method,
+                                                                    has_taxi: curr.has_taxi,
+                                                                    taxi_fee: curr.taxi_fee,
                                                                     services: []
                                                                 };
                                                             }
@@ -1186,6 +1222,8 @@ function PetsContent() {
                                                                             discountPercent={pkgGroup.discount_percent}
                                                                             paymentStatus={pkgGroup.payment_status || 'paid'}
                                                                             paymentMethod={pkgGroup.payment_method || 'other'}
+                                                                            hasTaxi={pkgGroup.has_taxi}
+                                                                            taxiFee={pkgGroup.taxi_fee}
                                                                             onUpdate={fetchPetPackageSummary}
                                                                             compact={true}
                                                                         />

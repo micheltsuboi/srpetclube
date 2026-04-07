@@ -282,26 +282,47 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
         completed_at: null
     }))
 
-    // Calculate Session Index (Automatic "Sessão X de Y")
     let packageUsageIndex: number | null = null
+    let inheritedHasTaxi = hasTaxi
+    let inheritedTaxiFee = taxiFee
+
     if (packageCreditId) {
         try {
-            // 1. Get the customer package ID
+            // 1. Get the customer package ID and its taxi status
             const { data: creditInfo } = await supabase
                 .from('package_credits')
-                .select('customer_package_id')
+                .select(`
+                    customer_package_id,
+                    customer_packages (
+                        has_taxi,
+                        taxi_fee
+                    )
+                `)
                 .eq('id', packageCreditId)
                 .single()
 
             if (creditInfo?.customer_package_id) {
+                const pkg = (creditInfo.customer_packages as any)
+                if (pkg?.has_taxi) {
+                    inheritedHasTaxi = true
+                    inheritedTaxiFee = 0 // Inluso no pacote (pré-pago)
+                }
+
                 // 2. Count existing non-cancelled sessions for this package
                 const { count } = await supabase
+                    .from('appointments')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('package_credit_id', packageCreditId) // Direct check or via relation
+                    .neq('status', 'cancelled')
+
+                // Count sessions for the whole customer package
+                const { count: totalInPkg } = await supabase
                     .from('appointments')
                     .select('id', { count: 'exact', head: true })
                     .eq('package_credits.customer_package_id', creditInfo.customer_package_id)
                     .neq('status', 'cancelled')
 
-                packageUsageIndex = (count || 0) + 1
+                packageUsageIndex = (totalInPkg || 0) + 1
             }
         } catch (e) {
             console.error('Error calculating session index:', e)
@@ -329,9 +350,9 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             check_in_date: checkIn,
             check_out_date: checkOut,
             calculated_price: calculatedPrice,
-            final_price: calculatedPrice + (hasTaxi ? taxiFee : 0),
-            has_taxi: hasTaxi,
-            taxi_fee: taxiFee,
+            final_price: calculatedPrice + (inheritedHasTaxi ? inheritedTaxiFee : 0),
+            has_taxi: inheritedHasTaxi,
+            taxi_fee: inheritedTaxiFee,
             payment_status: 'pending',
             discount_percent: 0
         })

@@ -452,9 +452,11 @@ export async function sellPackageToPet(
     paymentMethod: string,
     preferredWeekdays?: number[],
     preferredTime?: string,
-    isAutoSchedule?: boolean
+    isAutoSchedule?: boolean,
+    hasTaxi?: boolean,
+    taxiFee?: number
 ): Promise<ActionState> {
-    console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekdays, preferredTime, isAutoSchedule })
+    console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekdays, preferredTime, isAutoSchedule, hasTaxi, taxiFee })
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -508,11 +510,13 @@ export async function sellPackageToPet(
             package_id: packageId,
             org_id: profile.org_id,
             total_paid: totalPaid,
-            calculated_price: packageData.total_price || totalPaid,
+            calculated_price: (packageData.total_price || totalPaid) + (taxiFee || 0),
             expires_at,
             preferred_weekdays: preferredWeekdays ?? null,
             preferred_time: preferredTime ?? null,
-            is_auto_schedule: isAutoSchedule ?? false
+            is_auto_schedule: isAutoSchedule ?? false,
+            has_taxi: hasTaxi ?? false,
+            taxi_fee: taxiFee ?? 0
         })
         .select(`
             *,
