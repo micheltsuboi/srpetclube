@@ -278,6 +278,32 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
         completed_at: null
     }))
 
+    // Calculate Session Index (Automatic "Sessão X de Y")
+    let packageUsageIndex: number | null = null
+    if (packageCreditId) {
+        try {
+            // 1. Get the customer package ID
+            const { data: creditInfo } = await supabase
+                .from('package_credits')
+                .select('customer_package_id')
+                .eq('id', packageCreditId)
+                .single()
+
+            if (creditInfo?.customer_package_id) {
+                // 2. Count existing non-cancelled sessions for this package
+                const { count } = await supabase
+                    .from('appointments')
+                    .select('id', { count: 'exact', head: true })
+                    .eq('package_credits.customer_package_id', creditInfo.customer_package_id)
+                    .neq('status', 'cancelled')
+
+                packageUsageIndex = (count || 0) + 1
+            }
+        } catch (e) {
+            console.error('Error calculating session index:', e)
+        }
+    }
+
     console.log('[CreateAppointment] Final Checklist:', finalChecklist)
 
     // 3. Create Appointment
@@ -294,6 +320,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             notes: notes || null,
             status: 'pending',
             package_credit_id: packageCreditId,
+            package_usage_index: packageUsageIndex,
             checklist: finalChecklist,
             check_in_date: checkIn,
             check_out_date: checkOut,
