@@ -979,6 +979,20 @@ function PetsContent() {
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                         {bathHistory.map((appt: any) => (
                                                             <div key={appt.id} style={{ padding: '0.75rem', borderRadius: '6px', background: 'var(--bg-secondary)', borderLeft: `4px solid #3B82F6` }}>
+                                                                {appt.package_credit_id && appt.package_usage_index && (() => {
+                                                                    const pg = appt.package_credits;
+                                                                    const cpData = Array.isArray(pg?.customer_packages) ? pg.customer_packages[0] : pg?.customer_packages;
+                                                                    const allCredits = cpData?.package_credits || [];
+                                                                    const total = Array.isArray(allCredits) 
+                                                                        ? allCredits.reduce((sum: number, c: any) => sum + (c.total_quantity || 0), 0)
+                                                                        : (pg?.total_quantity || 0);
+                                                                    const idx = total ? Math.min(appt.package_usage_index, total) : appt.package_usage_index;
+                                                                    return (
+                                                                        <div style={{ fontSize: '0.7rem', color: '#8b5cf6', fontWeight: 600, marginBottom: '2px' }}>
+                                                                            Sessão {idx} {total ? ` de ${total}` : ''}
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                                                     <span style={{ fontWeight: 600 }}>{new Date(appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
                                                                     <span style={{ fontSize: '0.85rem' }}>{appt.status}</span>
@@ -1357,6 +1371,20 @@ function PetsContent() {
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                         {crecheHistory.map((appt: any) => (
                                                             <div key={appt.id} style={{ padding: '0.75rem', borderRadius: '6px', background: 'var(--bg-secondary)', borderLeft: `4px solid #10B981` }}>
+                                                                {appt.package_credit_id && appt.package_usage_index && (() => {
+                                                                    const pg = appt.package_credits;
+                                                                    const cpData = Array.isArray(pg?.customer_packages) ? pg.customer_packages[0] : pg?.customer_packages;
+                                                                    const allCredits = cpData?.package_credits || [];
+                                                                    const total = Array.isArray(allCredits) 
+                                                                        ? allCredits.reduce((sum: number, c: any) => sum + (c.total_quantity || 0), 0)
+                                                                        : (pg?.total_quantity || 0);
+                                                                    const idx = total ? Math.min(appt.package_usage_index, total) : appt.package_usage_index;
+                                                                    return (
+                                                                        <div style={{ fontSize: '0.7rem', color: '#8b5cf6', fontWeight: 600, marginBottom: '2px' }}>
+                                                                            Sessão {idx} {total ? ` de ${total}` : ''}
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                                                     <span style={{ fontWeight: 600 }}>{new Date(appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
                                                                     <span style={{ fontSize: '0.85rem' }}>{appt.status}</span>
@@ -1404,21 +1432,35 @@ function PetsContent() {
                                                 ) : (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                         {hotelHistory.map((appt: any) => {
-                                                            const isRange = appt.check_in_date && appt.check_out_date
+                                                            const isMultiDay = appt.check_out_date && appt.check_in_date && appt.check_out_date !== appt.check_in_date;
                                                             return (
                                                                 <div key={appt.id} style={{ padding: '0.75rem', borderRadius: '6px', background: 'var(--bg-secondary)', borderLeft: `4px solid #F59E0B` }}>
+                                                                    {appt.package_credit_id && appt.package_usage_index && (() => {
+                                                                        const pg = appt.package_credits;
+                                                                        const cpData = Array.isArray(pg?.customer_packages) ? pg.customer_packages[0] : pg?.customer_packages;
+                                                                        const allCredits = cpData?.package_credits || [];
+                                                                        const total = Array.isArray(allCredits) 
+                                                                            ? allCredits.reduce((sum: number, c: any) => sum + (c.total_quantity || 0), 0)
+                                                                            : (pg?.total_quantity || 0);
+                                                                        const idx = total ? Math.min(appt.package_usage_index, total) : appt.package_usage_index;
+                                                                        return (
+                                                                            <div style={{ fontSize: '0.7rem', color: '#8b5cf6', fontWeight: 600, marginBottom: '2px' }}>
+                                                                                Sessão {idx} {total ? ` de ${total}` : ''}
+                                                                            </div>
+                                                                        );
+                                                                    })()}
                                                                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                                                         <span style={{ fontWeight: 600 }}>
-                                                                            {isRange
-                                                                                ? `${new Date(appt.check_in_date).toLocaleDateString('pt-BR')} - ${new Date(appt.check_out_date).toLocaleDateString('pt-BR')}`
+                                                                            {isMultiDay 
+                                                                                ? `${new Date(appt.check_in_date).toLocaleDateString('pt-BR')} até ${new Date(appt.check_out_date).toLocaleDateString('pt-BR')}`
                                                                                 : new Date(appt.scheduled_at).toLocaleDateString('pt-BR')
                                                                             }
                                                                         </span>
                                                                         <span style={{ fontSize: '0.85rem' }}>{appt.status}</span>
                                                                     </div>
-                                                                    {!isRange && <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{new Date(appt.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>}
+                                                                    <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{appt.services?.name}</div>
                                                                 </div>
-                                                            )
+                                                            );
                                                         })}
                                                     </div>
                                                 )}

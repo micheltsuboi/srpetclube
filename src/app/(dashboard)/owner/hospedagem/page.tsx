@@ -96,7 +96,10 @@ export default function HospedagemPage() {
                             total_paid,
                             payment_status,
                             payment_method,
-                            purchased_at
+                            purchased_at,
+                            package_credits (
+                                total_quantity
+                            )
                         )
                     ),
                     pets ( name, species, breed, customers ( name ) ),
@@ -260,16 +263,24 @@ export default function HospedagemPage() {
                                     position: 'relative'
                                 }}>
                                 
-                                {appt.package_credit_id && (() => {
-                                    const total = appt.package_credits?.total_quantity;
-                                    const rawIdx = appt.package_usage_index || 1;
-                                    const idx = total ? Math.min(rawIdx, total) : rawIdx;
-                                    return (
-                                        <div className={styles.packageHeaderBadge} title={`Sessão do pacote ${idx}`}>
-                                            Sessão {idx} {total ? ` de ${total}` : ''}
-                                        </div>
-                                    );
-                                })()}
+                                    {appt.package_credit_id && (() => {
+                                        const pg = appt.package_credits;
+                                        const cp = (pg as any)?.customer_packages;
+                                        const cpData = Array.isArray(cp) ? cp[0] : cp;
+                                        const allCredits = cpData?.package_credits || [];
+                                        const globalTotal = Array.isArray(allCredits) 
+                                            ? allCredits.reduce((sum: number, c: any) => sum + (c.total_quantity || 0), 0)
+                                            : ((pg as any)?.total_quantity || 0);
+
+                                        const total = globalTotal || (pg as any)?.total_quantity;
+                                        const rawIdx = appt.package_usage_index || 1;
+                                        const idx = total ? Math.min(rawIdx, total) : rawIdx;
+                                        return (
+                                            <div className={styles.packageHeaderBadge} title={`Sessão do pacote ${idx}`}>
+                                                Sessão {idx} {total ? ` de ${total}` : ''}
+                                            </div>
+                                        );
+                                    })()}
                                 {/* Date Badge */}
                                 <div style={{
                                     position: 'absolute',

@@ -170,17 +170,30 @@ export async function fixPackageUsageIndices(petId?: string) {
             }
         }
 
-        // 5. Recalcular Índices
+        // 5. Recalcular Índices (Unificado por Pacote)
+        const creditToPkgId: Record<string, string> = {}
+        allCredits.forEach(c => {
+            const cp = Array.isArray(c.customer_packages) ? c.customer_packages[0] : c.customer_packages;
+            if (cp?.id) creditToPkgId[c.id] = cp.id;
+        })
+
         const groups: Record<string, any[]> = {}
         appts.forEach(a => {
             if (a.package_credit_id) {
-                if (!groups[a.package_credit_id]) groups[a.package_credit_id] = []
-                groups[a.package_credit_id].push(a)
+                const pkgId = creditToPkgId[a.package_credit_id]
+                if (pkgId) {
+                    if (!groups[pkgId]) groups[pkgId] = []
+                    groups[pkgId].push(a)
+                } else {
+                    // Fallback para o ID do crédito se o pacote não for encontrado
+                    if (!groups[a.package_credit_id]) groups[a.package_credit_id] = []
+                    groups[a.package_credit_id].push(a)
+                }
             }
         })
 
-        for (const creditId in groups) {
-            const sorted = groups[creditId].sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
+        for (const groupId in groups) {
+            const sorted = groups[groupId].sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime())
             for (let i = 0; i < sorted.length; i++) {
                 const newIndex = i + 1
                 // Only update if changed

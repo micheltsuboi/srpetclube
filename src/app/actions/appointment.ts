@@ -548,6 +548,15 @@ export async function getPetAppointmentsByCategory(petId: string, category: stri
         .from('appointments')
         .select(`
             id, scheduled_at, status, check_in_date, check_out_date,
+            package_credit_id, package_usage_index,
+            package_credits (
+                total_quantity,
+                customer_packages (
+                    package_credits (
+                        total_quantity
+                    )
+                )
+            ),
             services!inner (
                 name,
                 service_categories!inner ( name )

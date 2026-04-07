@@ -245,7 +245,10 @@ export default function AgendaPage() {
                             total_paid,
                             payment_status,
                             payment_method,
-                            purchased_at
+                            purchased_at,
+                            package_credits (
+                                total_quantity
+                            )
                         )
                     ),
                     pets ( 
@@ -444,7 +447,14 @@ export default function AgendaPage() {
             >
                 {isPackage && (() => {
                     const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
-                    const total = pg?.total_quantity;
+                    const cp = pg?.customer_packages;
+                    const cpData = Array.isArray(cp) ? cp[0] : cp;
+                    const allCredits = cpData?.package_credits || [];
+                    const globalTotal = Array.isArray(allCredits) 
+                        ? allCredits.reduce((sum: number, c: any) => sum + (c.total_quantity || 0), 0)
+                        : (pg?.total_quantity || 0);
+
+                    const total = globalTotal || pg?.total_quantity;
                     const rawIdx = appt.package_usage_index || 1;
                     const idx = total ? Math.min(rawIdx, total) : rawIdx;
                     return (
