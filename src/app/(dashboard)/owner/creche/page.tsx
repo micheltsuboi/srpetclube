@@ -78,7 +78,14 @@ export default function CrechePage() {
                     package_credit_id, package_usage_index,
                     package_credits:package_credit_id (
                         total_quantity,
-                        used_quantity
+                        used_quantity,
+                        customer_packages (
+                            calculated_price,
+                            total_paid,
+                            payment_status,
+                            payment_method,
+                            purchased_at
+                        )
                     ),
                     pets ( name, species, breed, customers ( name ) ),
                     services!inner ( 
@@ -219,12 +226,16 @@ export default function CrechePage() {
                                 position: 'relative'
                             }}>
                             
-                            {appt.package_credit_id && (
-                                <div className={styles.packageHeaderBadge} title={`Sessão do pacote ${appt.package_usage_index || ''}`}>
-                                    Sessão {appt.package_usage_index || '1'} 
-                                    {appt.package_credits?.total_quantity ? ` de ${appt.package_credits.total_quantity}` : ''}
-                                </div>
-                            )}
+                            {appt.package_credit_id && (() => {
+                                const total = appt.package_credits?.total_quantity;
+                                const rawIdx = appt.package_usage_index || 1;
+                                const idx = total ? Math.min(rawIdx, total) : rawIdx;
+                                return (
+                                    <div className={styles.packageHeaderBadge} title={`Sessão do pacote ${idx}`}>
+                                        Sessão {idx} {total ? ` de ${total}` : ''}
+                                    </div>
+                                );
+                            })()}
                             {/* Date Badge - Enhanced for visibility */}
                             <div style={{
                                 position: 'absolute',
@@ -324,17 +335,27 @@ export default function CrechePage() {
                                         <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
                                             <span>{appt.services?.name || 'Creche'}</span>
                                         </div>
-                                        <PaymentControls
-                                            appointmentId={appt.id}
-                                            calculatedPrice={(appt as any).calculated_price ?? (appt.services as any)?.base_price ?? null}
-                                            finalPrice={(appt as any).final_price}
-                                            discountPercent={(appt as any).discount_percent}
-                                            paymentStatus={(appt as any).payment_status}
-                                            paymentMethod={(appt as any).payment_method}
-                                            onUpdate={() => fetchCrecheData(true)}
-                                            compact
-                                            isPackage={!!appt.package_credit_id}
-                                        />
+                                        {(() => {
+                                            const cp = Array.isArray((appt.package_credits as any)?.customer_packages)
+                                                ? (appt.package_credits as any)?.customer_packages[0]
+                                                : (appt.package_credits as any)?.customer_packages;
+                                            return (
+                                                <PaymentControls
+                                                    appointmentId={appt.id}
+                                                    calculatedPrice={(appt as any).calculated_price ?? (appt.services as any)?.base_price ?? null}
+                                                    finalPrice={(appt as any).final_price}
+                                                    discountPercent={(appt as any).discount_percent}
+                                                    paymentStatus={(appt as any).payment_status}
+                                                    paymentMethod={(appt as any).payment_method}
+                                                    onUpdate={() => fetchCrecheData(true)}
+                                                    compact
+                                                    isPackage={!!appt.package_credit_id}
+                                                    packageTotal={cp?.calculated_price ?? null}
+                                                    packageMethod={cp?.payment_method ?? null}
+                                                    packageDate={cp?.purchased_at ?? null}
+                                                />
+                                            );
+                                        })()}
                                         <span style={{ fontSize: '0.8rem', color: '#60a5fa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                             🕐 Agendado: {new Date(appt.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                         </span>
