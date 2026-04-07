@@ -14,6 +14,8 @@ interface PaymentControlsProps {
     packageTotal?: number | null
     packageMethod?: string | null
     packageDate?: string | null
+    packageHasTaxi?: boolean
+    packageTaxiFee?: number
     onUpdate?: () => void
     compact?: boolean
     isPackage?: boolean
@@ -38,6 +40,8 @@ export default function PaymentControls({
     packageTotal,
     packageMethod,
     packageDate,
+    packageHasTaxi = false,
+    packageTaxiFee = 0,
     onUpdate,
     compact = false,
     isPackage = false,
@@ -52,7 +56,10 @@ export default function PaymentControls({
     
     // For packages, use packageTotal if available, else fallback
     const displayPrice = isPackage && packageTotal !== undefined ? (packageTotal || 0) : (finalPrice ?? calculatedPrice ?? 0)
-    const basePrice = isPackage && packageTotal !== undefined ? (packageTotal || 0) : (calculatedPrice ?? 0)
+    
+    // Se for pacote, o basePrice real do pacote é o total dele menos o taxi de pacote (se houver)
+    const effectivePackageBase = isPackage && packageTotal !== undefined ? ((packageTotal || 0) - (packageHasTaxi ? packageTaxiFee : 0)) : (calculatedPrice || 0)
+    const basePrice = isPackage ? effectivePackageBase : (calculatedPrice ?? 0)
 
     // Reset local state when props change
     useEffect(() => {
@@ -143,12 +150,14 @@ export default function PaymentControls({
                         <span>{isPackage ? 'Valor do Pacote:' : 'Serviço:'}</span>
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {(basePrice || 0).toFixed(2)}</span>
                     </div>
-                    {taxiFee ? (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                            <span>🚗 Taxi Dog:</span>
-                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {(taxiFee || 0).toFixed(2)}</span>
+                    
+                    {/* Exibir Taxi Dog (Se for pacote, exibir taxi do pacote, senão exibir taxi regular da sessão) */}
+                    {(isPackage ? packageHasTaxi : !!taxiFee) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: isPackage ? 'var(--status-done)' : 'var(--text-secondary)' }}>
+                            <span>🚗 {isPackage ? 'Adicional Taxi Dog (Pacote):' : 'Taxi Dog:'}</span>
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {(isPackage ? packageTaxiFee : (taxiFee || 0)).toFixed(2)}</span>
                         </div>
-                    ) : null}
+                    )}
                     
                     {!isPackage && discountPercent && discountPercent > 0 ? (
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--status-canceled)' }}>

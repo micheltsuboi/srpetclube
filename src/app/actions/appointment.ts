@@ -608,6 +608,8 @@ export async function getPetAppointmentsByCategory(petId: string, category: stri
             package_credits (
                 total_quantity,
                 customer_packages (
+                    has_taxi,
+                    taxi_fee,
                     package_credits (
                         total_quantity
                     )

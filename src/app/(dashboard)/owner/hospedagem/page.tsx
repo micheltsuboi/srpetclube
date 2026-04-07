@@ -46,6 +46,15 @@ interface Appointment {
     package_credits?: {
         total_quantity: number
         used_quantity: number
+        customer_packages?: {
+            calculated_price: number,
+            total_paid: number,
+            payment_status: string,
+            payment_method: string,
+            purchased_at: string,
+            has_taxi: boolean,
+            taxi_fee: number
+        }
     } | null
 }
 
@@ -100,6 +109,8 @@ export default function HospedagemPage() {
                             payment_status,
                             payment_method,
                             purchased_at,
+                            has_taxi,
+                            taxi_fee,
                             package_credits (
                                 total_quantity
                             )
@@ -423,6 +434,8 @@ export default function HospedagemPage() {
                                                         packageTotal={cp?.calculated_price ?? null}
                                                         packageMethod={cp?.payment_method ?? null}
                                                         packageDate={cp?.purchased_at ?? null}
+                                                        packageHasTaxi={cp?.has_taxi ?? false}
+                                                        packageTaxiFee={cp?.taxi_fee ?? 0}
                                                     />
                                                 );
                                             })()}

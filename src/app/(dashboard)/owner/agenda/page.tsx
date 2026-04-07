@@ -88,7 +88,13 @@ interface Appointment {
         total_quantity: number
         used_quantity: number
         customer_packages?: {
-            payment_status: string
+            payment_status: string,
+            payment_method: string,
+            calculated_price: number,
+            total_paid: number,
+            purchased_at: string,
+            has_taxi: boolean,
+            taxi_fee: number
         }
     } | null
 }
@@ -286,7 +292,9 @@ export default function AgendaPage() {
                                 total_paid,
                                 payment_status,
                                 payment_method,
-                                purchased_at
+                                purchased_at,
+                                has_taxi,
+                                taxi_fee
                             )
                         ),
                         pets ( 
@@ -530,6 +538,8 @@ export default function AgendaPage() {
                             packageTotal={cp?.calculated_price ?? null}
                             packageMethod={cp?.payment_method ?? null}
                             packageDate={cp?.purchased_at ?? null}
+                            packageHasTaxi={cp?.has_taxi ?? false}
+                            packageTaxiFee={cp?.taxi_fee ?? 0}
                             onUpdate={() => fetchData()}
                             compact
                             isPackage={isPackage}

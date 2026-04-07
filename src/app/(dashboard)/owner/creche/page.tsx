@@ -37,6 +37,15 @@ interface Appointment {
     package_credits?: {
         total_quantity: number
         used_quantity: number
+        customer_packages?: {
+            calculated_price: number,
+            total_paid: number,
+            payment_status: string,
+            payment_method: string,
+            purchased_at: string,
+            has_taxi: boolean,
+            taxi_fee: number
+        }
     } | null
     calculated_price?: number | null
     final_price?: number | null
@@ -93,6 +102,8 @@ export default function CrechePage() {
                             payment_status,
                             payment_method,
                             purchased_at,
+                            has_taxi,
+                            taxi_fee,
                             package_credits (
                                 total_quantity
                             )
@@ -368,6 +379,8 @@ export default function CrechePage() {
                                             packageTotal={(appt as any).package_credits?.customer_packages?.[0]?.calculated_price}
                                             packageMethod={(appt as any).package_credits?.customer_packages?.[0]?.payment_method}
                                             packageDate={(appt as any).package_credits?.customer_packages?.[0]?.purchased_at}
+                                            packageHasTaxi={(appt as any).package_credits?.customer_packages?.[0]?.has_taxi ?? false}
+                                            packageTaxiFee={(appt as any).package_credits?.customer_packages?.[0]?.taxi_fee ?? 0}
                                         />
                                         <span style={{ fontSize: '0.8rem', color: '#60a5fa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                             🕐 Agendado: {new Date(appt.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
