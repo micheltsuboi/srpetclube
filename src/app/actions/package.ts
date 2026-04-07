@@ -81,11 +81,49 @@ export async function deleteServicePackage(id: string): Promise<ActionState> {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { message: 'Não autorizado.', success: false }
 
-    const { error } = await supabase.from('service_packages').delete().eq('id', id)
-    if (error) return { message: error.message, success: false }
+    try {
+        // 1. Get all customer packages linked to this service package
+        const { data: customerPkgs } = await supabase
+            .from('customer_packages')
+            .select('id')
+            .eq('package_id', id)
+        
+        const customerPkgIds = customerPkgs?.map(cp => cp.id) || []
 
-    revalidatePath('/owner/packages')
-    return { message: 'Pacote excluído.', success: true }
+        if (customerPkgIds.length > 0) {
+            // 2. Get all package credits for these customer packages
+            const { data: credits } = await supabase
+                .from('package_credits')
+                .select('id')
+                .in('customer_package_id', customerPkgIds)
+            
+            const creditIds = credits?.map(c => c.id) || []
+
+            if (creditIds.length > 0) {
+                // 3. Delete appointments using these credits
+                await supabase.from('appointments').delete().in('package_credit_id', creditIds)
+                
+                // 4. Delete package credits
+                await supabase.from('package_credits').delete().in('id', creditIds)
+            }
+
+            // 5. Delete customer packages
+            await supabase.from('customer_packages').delete().in('id', customerPkgIds)
+        }
+
+        // 6. Delete package items (template components)
+        await supabase.from('package_items').delete().eq('package_id', id)
+
+        // 7. Finally, delete the service package template
+        const { error } = await supabase.from('service_packages').delete().eq('id', id)
+        
+        if (error) return { message: error.message, success: false }
+
+        revalidatePath('/owner/packages')
+        return { message: 'Pacote e todas as suas dependências foram excluídos.', success: true }
+    } catch (err: any) {
+        return { message: err.message || 'Erro ao realizar a exclusão em cascata.', success: false }
+    }
 }
 
 export async function togglePackageStatus(id: string, isActive: boolean): Promise<ActionState> {
