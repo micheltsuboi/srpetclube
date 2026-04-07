@@ -239,7 +239,14 @@ export default function AgendaPage() {
                     package_credit_id, package_slot_id, package_usage_index,
                     package_credits:package_credit_id (
                         total_quantity,
-                        used_quantity
+                        used_quantity,
+                        customer_packages (
+                            calculated_price,
+                            total_paid,
+                            payment_status,
+                            payment_method,
+                            purchased_at
+                        )
                     ),
                     pets ( 
                         name, species, breed, 
@@ -268,7 +275,14 @@ export default function AgendaPage() {
                         package_credit_id, package_slot_id,
                         package_credits:package_credit_id (
                             total_quantity,
-                            used_quantity
+                            used_quantity,
+                            customer_packages (
+                                calculated_price,
+                                total_paid,
+                                payment_status,
+                                payment_method,
+                                purchased_at
+                            )
                         ),
                         pets ( 
                             name, species, breed, 
@@ -428,13 +442,18 @@ export default function AgendaPage() {
                     opacity: appt.status === 'done' ? 0.7 : 1
                 }}
             >
-                {isPackage && (
-                    <div className={styles.packageHeaderBadge} title={`Sessão do pacote ${appt.package_usage_index || ''}`}>
-                        <Package size={14} style={{ marginRight: '4px' }} />
-                        Sessão {appt.package_usage_index || '1'} 
-                        {appt.package_credits?.total_quantity ? ` de ${appt.package_credits.total_quantity}` : ''}
-                    </div>
-                )}
+                {isPackage && (() => {
+                    const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                    const total = pg?.total_quantity;
+                    const rawIdx = appt.package_usage_index || 1;
+                    const idx = total ? Math.min(rawIdx, total) : rawIdx;
+                    return (
+                        <div className={styles.packageHeaderBadge} title={`Sessão do pacote ${idx}`}>
+                            <Package size={14} style={{ marginRight: '4px' }} />
+                            Sessão {idx} {total ? ` de ${total}` : ''}
+                        </div>
+                    );
+                })()}
                 <div className={styles.timeDisplay}>{formatTime(appt.scheduled_at)}</div>
                 <div className={styles.cardTop}>
                     <div className={styles.petInfoMain}>
@@ -479,20 +498,26 @@ export default function AgendaPage() {
                         </div>
                     )}
                 </div>
-                <PaymentControls
-                    appointmentId={appt.id}
-                    calculatedPrice={appt.calculated_price ?? (appt.services as any)?.base_price ?? null}
-                    finalPrice={appt.final_price ?? null}
-                    discountPercent={appt.discount_percent ?? null}
-                    paymentStatus={isPackage ? (appt.payment_status || 'paid') : (appt.payment_status ?? null)}
-                    paymentMethod={appt.payment_method ?? null}
-                    packageTotal={null}
-                    packageMethod={null}
-                    packageDate={null}
-                    onUpdate={() => fetchData()}
-                    compact
-                    isPackage={isPackage}
-                />
+                {(() => {
+                    const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                    const cp = pg?.customer_packages || (Array.isArray(pg?.customer_packages) ? pg?.customer_packages[0] : null);
+                    return (
+                        <PaymentControls
+                            appointmentId={appt.id}
+                            calculatedPrice={appt.calculated_price ?? (appt.services as any)?.base_price ?? null}
+                            finalPrice={appt.final_price ?? null}
+                            discountPercent={appt.discount_percent ?? null}
+                            paymentStatus={isPackage ? (cp?.payment_status || appt.payment_status || 'paid') : (appt.payment_status || null)}
+                            paymentMethod={(cp?.payment_method || appt.payment_method) ?? null}
+                            packageTotal={cp?.calculated_price ?? null}
+                            packageMethod={cp?.payment_method ?? null}
+                            packageDate={cp?.purchased_at ?? null}
+                            onUpdate={() => fetchData()}
+                            compact
+                            isPackage={isPackage}
+                        />
+                    );
+                })()}
 
                 <div className={styles.quickActions}>
                     {!appt.actual_check_in && (

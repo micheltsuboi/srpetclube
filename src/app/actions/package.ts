@@ -177,7 +177,7 @@ export async function sellPackageToCustomer(prevState: ActionState, formData: Fo
     // Buscar informações do pacote
     const { data: packageData, error: packageError } = await supabase
         .from('service_packages')
-        .select('id, name, validity_days, package_items(service_id, quantity)')
+        .select('id, name, total_price, validity_days, package_items(service_id, quantity)')
         .eq('id', package_id)
         .single()
 
@@ -202,6 +202,7 @@ export async function sellPackageToCustomer(prevState: ActionState, formData: Fo
             package_id,
             org_id: profile.org_id,
             total_paid,
+            calculated_price: packageData.total_price || total_paid,
             payment_method,
             notes,
             expires_at
@@ -469,7 +470,7 @@ export async function sellPackageToPet(
             package_id: packageId,
             org_id: profile.org_id,
             total_paid: totalPaid,
-            calculated_price: totalPaid,
+            calculated_price: packageData.total_price || totalPaid,
             expires_at,
             preferred_weekdays: preferredWeekdays ?? null,
             preferred_time: preferredTime ?? null,
@@ -728,7 +729,7 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
     // Buscar pacote atual
     const { data: currentPackage, error: fetchError } = await supabase
         .from('customer_packages')
-        .select('id, customer_id, package_id, org_id, service_packages(validity_days, package_items(service_id, quantity))')
+        .select('id, customer_id, package_id, org_id, service_packages(validity_days, total_price, package_items(service_id, quantity))')
         .eq('id', customerPackageId)
         .single()
 
@@ -758,6 +759,7 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
             customer_id: currentPackage.customer_id,
             package_id: currentPackage.package_id,
             org_id: currentPackage.org_id,
+            calculated_price: (currentPackage.service_packages as any)?.total_price || 0,
             total_paid: 0, // Renovação pode ser gratuita ou paga manualmente
             payment_method: 'other',
             notes: 'Renovação automática',
