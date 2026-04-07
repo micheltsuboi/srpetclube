@@ -241,7 +241,10 @@ export default function AgendaPage() {
                         total_quantity,
                         used_quantity,
                         customer_packages:customer_package_id (
-                            payment_status
+                            payment_status,
+                            final_price,
+                            payment_method,
+                            paid_at
                         )
                     ),
                     pets ( 
@@ -273,7 +276,10 @@ export default function AgendaPage() {
                             total_quantity,
                             used_quantity,
                             customer_packages:customer_package_id (
-                                payment_status
+                                payment_status,
+                                final_price,
+                                payment_method,
+                                paid_at
                             )
                         ),
                         pets ( 
@@ -295,9 +301,29 @@ export default function AgendaPage() {
 
             if (error) console.error(error)
             if (appts) {
-                console.log(`[Agenda] Loaded ${appts.length} appointments. Package links:`, 
-                    (appts as any[]).filter(a => a.package_credit_id).length)
-                setAppointments(appts as unknown as Appointment[])
+                const typedAppts = appts as any[];
+                
+                // Agrupar agendamentos por package_credit_id para recalcular o índice cronológico
+                const packageGroups = new Map<string, any[]>();
+                typedAppts.forEach(a => {
+                    if (a.package_credit_id) {
+                        if (!packageGroups.has(a.package_credit_id)) {
+                            packageGroups.set(a.package_credit_id, []);
+                        }
+                        packageGroups.get(a.package_credit_id)!.push(a);
+                    }
+                });
+
+                // Ordenar cada grupo por data e atribuir o novo índice
+                packageGroups.forEach((group) => {
+                    group.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+                    group.forEach((appt, idx) => {
+                        appt.package_usage_index = idx + 1;
+                    });
+                });
+
+                console.log(`[Agenda] Loaded ${typedAppts.length} appointments. Re-indexed packages.`);
+                setAppointments(typedAppts as unknown as Appointment[])
             }
 
         } catch (error) {
@@ -499,6 +525,21 @@ export default function AgendaPage() {
                         return appt.payment_status ?? null;
                     })()}
                     paymentMethod={appt.payment_method ?? null}
+                    packageTotal={(() => {
+                        const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                        const cp = pg?.customer_packages;
+                        return (Array.isArray(cp) ? cp[0]?.final_price : cp?.final_price) || null;
+                    })()}
+                    packageMethod={(() => {
+                        const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                        const cp = pg?.customer_packages;
+                        return (Array.isArray(cp) ? cp[0]?.payment_method : cp?.payment_method) || null;
+                    })()}
+                    packageDate={(() => {
+                        const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                        const cp = pg?.customer_packages;
+                        return (Array.isArray(cp) ? cp[0]?.paid_at : cp?.paid_at) || null;
+                    })()}
                     onUpdate={() => fetchData()}
                     compact
                     isPackage={isPackage}

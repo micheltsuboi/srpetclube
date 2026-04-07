@@ -1131,14 +1131,32 @@ function PetsContent() {
                                                             return acc;
                                                         }, {})).map((pkgGroup: any, index: number) => {
                                                             const cpId = pkgGroup.id
-                                                            const slots = petSlots[cpId] || []
+                                                            const slots = [...(petSlots[cpId] || [])].sort((a, b) => {
+                                                                const dateA = new Date(a.slot_date + 'T12:00:00').getTime();
+                                                                const dateB = new Date(b.slot_date + 'T12:00:00').getTime();
+                                                                return dateB - dateA; // Descendente por padrão no histórico
+                                                            })
                                                             const isExpanded = expandedSlotPackage === cpId
+
+                                                            // Encontrar o mês de referência (maioria das sessões)
+                                                            let referenceMonth = '';
+                                                            if (slots.length > 0) {
+                                                                const monthCounts: Record<string, number> = {};
+                                                                slots.forEach((s: any) => {
+                                                                    if (s.slot_date) {
+                                                                        const m = new Date(s.slot_date + 'T12:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                                                                        monthCounts[m] = (monthCounts[m] || 0) + 1;
+                                                                    }
+                                                                });
+                                                                referenceMonth = Object.entries(monthCounts).reduce((a, b) => (a[1] > b[1] ? a : b))[0];
+                                                                referenceMonth = referenceMonth.charAt(0).toUpperCase() + referenceMonth.slice(1);
+                                                            }
 
                                                             return (
                                                                 <div key={`${cpId}-${index}`} className={styles.packageCard} style={{ flexDirection: 'column', alignItems: 'stretch', backgroundColor: pkgGroup.is_expired ? 'rgba(255,0,0,0.05)' : 'var(--bg-secondary)', opacity: pkgGroup.is_expired ? 0.7 : 1 }}>
                                                                     <div className={styles.packageHeader} style={{ flexWrap: 'nowrap' }}>
                                                                         <div className={styles.packageInfo} style={{ flex: 1 }}>
-                                                                            <h4 style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>📦 {pkgGroup.name}</h4>
+                                                                            <h4 style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>📦 {pkgGroup.name} {referenceMonth && <span style={{ fontSize: '0.85rem', color: 'var(--primary)', marginLeft: '0.5rem', fontWeight: 'normal' }}>({referenceMonth})</span>}</h4>
                                                                             <div className={styles.packageDate} style={{ marginTop: '0.2rem' }}>Validade: {pkgGroup.expires_at ? new Date(pkgGroup.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}</div>
                                                                         </div>
                                                                         <PackagePaymentControls

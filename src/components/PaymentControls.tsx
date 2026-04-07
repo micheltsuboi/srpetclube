@@ -11,6 +11,9 @@ interface PaymentControlsProps {
     discountPercent: number | null
     paymentStatus: string | null
     paymentMethod: string | null
+    packageTotal?: number | null
+    packageMethod?: string | null
+    packageDate?: string | null
     onUpdate?: () => void
     compact?: boolean
     isPackage?: boolean
@@ -31,6 +34,9 @@ export default function PaymentControls({
     discountPercent,
     paymentStatus,
     paymentMethod,
+    packageTotal,
+    packageMethod,
+    packageDate,
     onUpdate,
     compact = false,
     isPackage = false
@@ -40,8 +46,10 @@ export default function PaymentControls({
     const [loading, setLoading] = useState(false)
 
     const isPaid = paymentStatus === 'paid'
-    const displayPrice = finalPrice ?? calculatedPrice ?? 0
-    const basePrice = calculatedPrice ?? 0
+    
+    // For packages, use packageTotal if available, else fallback
+    const displayPrice = isPackage && packageTotal !== undefined ? (packageTotal || 0) : (finalPrice ?? calculatedPrice ?? 0)
+    const basePrice = isPackage && packageTotal !== undefined ? (packageTotal || 0) : (calculatedPrice ?? 0)
 
     // Reset local state when props change
     useEffect(() => {
@@ -120,7 +128,7 @@ export default function PaymentControls({
                 }}
             >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>💰 Detalhes do Pagamento</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>💰 Detalhes do Pagamento {isPackage ? '(Pacote)' : ''}</h3>
                     <button
                         onClick={() => setShowModal(false)}
                         style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: 'var(--text-secondary)' }}
@@ -132,105 +140,114 @@ export default function PaymentControls({
                 {/* Price Summary */}
                 <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.85rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                        <span>Valor Base:</span>
+                        <span>{isPackage ? 'Valor do Pacote:' : 'Valor Base:'}</span>
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {basePrice.toFixed(2)}</span>
                     </div>
 
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.85rem' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Tipo de Desconto:</span>
-                            <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
-                                <button
-                                    onClick={() => setDiscountType('percent')}
-                                    disabled={isPaid}
-                                    style={{
-                                        padding: '4px 8px',
-                                        fontSize: '0.75rem',
-                                        borderRadius: '4px',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        background: discountType === 'percent' ? 'var(--primary)' : 'transparent',
-                                        color: 'white',
-                                        fontWeight: discountType === 'percent' ? 600 : 400
-                                    }}
-                                >
-                                    %
-                                </button>
-                                <button
-                                    onClick={() => setDiscountType('fixed')}
-                                    disabled={isPaid}
-                                    style={{
-                                        padding: '4px 8px',
-                                        fontSize: '0.75rem',
-                                        borderRadius: '4px',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        background: discountType === 'fixed' ? 'var(--primary)' : 'transparent',
-                                        color: 'white',
-                                        fontWeight: discountType === 'fixed' ? 600 : 400
-                                    }}
-                                >
-                                    R$
-                                </button>
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Valor:</span>
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                                    {discountType === 'fixed' && <span style={{ position: 'absolute', left: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>R$</span>}
-                                    <input
-                                        type="number"
-                                        value={discountValue}
-                                        onChange={(e) => setDiscountValue(e.target.value)}
-                                        min="0"
-                                        max={discountType === 'percent' ? 100 : basePrice}
+                    {!isPackage && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.85rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Tipo de Desconto:</span>
+                                <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
+                                    <button
+                                        onClick={() => setDiscountType('percent')}
                                         disabled={isPaid}
                                         style={{
-                                            width: '80px',
-                                            padding: `6px 8px 6px ${discountType === 'fixed' ? '24px' : '8px'}`,
-                                            borderRadius: '6px',
-                                            border: '1px solid var(--border)',
-                                            background: 'var(--bg-primary)',
-                                            color: 'var(--text-primary)',
-                                            textAlign: 'right',
-                                            fontSize: '0.85rem'
-                                        }}
-                                    />
-                                    {discountType === 'percent' && <span style={{ marginLeft: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>%</span>}
-                                </div>
-                                {!isPaid && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation()
-                                            handleDiscount()
-                                        }}
-                                        disabled={loading}
-                                        style={{
+                                            padding: '4px 8px',
                                             fontSize: '0.75rem',
-                                            padding: '4px 12px',
-                                            background: 'var(--primary)',
-                                            color: 'white',
+                                            borderRadius: '4px',
                                             border: 'none',
-                                            borderRadius: '6px',
                                             cursor: 'pointer',
-                                            fontWeight: 600
+                                            background: discountType === 'percent' ? 'var(--primary)' : 'transparent',
+                                            color: 'white',
+                                            fontWeight: discountType === 'percent' ? 600 : 400
                                         }}
                                     >
-                                        Aplicar
+                                        %
                                     </button>
-                                )}
+                                    <button
+                                        onClick={() => setDiscountType('fixed')}
+                                        disabled={isPaid}
+                                        style={{
+                                            padding: '4px 8px',
+                                            fontSize: '0.75rem',
+                                            borderRadius: '4px',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            background: discountType === 'fixed' ? 'var(--primary)' : 'transparent',
+                                            color: 'white',
+                                            fontWeight: discountType === 'fixed' ? 600 : 400
+                                        }}
+                                    >
+                                        R$
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Valor:</span>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                        {discountType === 'fixed' && <span style={{ position: 'absolute', left: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>R$</span>}
+                                        <input
+                                            type="number"
+                                            value={discountValue}
+                                            onChange={(e) => setDiscountValue(e.target.value)}
+                                            min="0"
+                                            max={discountType === 'percent' ? 100 : basePrice}
+                                            disabled={isPaid}
+                                            style={{
+                                                width: '80px',
+                                                padding: `6px 8px 6px ${discountType === 'fixed' ? '24px' : '8px'}`,
+                                                borderRadius: '6px',
+                                                border: '1px solid var(--border)',
+                                                background: 'var(--bg-primary)',
+                                                color: 'var(--text-primary)',
+                                                textAlign: 'right',
+                                                fontSize: '0.85rem'
+                                            }}
+                                        />
+                                        {discountType === 'percent' && <span style={{ marginLeft: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>%</span>}
+                                    </div>
+                                    {!isPaid && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                handleDiscount()
+                                            }}
+                                            disabled={loading}
+                                            style={{
+                                                fontSize: '0.75rem',
+                                                padding: '4px 12px',
+                                                background: 'var(--primary)',
+                                                color: 'white',
+                                                border: 'none',
+                                                borderRadius: '6px',
+                                                cursor: 'pointer',
+                                                fontWeight: 600
+                                            }}
+                                        >
+                                            Aplicar
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
-                    {discountPercent && discountPercent > 0 ? (
+                    {!isPackage && discountPercent && discountPercent > 0 ? (
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--status-canceled)' }}>
                             <span>Desconto aplicado:</span>
                             <span>- R$ {(basePrice - displayPrice).toFixed(2)}</span>
                         </div>
                     ) : null}
+
+                    {isPackage && packageDate && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            <span>Data do Pagamento:</span>
+                            <span style={{ color: 'var(--text-primary)' }}>{new Date(packageDate).toLocaleDateString('pt-BR')}</span>
+                        </div>
+                    )}
 
                     <div style={{ borderTop: '1px solid var(--border)', marginTop: '0.5rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1rem', color: 'var(--text-primary)' }}>
                         <span>Total Final:</span>
@@ -255,24 +272,26 @@ export default function PaymentControls({
                                 fontWeight: 600,
                                 border: '1px solid rgba(122, 201, 160, 0.2)'
                             }}>
-                                ✅ Pago via {paymentMethodLabels[paymentMethod || ''] || paymentMethod}
+                                ✅ {isPackage ? 'Pacote' : ''} Pago via {paymentMethodLabels[packageMethod || paymentMethod || ''] || packageMethod || paymentMethod}
                             </div>
-                            <button
-                                onClick={handleUnpay}
-                                disabled={loading}
-                                style={{
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    border: '1px solid var(--border)',
-                                    padding: '0.5rem 1rem',
-                                    borderRadius: '6px',
-                                    color: 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem',
-                                    width: '100%'
-                                }}
-                            >
-                                ↺ Desfazer Pagamento
-                            </button>
+                            {!isPackage && (
+                                <button
+                                    onClick={handleUnpay}
+                                    disabled={loading}
+                                    style={{
+                                        background: 'rgba(255, 255, 255, 0.05)',
+                                        border: '1px solid var(--border)',
+                                        padding: '0.5rem 1rem',
+                                        borderRadius: '6px',
+                                        color: 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem',
+                                        width: '100%'
+                                    }}
+                                >
+                                    ↺ Desfazer Pagamento
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div>
