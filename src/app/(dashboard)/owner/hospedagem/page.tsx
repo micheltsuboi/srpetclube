@@ -41,6 +41,8 @@ interface Appointment {
     }
     package_credit_id?: string | null
     package_usage_index?: number | null
+    has_taxi?: boolean
+    taxi_fee?: number
     package_credits?: {
         total_quantity: number
         used_quantity: number
@@ -87,6 +89,7 @@ export default function HospedagemPage() {
                     final_price, discount_percent, payment_status, payment_method,
                     check_in_date, check_out_date,
                     actual_check_in, actual_check_out,
+                    has_taxi, taxi_fee,
                     package_credit_id, package_usage_index,
                     package_credits:package_credit_id (
                         total_quantity,
@@ -318,6 +321,11 @@ export default function HospedagemPage() {
                                                 setSelectedAppointment(appt)
                                             }}>
                                                 {appt.pets?.name || 'Pet'}
+                                                {appt.has_taxi && (
+                                                    <span style={{ fontSize: '1rem', marginLeft: '0.4rem' }} title={`Taxi Dog: R$ ${appt.taxi_fee?.toFixed(2)}`}>
+                                                        🚗
+                                                    </span>
+                                                )}
                                                 <span className={styles.statusBadge} style={{ fontSize: '0.75rem', padding: '2px 6px' }}>
                                                     {appt.status === 'in_progress' ? '🏠 Hospedado' :
                                                         (appt.status === 'done' || appt.status === 'completed') ? '✅ Finalizado' :
@@ -405,6 +413,7 @@ export default function HospedagemPage() {
                                                         appointmentId={appt.id}
                                                         calculatedPrice={totalEstimate}
                                                         finalPrice={appt.final_price}
+                                                        taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
                                                         discountPercent={appt.discount_percent}
                                                         paymentStatus={appt.payment_status}
                                                         paymentMethod={appt.payment_method}

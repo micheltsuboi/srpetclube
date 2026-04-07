@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { updatePaymentStatus, applyDiscount } from '@/app/actions/appointment'
 import { createPortal } from 'react-dom'
 
@@ -17,6 +17,7 @@ interface PaymentControlsProps {
     onUpdate?: () => void
     compact?: boolean
     isPackage?: boolean
+    taxiFee?: number | null
 }
 
 const paymentMethodLabels: Record<string, string> = {
@@ -39,11 +40,13 @@ export default function PaymentControls({
     packageDate,
     onUpdate,
     compact = false,
-    isPackage = false
+    isPackage = false,
+    taxiFee = 0
 }: PaymentControlsProps) {
     const [showModal, setShowModal] = useState(false)
     const [discountValue, setDiscountValue] = useState(discountPercent?.toString() || '0')
     const [loading, setLoading] = useState(false)
+    const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent')
 
     const isPaid = paymentStatus === 'paid'
     
@@ -72,13 +75,10 @@ export default function PaymentControls({
         try {
             await updatePaymentStatus(appointmentId, 'pending')
             onUpdate?.()
-            // Keep modal open to show change
         } finally {
             setLoading(false)
         }
     }
-
-    const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent')
 
     const handleDiscount = async () => {
         const val = parseFloat(discountValue)
@@ -138,20 +138,40 @@ export default function PaymentControls({
                 </div>
 
                 {/* Price Summary */}
-                <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.85rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                        <span>{isPackage ? 'Valor do Pacote:' : 'Valor Base:'}</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {basePrice.toFixed(2)}</span>
+                <div style={{ background: 'rgba(232, 130, 106, 0.05)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px dashed rgba(232, 130, 106, 0.2)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        <span>{isPackage ? 'Valor do Pacote:' : 'Serviço:'}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {(basePrice || 0).toFixed(2)}</span>
                     </div>
+                    {taxiFee ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            <span>🚗 Taxi Dog:</span>
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {(taxiFee || 0).toFixed(2)}</span>
+                        </div>
+                    ) : null}
+                    
+                    {!isPackage && discountPercent && discountPercent > 0 ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--status-canceled)' }}>
+                            <span>Desconto aplicado:</span>
+                            <span>- R$ {((basePrice + (taxiFee || 0)) - displayPrice).toFixed(2)}</span>
+                        </div>
+                    ) : null}
 
-                    {!isPackage && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.85rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        <span>Total:</span>
+                        <span style={{ fontSize: '1.1rem', color: 'var(--color-coral)' }}>R$ {(displayPrice || 0).toFixed(2)}</span>
+                    </div>
+                </div>
+
+                {/* Discount Section */}
+                {!isPackage && !isPaid && (
+                   <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Tipo de Desconto:</span>
                                 <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
                                     <button
                                         onClick={() => setDiscountType('percent')}
-                                        disabled={isPaid}
                                         style={{
                                             padding: '4px 8px',
                                             fontSize: '0.75rem',
@@ -167,7 +187,6 @@ export default function PaymentControls({
                                     </button>
                                     <button
                                         onClick={() => setDiscountType('fixed')}
-                                        disabled={isPaid}
                                         style={{
                                             padding: '4px 8px',
                                             fontSize: '0.75rem',
@@ -194,8 +213,6 @@ export default function PaymentControls({
                                             value={discountValue}
                                             onChange={(e) => setDiscountValue(e.target.value)}
                                             min="0"
-                                            max={discountType === 'percent' ? 100 : basePrice}
-                                            disabled={isPaid}
                                             style={{
                                                 width: '80px',
                                                 padding: `6px 8px 6px ${discountType === 'fixed' ? '24px' : '8px'}`,
@@ -209,51 +226,34 @@ export default function PaymentControls({
                                         />
                                         {discountType === 'percent' && <span style={{ marginLeft: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>%</span>}
                                     </div>
-                                    {!isPaid && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                handleDiscount()
-                                            }}
-                                            disabled={loading}
-                                            style={{
-                                                fontSize: '0.75rem',
-                                                padding: '4px 12px',
-                                                background: 'var(--primary)',
-                                                color: 'white',
-                                                border: 'none',
-                                                borderRadius: '6px',
-                                                cursor: 'pointer',
-                                                fontWeight: 600
-                                            }}
-                                        >
-                                            Aplicar
-                                        </button>
-                                    )}
+                                    <button
+                                        onClick={handleDiscount}
+                                        disabled={loading}
+                                        style={{
+                                            fontSize: '0.75rem',
+                                            padding: '4px 12px',
+                                            background: 'var(--primary)',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            fontWeight: 600
+                                        }}
+                                    >
+                                        Aplicar
+                                    </button>
                                 </div>
                             </div>
                         </div>
-                    )}
+                   </div>
+                )}
 
-                    {!isPackage && discountPercent && discountPercent > 0 ? (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--status-canceled)' }}>
-                            <span>Desconto aplicado:</span>
-                            <span>- R$ {(basePrice - displayPrice).toFixed(2)}</span>
-                        </div>
-                    ) : null}
-
-                    {isPackage && packageDate && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                            <span>Data do Pagamento:</span>
-                            <span style={{ color: 'var(--text-primary)' }}>{new Date(packageDate).toLocaleDateString('pt-BR')}</span>
-                        </div>
-                    )}
-
-                    <div style={{ borderTop: '1px solid var(--border)', marginTop: '0.5rem', paddingTop: '0.5rem', display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1.1rem', color: 'var(--text-primary)' }}>
-                        <span>Total Final:</span>
-                        <span>R$ {parseFloat(displayPrice.toFixed(2)).toFixed(2)}</span>
+                {isPackage && packageDate && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', padding: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                        <span>Data do Pagamento:</span>
+                        <span style={{ color: 'var(--text-primary)' }}>{new Date(packageDate).toLocaleDateString('pt-BR')}</span>
                     </div>
-                </div>
+                )}
 
                 {/* Actions */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -328,7 +328,6 @@ export default function PaymentControls({
             </div>
         </div>
     )
-
 
     // Main Card Display (Compact Badge)
     return (

@@ -82,6 +82,8 @@ interface Appointment {
     package_credit_id?: string | null
     package_slot_id?: string | null
     package_usage_index?: number | null
+    has_taxi?: boolean
+    taxi_fee?: number
     package_credits?: {
         total_quantity: number
         used_quantity: number
@@ -469,8 +471,13 @@ export default function AgendaPage() {
                     <div className={styles.petInfoMain}>
                         <div className={styles.petAvatar}>{appt.pets?.species === 'cat' ? '🐱' : '🐶'}</div>
                         <div className={styles.petDetails}>
-                            <div className={styles.petName}>
+                             <div className={styles.petName}>
                                 {petName}
+                                {appt.has_taxi && (
+                                    <span style={{ fontSize: '1rem', marginLeft: '0.4rem' }} title={`Taxi Dog: R$ ${appt.taxi_fee?.toFixed(2)}`}>
+                                        🚗
+                                    </span>
+                                )}
                                 {needsAdaptation && (
                                     <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', background: '#f1c40f', color: '#000', borderRadius: '4px', marginLeft: '0.5rem', fontWeight: 'bold' }}>
                                         ⚠️ Adaptação Pendente
@@ -516,6 +523,7 @@ export default function AgendaPage() {
                             appointmentId={appt.id}
                             calculatedPrice={appt.calculated_price ?? (appt.services as any)?.base_price ?? null}
                             finalPrice={appt.final_price ?? null}
+                            taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
                             discountPercent={appt.discount_percent ?? null}
                             paymentStatus={isPackage ? (cp?.payment_status || appt.payment_status || 'paid') : (appt.payment_status || null)}
                             paymentMethod={(cp?.payment_method || appt.payment_method) ?? null}

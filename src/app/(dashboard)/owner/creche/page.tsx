@@ -32,10 +32,17 @@ interface Appointment {
     }
     package_credit_id?: string | null
     package_usage_index?: number | null
+    has_taxi?: boolean
+    taxi_fee?: number
     package_credits?: {
         total_quantity: number
         used_quantity: number
     } | null
+    calculated_price?: number | null
+    final_price?: number | null
+    payment_status?: string | null
+    payment_method?: string | null
+    discount_percent?: number | null
 }
 
 export default function CrechePage() {
@@ -75,6 +82,7 @@ export default function CrechePage() {
                     id, pet_id, service_id, scheduled_at, status, notes,
                     calculated_price, final_price, discount_percent, payment_status, payment_method,
                     actual_check_in, actual_check_out,
+                    has_taxi, taxi_fee,
                     package_credit_id, package_usage_index,
                     package_credits:package_credit_id (
                         total_quantity,
@@ -346,27 +354,21 @@ export default function CrechePage() {
                                         <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
                                             <span>{appt.services?.name || 'Creche'}</span>
                                         </div>
-                                        {(() => {
-                                            const cp = Array.isArray((appt.package_credits as any)?.customer_packages)
-                                                ? (appt.package_credits as any)?.customer_packages[0]
-                                                : (appt.package_credits as any)?.customer_packages;
-                                            return (
-                                                <PaymentControls
-                                                    appointmentId={appt.id}
-                                                    calculatedPrice={(appt as any).calculated_price ?? (appt.services as any)?.base_price ?? null}
-                                                    finalPrice={(appt as any).final_price}
-                                                    discountPercent={(appt as any).discount_percent}
-                                                    paymentStatus={(appt as any).payment_status}
-                                                    paymentMethod={(appt as any).payment_method}
-                                                    onUpdate={() => fetchCrecheData(true)}
-                                                    compact
-                                                    isPackage={!!appt.package_credit_id}
-                                                    packageTotal={cp?.calculated_price ?? null}
-                                                    packageMethod={cp?.payment_method ?? null}
-                                                    packageDate={cp?.purchased_at ?? null}
-                                                />
-                                            );
-                                        })()}
+                                        <PaymentControls
+                                            appointmentId={appt.id}
+                                            calculatedPrice={(appt as any).calculated_price ?? (appt.services as any)?.base_price ?? null}
+                                            finalPrice={(appt as any).final_price}
+                                            taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
+                                            discountPercent={(appt as any).discount_percent}
+                                            paymentStatus={(appt as any).payment_status}
+                                            paymentMethod={(appt as any).payment_method}
+                                            onUpdate={() => fetchCrecheData(true)}
+                                            compact
+                                            isPackage={!!appt.package_credit_id}
+                                            packageTotal={(appt as any).package_credits?.customer_packages?.[0]?.calculated_price}
+                                            packageMethod={(appt as any).package_credits?.customer_packages?.[0]?.payment_method}
+                                            packageDate={(appt as any).package_credits?.customer_packages?.[0]?.purchased_at}
+                                        />
                                         <span style={{ fontSize: '0.8rem', color: '#60a5fa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                                             🕐 Agendado: {new Date(appt.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                                         </span>

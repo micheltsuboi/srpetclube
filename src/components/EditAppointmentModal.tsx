@@ -20,6 +20,8 @@ interface EditAppointmentModalProps {
         notes: string | null
         check_in_date?: string | null
         check_out_date?: string | null
+        has_taxi?: boolean
+        taxi_fee?: number
         pets: { name: string }
         services?: { name: string, service_categories?: { name: string } }
     }
@@ -39,6 +41,8 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
     const [notes, setNotes] = useState(appointment.notes || '')
     const [checkInDate, setCheckInDate] = useState(appointment.check_in_date || appointment.scheduled_at.split('T')[0])
     const [checkOutDate, setCheckOutDate] = useState(appointment.check_out_date || '')
+    const [hasTaxi, setHasTaxi] = useState(appointment.has_taxi || false)
+    const [taxiFee, setTaxiFee] = useState(appointment.taxi_fee?.toString() || '0')
 
     const selectedService = services.find(s => s.id === serviceId)
     const isHospedagem = selectedService?.name === 'Hospedagem' || (appointment.services as any)?.service_categories?.name === 'Hospedagem'
@@ -74,6 +78,8 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
         formData.append('notes', notes)
         if (checkInDate) formData.append('checkInDate', checkInDate)
         if (checkOutDate) formData.append('checkOutDate', checkOutDate)
+        formData.append('hasTaxi', String(hasTaxi))
+        formData.append('taxiFee', taxiFee)
 
         const result = await updateAppointment({ message: '', success: false }, formData)
 
@@ -198,6 +204,38 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
                                 </div>
                             </div>
                         )}
+
+                        <div style={{ 
+                            background: 'rgba(232, 130, 106, 0.05)', 
+                            padding: '1rem', 
+                            borderRadius: '12px', 
+                            border: '1px solid rgba(232, 130, 106, 0.1)',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontWeight: 600 }}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={hasTaxi} 
+                                    onChange={e => setHasTaxi(e.target.checked)}
+                                    style={{ width: '18px', height: '18px', accentColor: '#E8826A' }}
+                                />
+                                🚗 Taxi Dog?
+                            </label>
+
+                            {hasTaxi && (
+                                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed rgba(232, 130, 106, 0.2)' }}>
+                                    <label style={{ display: 'block', marginBottom: '0.5rem', color: '#cbd5e1', fontSize: '0.8rem', fontWeight: 600 }}>VALOR DO TRANSPORTE (R$)</label>
+                                    <input 
+                                        type="number"
+                                        step="0.01"
+                                        value={taxiFee}
+                                        onChange={e => setTaxiFee(e.target.value)}
+                                        style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white' }}
+                                        placeholder="0.00"
+                                    />
+                                </div>
+                            )}
+                        </div>
 
                         <div>
                             <label style={{ display: 'block', marginBottom: '0.5rem', color: '#cbd5e1', fontSize: '0.9rem' }}>Observações</label>

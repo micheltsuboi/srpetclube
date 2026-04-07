@@ -39,6 +39,10 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     const checkInDate = formData.get('checkInDate') as string
     const checkOutDate = formData.get('checkOutDate') as string
 
+    // Taxi Dog Extract
+    const hasTaxi = formData.get('hasTaxi') === 'true'
+    const taxiFee = parseFloat(formData.get('taxiFee') as string || '0')
+
     if (!petId || !serviceId) {
         return { message: 'Preencha todos os campos obrigatórios.', success: false }
     }
@@ -325,7 +329,9 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             check_in_date: checkIn,
             check_out_date: checkOut,
             calculated_price: calculatedPrice,
-            final_price: calculatedPrice,
+            final_price: calculatedPrice + (hasTaxi ? taxiFee : 0),
+            has_taxi: hasTaxi,
+            taxi_fee: taxiFee,
             payment_status: 'pending',
             discount_percent: 0
         })
@@ -466,6 +472,8 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
     const notes = formData.get('notes') as string
     const checkInDate = formData.get('checkInDate') as string
     const checkOutDate = formData.get('checkOutDate') as string
+    const hasTaxi = formData.get('hasTaxi') === 'true'
+    const taxiFee = parseFloat(formData.get('taxiFee') as string || '0')
 
     if (!id || !date || !time || !serviceId) {
         return { message: 'Dados incompletos.', success: false }

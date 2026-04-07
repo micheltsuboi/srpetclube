@@ -40,6 +40,8 @@ interface Appointment {
     payment_method: string | null
     package_credit_id?: string | null
     package_usage_index?: number | null
+    has_taxi?: boolean
+    taxi_fee?: number
     package_credits?: {
         total_quantity: number
         used_quantity: number
@@ -94,6 +96,7 @@ export default function BanhoTosaPage() {
                     calculated_price, checklist,
                     final_price, discount_percent, payment_status, payment_method,
                     actual_check_in, actual_check_out,
+                    has_taxi, taxi_fee,
                     package_credit_id, package_usage_index,
                     package_credits:package_credit_id (
                         total_quantity,
@@ -370,6 +373,7 @@ export default function BanhoTosaPage() {
                                                     appointmentId={appt.id}
                                                     calculatedPrice={appt.calculated_price ?? appt.services?.base_price ?? null}
                                                     finalPrice={appt.final_price}
+                                                    taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
                                                     discountPercent={appt.discount_percent}
                                                     paymentStatus={appt.payment_status}
                                                     paymentMethod={appt.payment_method}

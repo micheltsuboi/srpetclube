@@ -72,6 +72,8 @@ export default function BookingModal({
     const [showPetResults, setShowPetResults] = useState(false)
     const [selectedPetId, setSelectedPetId] = useState(initialPetId)
     const [selectedPet, setSelectedPet] = useState<Pet | null>(null)
+    const [hasTaxi, setHasTaxi] = useState(false)
+    const [taxiFee, setTaxiFee] = useState<string>('0')
     const [selectedServiceId, setSelectedServiceId] = useState(initialServiceId)
     const [selectedDate, setSelectedDate] = useState(initialDate)
     const [selectedTime, setSelectedTime] = useState(initialHour)
@@ -394,6 +396,36 @@ export default function BookingModal({
                             </div>
                         </div>
                     )}
+
+                    <div className={styles.taxiGroup}>
+                        <div className={styles.taxiHeader}>
+                            <label className={styles.checkboxLabel}>
+                                <input 
+                                    type="checkbox" 
+                                    checked={hasTaxi} 
+                                    onChange={(e) => setHasTaxi(e.target.checked)}
+                                    className={styles.checkbox}
+                                />
+                                <span className={styles.taxiTitle}>🚗 Adicionar Taxi Dog?</span>
+                            </label>
+                        </div>
+                        
+                        {hasTaxi && (
+                            <div className={styles.taxiPriceInput}>
+                                <label className={styles.labelSmall}>Valor do Transporte (R$)</label>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    className={styles.input}
+                                    value={taxiFee}
+                                    onChange={(e) => setTaxiFee(e.target.value)}
+                                    placeholder="0.00"
+                                />
+                            </div>
+                        )}
+                        <input type="hidden" name="hasTaxi" value={String(hasTaxi)} />
+                        <input type="hidden" name="taxiFee" value={taxiFee} />
+                    </div>
 
                     <div className={styles.formGroup}>
                         <label className={styles.label}>Observações</label>

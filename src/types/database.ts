@@ -162,7 +162,9 @@ export interface Appointment {
     notes: string | null
     used_credit: boolean
     credit_id: string | null
-    checklist: ChecklistItem[]
+    package_usage_index: number | null
+    has_taxi: boolean
+    taxi_fee: number
     created_at: string
     updated_at: string
 }

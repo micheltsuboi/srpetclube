@@ -192,3 +192,61 @@
 .priceOverride {
     color: var(--success);
 }
+
+.taxiGroup {
+    background: rgba(var(--primary-rgb), 0.05);
+    border: 1px solid rgba(var(--primary-rgb), 0.1);
+    border-radius: 16px;
+    padding: 1.25rem;
+    margin-bottom: 1.5rem;
+    transition: all 0.3s ease;
+}
+
+.taxiHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.checkboxLabel {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.checkbox {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--color-coral);
+    cursor: pointer;
+}
+
+.taxiTitle {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.taxiPriceInput {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px dashed rgba(var(--primary-rgb), 0.2);
+    animation: fadeIn 0.3s ease;
+}
+
+.labelSmall {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-5px); }
+    to { opacity: 1; transform: translateY(0); }
+}
