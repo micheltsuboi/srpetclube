@@ -1251,7 +1251,8 @@ function PetsContent() {
                                                                                         
                                                                                         return slots.map((slot: any) => {
                                                                                             const sessionIdx = indexMap.get(slot.id);
-                                                                                            const totalInPkg = pkgGroup.services[0]?.total_qty || 0;
+                                                                                            // Soma todos os créditos do pacote para obter o total real
+                                                                                            const totalInPkg = pkgGroup.services.reduce((sum: number, srv: any) => sum + (srv.total_qty || 0), 0) || pkgGroup.services[0]?.total_qty || 0;
                                                                                             const statusMap: Record<string, { icon: string, label: string, color: string }> = {
                                                                                                 done: { icon: '✅', label: 'Realizado', color: '#10B981' },
                                                                                                 scheduled: { icon: '🕐', label: 'Agendado', color: '#3B82F6' },

@@ -239,13 +239,7 @@ export default function AgendaPage() {
                     package_credit_id, package_slot_id, package_usage_index,
                     package_credits:package_credit_id (
                         total_quantity,
-                        used_quantity,
-                        customer_packages:customer_package_id (
-                            payment_status,
-                            final_price,
-                            payment_method,
-                            paid_at
-                        )
+                        used_quantity
                     ),
                     pets ( 
                         name, species, breed, 
@@ -274,13 +268,7 @@ export default function AgendaPage() {
                         package_credit_id, package_slot_id,
                         package_credits:package_credit_id (
                             total_quantity,
-                            used_quantity,
-                            customer_packages:customer_package_id (
-                                payment_status,
-                                final_price,
-                                payment_method,
-                                paid_at
-                            )
+                            used_quantity
                         ),
                         pets ( 
                             name, species, breed, 
@@ -302,31 +290,7 @@ export default function AgendaPage() {
             if (error) console.error(error)
             if (appts) {
                 const typedAppts = appts as any[];
-                
-                // Agrupar agendamentos por package_credit_id para recalcular o índice cronológico
-                const packageGroups = new Map<string, any[]>();
-                typedAppts.forEach(a => {
-                    if (a.package_credit_id) {
-                        if (!packageGroups.has(a.package_credit_id)) {
-                            packageGroups.set(a.package_credit_id, []);
-                        }
-                        packageGroups.get(a.package_credit_id)!.push(a);
-                    }
-                });
-
-                // Ordenar cada grupo por data e atribuir o novo índice
-                packageGroups.forEach((group) => {
-                    group.sort((a, b) => {
-                        const dateA = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0;
-                        const dateB = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
-                        return dateA - dateB;
-                    });
-                    group.forEach((appt, idx) => {
-                        appt.package_usage_index = idx + 1;
-                    });
-                });
-
-                console.log(`[Agenda] Loaded ${typedAppts.length} appointments. Re-indexed packages.`);
+                console.log(`[Agenda] Loaded ${typedAppts.length} appointments.`);
                 setAppointments(typedAppts as unknown as Appointment[])
             }
 
@@ -501,14 +465,15 @@ export default function AgendaPage() {
                     {isPackage && (
                         <div className={styles.packageProgressBadge}>
                             {(() => {
-                                // Extract data handling both object and array from Supabase join
                                 const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
-                                if (appt.package_usage_index && pg) {
-                                    return `Sessão ${appt.package_usage_index} de ${pg.total_quantity}`;
-                                }
-                                if (pg) {
-                                    return `Sessão ${pg.used_quantity} de ${pg.total_quantity}`;
-                                }
+                                const total = pg?.total_quantity;
+                                // Usa package_usage_index do banco (confiável) como posição X
+                                // Nunca deixa X > total para evitar "5 de 4"
+                                const idx = appt.package_usage_index && total
+                                    ? Math.min(appt.package_usage_index, total)
+                                    : null;
+                                if (idx && total) return `Sessão ${idx} de ${total}`;
+                                if (total) return `Pacote (${total} sessões)`;
                                 return 'Pacote';
                             })()}
                         </div>
@@ -519,31 +484,11 @@ export default function AgendaPage() {
                     calculatedPrice={appt.calculated_price ?? (appt.services as any)?.base_price ?? null}
                     finalPrice={appt.final_price ?? null}
                     discountPercent={appt.discount_percent ?? null}
-                    paymentStatus={(() => {
-                        if (isPackage) {
-                            const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
-                            const cp = pg?.customer_packages;
-                            const pkgStatus = Array.isArray(cp) ? cp[0]?.payment_status : cp?.payment_status;
-                            return pkgStatus || 'paid';
-                        }
-                        return appt.payment_status ?? null;
-                    })()}
+                    paymentStatus={isPackage ? (appt.payment_status || 'paid') : (appt.payment_status ?? null)}
                     paymentMethod={appt.payment_method ?? null}
-                    packageTotal={(() => {
-                        const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
-                        const cp = pg?.customer_packages;
-                        return (Array.isArray(cp) ? cp[0]?.final_price : cp?.final_price) || null;
-                    })()}
-                    packageMethod={(() => {
-                        const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
-                        const cp = pg?.customer_packages;
-                        return (Array.isArray(cp) ? cp[0]?.payment_method : cp?.payment_method) || null;
-                    })()}
-                    packageDate={(() => {
-                        const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
-                        const cp = pg?.customer_packages;
-                        return (Array.isArray(cp) ? cp[0]?.paid_at : cp?.paid_at) || null;
-                    })()}
+                    packageTotal={null}
+                    packageMethod={null}
+                    packageDate={null}
                     onUpdate={() => fetchData()}
                     compact
                     isPackage={isPackage}
