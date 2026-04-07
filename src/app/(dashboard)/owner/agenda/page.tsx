@@ -240,7 +240,7 @@ export default function AgendaPage() {
                     package_credits:package_credit_id (
                         total_quantity,
                         used_quantity,
-                        customer_packages:customer_package_id (
+                        customer_packages (
                             payment_status,
                             final_price,
                             payment_method,
@@ -275,7 +275,7 @@ export default function AgendaPage() {
                         package_credits:package_credit_id (
                             total_quantity,
                             used_quantity,
-                            customer_packages:customer_package_id (
+                            customer_packages (
                                 payment_status,
                                 final_price,
                                 payment_method,
@@ -316,7 +316,11 @@ export default function AgendaPage() {
 
                 // Ordenar cada grupo por data e atribuir o novo índice
                 packageGroups.forEach((group) => {
-                    group.sort((a, b) => new Date(a.scheduled_at).getTime() - new Date(b.scheduled_at).getTime());
+                    group.sort((a, b) => {
+                        const dateA = a.scheduled_at ? new Date(a.scheduled_at).getTime() : 0;
+                        const dateB = b.scheduled_at ? new Date(b.scheduled_at).getTime() : 0;
+                        return dateA - dateB;
+                    });
                     group.forEach((appt, idx) => {
                         appt.package_usage_index = idx + 1;
                     });
