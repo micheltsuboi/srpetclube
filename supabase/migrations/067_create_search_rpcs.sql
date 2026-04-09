@@ -2,6 +2,10 @@
 -- MIGRATION 067: Create Search RPCs for Pets and Tutors
 -- =====================================================
 
+-- Remover funções existentes se houver mudança no tipo de retorno
+DROP FUNCTION IF EXISTS public.search_pets_rpc(TEXT, UUID, INT);
+DROP FUNCTION IF EXISTS public.search_tutors_rpc(TEXT, UUID, INT);
+
 -- 1. RPC para busca de PETS (suporta unaccent e retorna objeto tutor aninhado)
 CREATE OR REPLACE FUNCTION public.search_pets_rpc(
   search_term TEXT,
