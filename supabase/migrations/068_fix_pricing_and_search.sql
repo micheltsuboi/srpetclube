@@ -3,6 +3,8 @@
 -- =====================================================
 
 -- 1. Atualizar RPC de busca de pets para retornar peso e porte
+DROP FUNCTION IF EXISTS public.search_pets_rpc(TEXT, UUID, INT);
+
 CREATE OR REPLACE FUNCTION public.search_pets_rpc(
   search_term TEXT,
   organization_id UUID,
