@@ -568,8 +568,6 @@ export default function OwnerDashboard() {
                                     outerRadius={80}
                                     paddingAngle={5}
                                     dataKey="value"
-                                    label={({ name, value }) => `${value}`}
-                                    labelLine={false}
                                 >
                                     {petDistribution.gender.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -603,8 +601,6 @@ export default function OwnerDashboard() {
                                     outerRadius={80}
                                     paddingAngle={5}
                                     dataKey="value"
-                                    label={({ name, value }) => `${value}`}
-                                    labelLine={false}
                                 >
                                     {petDistribution.species.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
