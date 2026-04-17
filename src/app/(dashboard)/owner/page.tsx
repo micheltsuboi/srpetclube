@@ -560,27 +560,29 @@ export default function OwnerDashboard() {
                     <div className={styles.chartWrapper}>
                         <ResponsiveContainer width="100%" height={250}>
                             <PieChart>
-                                <Pie
-                                    data={petDistribution.gender}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {petDistribution.gender.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Pie>
+                                    <Pie
+                                        data={petDistribution.gender}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                        label={false}
+                                        labelLine={false}
+                                    >
+                                        {petDistribution.gender.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
                                 <Tooltip 
                                     contentStyle={{ background: 'rgba(0,0,0,0.8)', border: 'none', borderRadius: '8px', color: '#fff' }}
                                     itemStyle={{ color: '#fff' }}
                                 />
                                 <Legend 
                                     verticalAlign="bottom" 
-                                    height={36} 
-                                    wrapperStyle={{ paddingTop: '20px' }}
+                                    height={40} 
+                                    wrapperStyle={{ paddingTop: '30px', fontSize: '12px' }}
                                     formatter={(value, entry: any) => `${value} (${entry.payload.value})`}
                                 />
                             </PieChart>
@@ -593,19 +595,21 @@ export default function OwnerDashboard() {
                     <div className={styles.chartWrapper}>
                         <ResponsiveContainer width="100%" height={250}>
                             <PieChart>
-                                <Pie
-                                    data={petDistribution.species}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={80}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {petDistribution.species.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={entry.color} />
-                                    ))}
-                                </Pie>
+                                    <Pie
+                                        data={petDistribution.species}
+                                        cx="50%"
+                                        cy="50%"
+                                        innerRadius={60}
+                                        outerRadius={80}
+                                        paddingAngle={5}
+                                        dataKey="value"
+                                        label={false}
+                                        labelLine={false}
+                                    >
+                                        {petDistribution.species.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={entry.color} />
+                                        ))}
+                                    </Pie>
                                 <Tooltip 
                                     contentStyle={{ background: 'rgba(0,0,0,0.8)', border: 'none', borderRadius: '8px', color: '#fff' }}
                                     itemStyle={{ color: '#fff' }}

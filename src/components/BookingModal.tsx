@@ -23,6 +23,8 @@ interface Pet {
     name: string
     species: string
     breed?: string
+    size?: string
+    weight_kg?: number
     is_adapted?: boolean
     customers?: {
         name: string
@@ -327,6 +329,7 @@ export default function BookingModal({
                                         {catServices.map(s => (
                                             <option key={s.id} value={s.id}>
                                                 {s.name} (R$ {(dynamicPrices[s.id] ?? s.base_price).toFixed(2)})
+                                                {dynamicPrices[s.id] !== undefined && dynamicPrices[s.id] !== s.base_price && ' ✨'}
                                             </option>
                                         ))}
                                     </optgroup>
