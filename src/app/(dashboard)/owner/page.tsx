@@ -558,7 +558,7 @@ export default function OwnerDashboard() {
                 <div className={styles.chartCard}>
                     <h3 className={styles.chartTitle}>Gênero dos Pets</h3>
                     <div className={styles.chartWrapper}>
-                        <ResponsiveContainer width="100%" height={200}>
+                        <ResponsiveContainer width="100%" height={250}>
                             <PieChart>
                                 <Pie
                                     data={petDistribution.gender}
@@ -568,6 +568,8 @@ export default function OwnerDashboard() {
                                     outerRadius={80}
                                     paddingAngle={5}
                                     dataKey="value"
+                                    label={({ name, value }) => `${value}`}
+                                    labelLine={false}
                                 >
                                     {petDistribution.gender.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -577,7 +579,12 @@ export default function OwnerDashboard() {
                                     contentStyle={{ background: 'rgba(0,0,0,0.8)', border: 'none', borderRadius: '8px', color: '#fff' }}
                                     itemStyle={{ color: '#fff' }}
                                 />
-                                <Legend verticalAlign="bottom" height={36}/>
+                                <Legend 
+                                    verticalAlign="bottom" 
+                                    height={36} 
+                                    wrapperStyle={{ paddingTop: '20px' }}
+                                    formatter={(value, entry: any) => `${value} (${entry.payload.value})`}
+                                />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
@@ -586,7 +593,7 @@ export default function OwnerDashboard() {
                 <div className={styles.chartCard}>
                     <h3 className={styles.chartTitle}>Espécie dos Pets</h3>
                     <div className={styles.chartWrapper}>
-                        <ResponsiveContainer width="100%" height={200}>
+                        <ResponsiveContainer width="100%" height={250}>
                             <PieChart>
                                 <Pie
                                     data={petDistribution.species}
@@ -596,6 +603,8 @@ export default function OwnerDashboard() {
                                     outerRadius={80}
                                     paddingAngle={5}
                                     dataKey="value"
+                                    label={({ name, value }) => `${value}`}
+                                    labelLine={false}
                                 >
                                     {petDistribution.species.map((entry, index) => (
                                         <Cell key={`cell-${index}`} fill={entry.color} />
@@ -605,7 +614,12 @@ export default function OwnerDashboard() {
                                     contentStyle={{ background: 'rgba(0,0,0,0.8)', border: 'none', borderRadius: '8px', color: '#fff' }}
                                     itemStyle={{ color: '#fff' }}
                                 />
-                                <Legend verticalAlign="bottom" height={36}/>
+                                <Legend 
+                                    verticalAlign="bottom" 
+                                    height={36} 
+                                    wrapperStyle={{ paddingTop: '20px' }}
+                                    formatter={(value, entry: any) => `${value} (${entry.payload.value})`}
+                                />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
