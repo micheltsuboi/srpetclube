@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
 import { processRecurringExpenses, deleteFinancialTransaction } from '@/app/actions/finance'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 
 type ServiceArea = 'all' | 'banho_tosa' | 'creche' | 'hotel'
 
@@ -70,6 +71,16 @@ export default function OwnerDashboard() {
         appointmentsToday: 0
     })
     const [recentExpenses, setRecentExpenses] = useState<any[]>([])
+    
+    // Novas estatísticas para gráficos
+    const [petDistribution, setPetDistribution] = useState<{
+        gender: { name: string, value: number, color: string }[],
+        species: { name: string, value: number, color: string }[]
+    }>({
+        gender: [],
+        species: []
+    })
+    const [activePackagesCount, setActivePackagesCount] = useState(0)
 
     // Records for drill-down
     const [extractRecords, setExtractRecords] = useState<{
@@ -290,6 +301,47 @@ export default function OwnerDashboard() {
                     appointmentsToday: mappedPets.length
                 })
 
+                // 3. Fetch Pet Distribution Data (Gender and Species)
+                const { data: petData } = await supabase
+                    .from('pets')
+                    .select('gender, species')
+                
+                if (petData) {
+                    const genderCounts = petData.reduce((acc: any, pet) => {
+                        const g = pet.gender === 'female' ? 'Fêmeas' : pet.gender === 'male' ? 'Machos' : 'Não Inf.'
+                        acc[g] = (acc[g] || 0) + 1
+                        return acc
+                    }, {})
+
+                    const speciesCounts = petData.reduce((acc: any, pet) => {
+                        const s = pet.species === 'dog' ? 'Cachorros' : pet.species === 'cat' ? 'Gatos' : 'Outros'
+                        acc[s] = (acc[s] || 0) + 1
+                        return acc
+                    }, {})
+
+                    setPetDistribution({
+                        gender: Object.entries(genderCounts).map(([name, value]) => ({
+                            name,
+                            value: value as number,
+                            color: name === 'Fêmeas' ? '#ec4899' : name === 'Machos' ? '#3b82f6' : '#94a3b8'
+                        })),
+                        species: Object.entries(speciesCounts).map(([name, value]) => ({
+                            name,
+                            value: value as number,
+                            color: name === 'Cachorros' ? '#f59e0b' : name === 'Gatos' ? '#06b6d4' : '#8b5cf6'
+                        }))
+                    })
+                }
+
+                // 4. Fetch Active Packages Count
+                const { count: activePkgs } = await supabase
+                    .from('customer_packages')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('org_id', profile.org_id)
+                    .eq('is_active', true)
+                
+                setActivePackagesCount(activePkgs || 0)
+
             } catch (error) {
                 console.error('Erro ao carregar dashboard:', error)
             } finally {
@@ -496,6 +548,75 @@ export default function OwnerDashboard() {
                     <div className={styles.cardContent}>
                         <span className={styles.cardValue} style={{ color: '#f59e0b' }}>{formatCurrency(financials.pendingPayments)}</span>
                         <span className={styles.cardLabel}>A Receber</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* New Stats Charts Section */}
+            <h2 className={styles.sectionTitle}>📊 Perfil dos Alunos & Contratos</h2>
+            <div className={styles.statsGrid}>
+                <div className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>Gênero dos Pets</h3>
+                    <div className={styles.chartWrapper}>
+                        <ResponsiveContainer width="100%" height={200}>
+                            <PieChart>
+                                <Pie
+                                    data={petDistribution.gender}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {petDistribution.gender.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip 
+                                    contentStyle={{ background: 'rgba(0,0,0,0.8)', border: 'none', borderRadius: '8px', color: '#fff' }}
+                                    itemStyle={{ color: '#fff' }}
+                                />
+                                <Legend verticalAlign="bottom" height={36}/>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                <div className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>Espécie dos Pets</h3>
+                    <div className={styles.chartWrapper}>
+                        <ResponsiveContainer width="100%" height={200}>
+                            <PieChart>
+                                <Pie
+                                    data={petDistribution.species}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                >
+                                    {petDistribution.species.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip 
+                                    contentStyle={{ background: 'rgba(0,0,0,0.8)', border: 'none', borderRadius: '8px', color: '#fff' }}
+                                    itemStyle={{ color: '#fff' }}
+                                />
+                                <Legend verticalAlign="bottom" height={36}/>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                <div className={styles.counterCard}>
+                    <div className={styles.counterIcon}>📦</div>
+                    <div className={styles.counterContent}>
+                        <span className={styles.counterValue}>{activePackagesCount}</span>
+                        <span className={styles.counterLabel}>Pacotes em Contrato</span>
+                        <Link href="/owner/packages" className={styles.counterLink}>Gerenciar Pacotes</Link>
                     </div>
                 </div>
             </div>
