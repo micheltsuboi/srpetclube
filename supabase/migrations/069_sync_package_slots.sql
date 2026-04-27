@@ -14,6 +14,7 @@ BEGIN
     SET 
       slot_date = NEW.scheduled_at::DATE,
       slot_time = TO_CHAR(NEW.scheduled_at AT TIME ZONE 'America/Sao_Paulo', 'HH24:MI'),
+      period_label = TO_CHAR(NEW.scheduled_at AT TIME ZONE 'America/Sao_Paulo', 'DD/MM/YY'),
       updated_at = now()
     WHERE (id = NEW.package_slot_id AND NEW.package_slot_id IS NOT NULL)
        OR (appointment_id = NEW.id);
