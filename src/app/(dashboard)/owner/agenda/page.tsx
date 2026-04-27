@@ -456,9 +456,10 @@ export default function AgendaPage() {
                 }}
             >
                 {isPackage && (() => {
-                    const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
-                    const cp = pg?.customer_packages;
-                    const cpData = Array.isArray(cp) ? cp[0] : cp;
+                    const pgRaw = appt.package_credits || appt.package_schedule_slots;
+                    const pg = Array.isArray(pgRaw) ? pgRaw[0] : pgRaw;
+                    const cpRaw = pg?.customer_packages;
+                    const cpData = Array.isArray(cpRaw) ? cpRaw[0] : cpRaw;
                     const allCredits = cpData?.package_credits || [];
                     const globalTotal = Array.isArray(allCredits) 
                         ? allCredits.reduce((sum: number, c: any) => sum + (c.total_quantity || 0), 0)
@@ -509,7 +510,8 @@ export default function AgendaPage() {
                     {isPackage && (
                         <div className={styles.packageProgressBadge}>
                             {(() => {
-                                const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
+                                const pgRaw = appt.package_credits || appt.package_schedule_slots;
+                                const pg = Array.isArray(pgRaw) ? pgRaw[0] : pgRaw;
                                 const total = pg?.total_quantity;
                                 // Usa package_usage_index do banco (confiável) como posição X
                                 // Nunca deixa X > total para evitar "5 de 4"
@@ -524,8 +526,10 @@ export default function AgendaPage() {
                     )}
                 </div>
                 {(() => {
-                    const pg = Array.isArray(appt.package_credits) ? appt.package_credits[0] : appt.package_credits;
-                    const cp = pg?.customer_packages || (Array.isArray(pg?.customer_packages) ? pg?.customer_packages[0] : null);
+                    const pgRaw = appt.package_credits || appt.package_schedule_slots;
+                    const pg = Array.isArray(pgRaw) ? pgRaw[0] : pgRaw;
+                    const cpRaw = pg?.customer_packages;
+                    const cp = Array.isArray(cpRaw) ? cpRaw[0] : cpRaw;
                     return (
                         <PaymentControls
                             appointmentId={appt.id}
