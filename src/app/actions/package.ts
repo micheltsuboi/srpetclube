@@ -345,6 +345,14 @@ export async function deleteCustomerPackage(customerPackageId: string): Promise<
         await query.in('status', ['pending', 'scheduled'])
     }
 
+    // 2.5 Excluir transação financeira associada ao pacote (se houver)
+    // A transação foi vinculada pela string na descrição, portanto usamos o LIKE
+    await supabase
+        .from('financial_transactions')
+        .delete()
+        .like('description', `%Vinculado ao pacote ID: ${customerPackageId}%`)
+        .eq('org_id', profile.org_id)
+
     // 3. Remover o pacote (o cascade cuidará de package_credits e package_schedule_slots no banco,
     // mas vamos garantir a ordem aqui se necessário)
     const { error } = await supabase
