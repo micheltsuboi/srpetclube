@@ -1230,14 +1230,17 @@ function PetsContent() {
                                                                     </div>
 
                                                                     <div style={{ padding: '0.75rem', background: 'var(--bg-primary)', borderRadius: '6px', marginTop: '0.75rem', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                                        {pkgGroup.services.map((srv: any, sIdx: number) => (
-                                                                            <div key={sIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: sIdx < pkgGroup.services.length - 1 ? '0.5rem' : '0', borderBottom: sIdx < pkgGroup.services.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                                                                                <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{srv.service_name}</span>
-                                                                                <div style={{ textAlign: 'right', fontSize: '0.8rem' }}>
-                                                                                    <span style={{ color: (srv.remaining_qty || 0) > 0 ? 'var(--primary)' : 'var(--text-secondary)', fontWeight: 'bold' }}>{(srv.remaining_qty || 0)}</span> restantes de {(srv.total_qty || 0)}
+                                                                        {pkgGroup.services.map((srv: any, sIdx: number) => {
+                                                                            const realRemaining = (srv.total_qty || 0) - (srv.used_qty || 0);
+                                                                            return (
+                                                                                <div key={sIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: sIdx < pkgGroup.services.length - 1 ? '0.5rem' : '0', borderBottom: sIdx < pkgGroup.services.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                                                                                    <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{srv.service_name}</span>
+                                                                                    <div style={{ textAlign: 'right', fontSize: '0.8rem' }}>
+                                                                                        <span style={{ color: realRemaining > 0 ? 'var(--primary)' : 'var(--text-secondary)', fontWeight: 'bold' }}>{realRemaining}</span> restantes de {(srv.total_qty || 0)}
+                                                                                    </div>
                                                                                 </div>
-                                                                            </div>
-                                                                        ))}
+                                                                            );
+                                                                        })}
                                                                     </div>
 
                                                                     {/* Botões de Ação do Pacote */}
