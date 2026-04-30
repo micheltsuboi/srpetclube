@@ -1,0 +1,47 @@
+--- DEBUG PET MÓLE ---
+
+===========================================
+PET: Móle (ID: e524c03d-fc5c-456b-8bbc-79db0a383ee4)
+===========================================
+
+📦 PACKAGE: CRECHE 1X SEMANA (ID: 3234d64d-28eb-4272-87df-9c194291c480)
+   Purchased: 2026-04-30T19:33:27.075971+00:00 | Expires: null | Active: true
+   --- CREDITS ---
+   * DAY USE: Total: 4 | Used: 0 | Remaining: 4 (Credit ID: 106827ff-3ac5-4e34-9d1d-355685342aa8)
+     -> APPOINTMENTS:
+        [pending] Scheduled: 2026-05-03T08:00:00+00:00 | Index: null | Slot ID: null | Appt ID: 9e418637-e68b-4954-8f5a-bf04869e9a6f
+        [pending] Scheduled: 2026-05-11T11:00:00+00:00 | Index: null | Slot ID: null | Appt ID: c93b50ad-f0af-4932-9335-3204c715718b
+        [pending] Scheduled: 2026-05-18T11:00:00+00:00 | Index: null | Slot ID: null | Appt ID: e317d2dd-e703-4a26-9b0c-b03b2f7a4873
+        [pending] Scheduled: 2026-05-25T11:00:00+00:00 | Index: null | Slot ID: null | Appt ID: 68daae3b-b902-4bdd-baf6-3f1c2f036d94
+   --- SLOTS ---
+   * [scheduled] Date: 2026-05-03 05:00 | Appt ID: 9e418637-e68b-4954-8f5a-bf04869e9a6f | Slot ID: 7f898949-1d7f-4770-889c-cf411baf691b
+   * [scheduled] Date: 2026-05-11 08:00 | Appt ID: c93b50ad-f0af-4932-9335-3204c715718b | Slot ID: e68839e9-3a60-461c-a619-ca25d2257d44
+   * [scheduled] Date: 2026-05-18 08:00 | Appt ID: e317d2dd-e703-4a26-9b0c-b03b2f7a4873 | Slot ID: 37e2a18b-1aa7-47db-a47d-fa9c30181ed2
+   * [scheduled] Date: 2026-05-25 08:00 | Appt ID: 68daae3b-b902-4bdd-baf6-3f1c2f036d94 | Slot ID: 202d1f27-3fd5-46fb-8a91-c80254bbecb1
+
+📦 PACKAGE: CRECHE 2X SEMANA (ID: a15b56a4-c61a-4dcb-94c8-ae05587a1a17)
+   Purchased: 2026-04-06T18:22:53.270192+00:00 | Expires: null | Active: true
+   --- CREDITS ---
+   * DAY USE: Total: 8 | Used: 0 | Remaining: 8 (Credit ID: 6b5073e1-af33-4189-97a2-3f4c4b990afb)
+     -> APPOINTMENTS:
+        [done] Scheduled: 2026-03-03T08:00:00+00:00 | Index: 1 | Slot ID: null | Appt ID: 86da2342-13b7-4e17-b1f6-481442075a48
+        [done] Scheduled: 2026-03-05T08:00:00+00:00 | Index: 2 | Slot ID: null | Appt ID: 1cb9e87e-7a0f-4571-8147-93a8622302f7
+        [done] Scheduled: 2026-03-17T08:00:00+00:00 | Index: 3 | Slot ID: null | Appt ID: ef7bcc3f-82b8-4c6c-a039-bf58822efffe
+        [done] Scheduled: 2026-03-19T08:00:00+00:00 | Index: 4 | Slot ID: null | Appt ID: 9331d27c-f3c8-4477-9bb6-84961d0fdbf5
+        [done] Scheduled: 2026-03-24T08:00:00+00:00 | Index: 5 | Slot ID: null | Appt ID: 6123a2a5-5aa1-47b0-a22b-df2dd2a184e7
+        [done] Scheduled: 2026-03-26T08:00:00+00:00 | Index: 6 | Slot ID: null | Appt ID: 8c75310f-7d76-4e0e-a75b-15e05a526123
+        [done] Scheduled: 2026-03-31T08:00:00+00:00 | Index: 7 | Slot ID: null | Appt ID: 7f9026ba-1e73-4d5a-8419-99f9f5c47498
+        [done] Scheduled: 2026-03-31T11:00:00+00:00 | Index: 8 | Slot ID: null | Appt ID: ccb1f0dc-0cc7-4e20-a5a9-2062cf39a124
+        [done] Scheduled: 2026-04-01T08:00:00+00:00 | Index: 9 | Slot ID: null | Appt ID: 0a9cf478-1b90-4b77-8bf3-2844dc1987c3
+        [done] Scheduled: 2026-04-16T11:00:00+00:00 | Index: 12 | Slot ID: null | Appt ID: 9e9dc091-70ac-4cc2-8582-d62aadbfa231
+        [done] Scheduled: 2026-04-27T11:00:00+00:00 | Index: 13 | Slot ID: null | Appt ID: 7f528181-74fe-486b-9b26-9fa9af177b18
+        [done] Scheduled: 2026-04-29T11:00:00+00:00 | Index: 14 | Slot ID: null | Appt ID: 6f9e38cc-07f8-41ee-9eb9-c1ea8392d386
+   --- SLOTS ---
+   * [done] Date: 2026-03-03 08:00 | Appt ID: 86da2342-13b7-4e17-b1f6-481442075a48 | Slot ID: dcfaf02f-6864-4bb3-b0cd-3632f540b24f
+   * [done] Date: 2026-03-05 08:00 | Appt ID: 1cb9e87e-7a0f-4571-8147-93a8622302f7 | Slot ID: ce0f9a36-5c06-4072-90b7-f35b3626fedf
+   * [done] Date: 2026-03-17 08:00 | Appt ID: ef7bcc3f-82b8-4c6c-a039-bf58822efffe | Slot ID: 0e219cd1-59a6-4aaa-a1d7-96af3c74ee64
+   * [done] Date: 2026-03-19 08:00 | Appt ID: 9331d27c-f3c8-4477-9bb6-84961d0fdbf5 | Slot ID: d77bcb43-5ad8-46b2-bb10-78cbdf7df608
+   * [done] Date: 2026-03-24 08:00 | Appt ID: 6123a2a5-5aa1-47b0-a22b-df2dd2a184e7 | Slot ID: 5afb2b2d-b238-44ba-8a16-3aa14f5c3187
+   * [done] Date: 2026-03-26 08:00 | Appt ID: 8c75310f-7d76-4e0e-a75b-15e05a526123 | Slot ID: cebff9f5-5e1e-452a-a356-f4baad88a0f4
+   * [done] Date: 2026-03-31 08:00 | Appt ID: 7f9026ba-1e73-4d5a-8419-99f9f5c47498 | Slot ID: 28042d0d-c92b-4811-bb4d-e7e5ab2f1337
+   * [done] Date: 2026-04-01 08:00 | Appt ID: 0a9cf478-1b90-4b77-8bf3-2844dc1987c3 | Slot ID: db99b9a4-7ae4-4805-a811-0a19903d2ff5

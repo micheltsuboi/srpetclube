@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { addFinancialTransaction } from '@/app/actions/finance'
+import { fixPackageUsageIndices } from '@/app/actions/fix_data'
 
 interface ActionState {
     message: string
@@ -576,6 +577,8 @@ export async function sellPackageToPet(
             await supabase.rpc('generate_package_slots', {
                 p_customer_package_id: customerPackage.id
             })
+            // Sincronizar índices de uso para evitar erro "1 de 4" em todos os cards
+            await fixPackageUsageIndices(petId)
         } catch (slotErr) {
             console.warn('Slots não gerados (non-critical):', slotErr)
         }
@@ -747,11 +750,6 @@ export async function schedulePackageSlot(
 
     // Decrementar crédito
     if (credit?.id) {
-        await supabase
-            .from('package_credits')
-            .update({
-                used_quantity: supabase.rpc as any, // handled by trigger or manual
-            })
         await supabase.rpc('use_package_credit_for_pet', { p_pet_id: petId, p_service_id: serviceId })
     }
 
