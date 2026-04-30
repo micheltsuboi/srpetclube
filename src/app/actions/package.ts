@@ -517,7 +517,8 @@ export async function sellPackageToPet(
             preferred_time: preferredTime ?? null,
             is_auto_schedule: isAutoSchedule ?? false,
             has_taxi: hasTaxi ?? false,
-            taxi_fee: taxiFee ?? 0
+            taxi_fee: taxiFee ?? 0,
+            payment_status: 'pending'
         })
         .select(`
             *,
@@ -528,28 +529,6 @@ export async function sellPackageToPet(
     if (cpError || !customerPackage) {
         console.error('Erro ao criar customer_package:', cpError)
         return { message: cpError?.message || 'Erro ao criar pacote.', success: false }
-    }
-
-    // Registrar transação financeira se já foi pago no ato da venda
-    // Por padrão o sellPackageToPet cria como 'pending', mas se o paymentMethod for fornecido e não for null/vazio...
-    // Na verdade o modal de venda direta geralmente confirma o pagamento.
-    // Vamos assumir que se houver totalPaid > 0 e paymentMethod, registramos se o status for paid.
-    // Mas o formulário de venda direta atual não passa o status. Vamos forçar a criação se o usuário marcou como pago (a lógica do frontend deve ditar o status).
-    // Para simplificar: se o status for 'paid' (adicionaremos no insert acima), criamos a transação.
-    
-    // Atualizando o insert acima para incluir payment_status se necessário, mas por enquanto vamos registrar sempre que vender com valor > 0
-    if (totalPaid > 0 && paymentMethod !== 'credit_package') {
-         await addFinancialTransaction({
-            type: 'income',
-            category: 'Pacotes',
-            name: `Venda de Pacote: ${(customerPackage.service_packages as any)?.name || 'Serviço'}`,
-            amount: totalPaid,
-            date: new Date().toISOString(),
-            payment_method: paymentMethod,
-            description: `Vinculado ao pacote ID: ${customerPackage.id} - Pet: ${petData.name}`
-        })
-        // Opcional: marcar como pago imediatamente se a venda direta já recebe o valor
-        await supabase.from('customer_packages').update({ payment_status: 'paid' }).eq('id', customerPackage.id)
     }
 
     // Criar créditos para cada serviço do pacote
