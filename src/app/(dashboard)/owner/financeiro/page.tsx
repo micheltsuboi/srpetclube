@@ -9,6 +9,7 @@ import { exportToCsv } from '@/utils/export'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { payPetshopSale } from '@/app/actions/petshop'
+import { updatePackagePaymentStatus } from '@/app/actions/package'
 import { addFinancialTransaction, processRecurringExpenses, deleteFinancialTransaction } from '@/app/actions/finance'
 
 interface MonthlyData {
@@ -44,11 +45,13 @@ export default function FinanceiroPage() {
         appointments: any[];
         transactions: any[];
         pendingSales: any[];
+        pendingPackages: any[];
     }>({
         type: null,
         appointments: [],
         transactions: [],
-        pendingSales: []
+        pendingSales: [],
+        pendingPackages: []
     })
     const [isExtractModalOpen, setIsExtractModalOpen] = useState(false)
     const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false)
@@ -99,7 +102,7 @@ export default function FinanceiroPage() {
             prevMonthDate.setMonth(prevMonthDate.getMonth() - 1)
             const fetchStart = prevMonthDate < sixMonthsAgo ? prevMonthDate.toISOString() : chartStart
 
-            const [apptsResponse, txsResponse, pendingSalesResponse] = await Promise.all([
+            const [apptsResponse, txsResponse, pendingSalesResponse, pendingPackagesResponse] = await Promise.all([
                 supabase
                     .from('appointments')
                     .select(`
@@ -123,16 +126,25 @@ export default function FinanceiroPage() {
                     .select('id, product_name, total_price, payment_status, created_at, pets ( name )')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'pending')
-                    .order('created_at', { ascending: true })
+                    .order('created_at', { ascending: true }),
+                supabase
+                    .from('customer_packages')
+                    .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name ), service_packages ( name )')
+                    .eq('org_id', profile.org_id)
+                    .eq('payment_status', 'pending')
+                    .order('purchased_at', { ascending: true })
             ])
 
             if (apptsResponse.error) throw apptsResponse.error
             if (txsResponse.error) throw txsResponse.error
             if (pendingSalesResponse.error) throw pendingSalesResponse.error
+            if (pendingPackagesResponse.error) throw pendingPackagesResponse.error
 
             const appointments = (apptsResponse.data || []).filter((a: any) => !a.package_credit_id)
             const transactions = txsResponse.data || []
-            const pendingSales = pendingSalesResponse.data || []
+            const pendingSales = (pendingSalesResponse.data || [])
+            const pendingPackages = (pendingPackagesResponse.data || [])
+
 
             // --- Process Monthly Chart Data (Last 6 Months) ---
             const monthMap = new Map<string, MonthlyData>()
@@ -219,7 +231,8 @@ export default function FinanceiroPage() {
                 type: null,
                 appointments: activeAppts,
                 transactions: activeTxs,
-                pendingSales
+                pendingSales,
+                pendingPackages
             })
 
         } catch (error) {
@@ -263,6 +276,21 @@ export default function FinanceiroPage() {
             const paymentMethod = prompt('Qual a forma de pagamento? (pix, cash, credit, debit)', 'pix')
             if (paymentMethod) {
                 const res = await payPetshopSale(saleId, paymentMethod)
+                if (res.success) {
+                    alert(res.message)
+                    fetchFinancials()
+                } else {
+                    alert(res.message)
+                }
+            }
+        }
+    }
+
+    const handleConfirmPackagePayment = async (packageId: string, packageName: string, price: number) => {
+        if (confirm(`Confirmar pagamento de R$ ${price.toFixed(2).replace('.', ',')} para o pacote ${packageName}?`)) {
+            const paymentMethod = prompt('Qual a forma de pagamento? (pix, cash, credit, debit)', 'pix')
+            if (paymentMethod) {
+                const res = await updatePackagePaymentStatus(packageId, 'paid', paymentMethod)
                 if (res.success) {
                     alert(res.message)
                     fetchFinancials()
@@ -383,6 +411,9 @@ export default function FinanceiroPage() {
         + extractRecords.pendingSales
             .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
             .reduce((sum, s) => sum + s.total_price, 0)
+        + extractRecords.pendingPackages
+            .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
+            .reduce((sum, p) => sum + (p.total_paid || p.calculated_price || 0), 0)
 
     const revenueGrowth = previousMonthData.revenue > 0
         ? ((currentMonthData.revenue - previousMonthData.revenue) / previousMonthData.revenue * 100).toFixed(1)
@@ -750,6 +781,35 @@ export default function FinanceiroPage() {
                                             <button
                                                 className={styles.confirmPayBtn}
                                                 onClick={() => handleConfirmPetshopPayment(sale.id, sale.product_name, sale.total_price)}
+                                            >
+                                                Confirmar Pago
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+
+                            {/* Pending Packages list */}
+                            {extractRecords.type === 'pending' && extractRecords.pendingPackages
+                                .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
+                                .filter(p => {
+                                    if (!extractSearchTerm) return true
+                                    const search = extractSearchTerm.toLowerCase()
+                                    return p.pets?.name?.toLowerCase().includes(search) || 
+                                           p.service_packages?.name?.toLowerCase().includes(search)
+                                })
+                                .map(pkg => (
+                                    <div key={pkg.id} className={styles.extractItem}>
+                                        <div className={styles.extractInfo}>
+                                            <strong>{pkg.pets?.name || 'Pet'} • Pacote: {pkg.service_packages?.name || 'Serviço'}</strong>
+                                            <span>{new Date(pkg.purchased_at).toLocaleDateString('pt-BR')}</span>
+                                        </div>
+                                        <div className={styles.extractActions}>
+                                            <span className={styles.extractAmount}>
+                                                {formatCurrency(pkg.total_paid || pkg.calculated_price || 0)}
+                                            </span>
+                                            <button
+                                                className={styles.confirmPayBtn}
+                                                onClick={() => handleConfirmPackagePayment(pkg.id, pkg.service_packages?.name || 'Pacote', pkg.total_paid || pkg.calculated_price || 0)}
                                             >
                                                 Confirmar Pago
                                             </button>
