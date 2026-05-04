@@ -324,7 +324,7 @@ export default function TutorsPage() {
                             {selectedTutor ? 'Editar Tutor' : 'Cadastrar Novo Tutor'}
                         </h2>
 
-                        <form action={selectedTutor ? updateAction : createAction}>
+                        <form action={selectedTutor ? updateAction : createAction} autoComplete="off">
                             {selectedTutor && <input type="hidden" name="id" value={selectedTutor.id} />}
 
                             <div className={styles.formGrid}>
@@ -353,6 +353,8 @@ export default function TutorsPage() {
                                         id="email" name="email" type="email" className={styles.input}
                                         placeholder="maria@email.com"
                                         defaultValue={selectedTutor?.email || ''}
+                                        autoComplete="off"
+                                        data-lpignore="true"
                                     />
                                 </div>
 
@@ -364,6 +366,8 @@ export default function TutorsPage() {
                                         id="password" name="password" type="password" className={styles.input}
                                         placeholder={selectedTutor ? "Deixe em branco para não alterar" : "Mínimo 6 caracteres"}
                                         minLength={6}
+                                        autoComplete="new-password"
+                                        data-lpignore="true"
                                     />
                                     {selectedTutor && !selectedTutor.user_id && (
                                         <small style={{ color: 'var(--color-coral)', fontSize: '0.75rem' }}>
