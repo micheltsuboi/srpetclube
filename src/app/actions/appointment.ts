@@ -526,6 +526,8 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
         return { message: 'Data inválida.', success: false }
     }
 
+    const isActuallyHospedagem = (serviceData as any)?.service_categories?.name === 'Hospedagem';
+
     // 3. Recalculate price if service changed OR just for safety
     let calculatedPrice = serviceData?.base_price || 0
     
@@ -537,13 +539,29 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
     })
     if (rpcPrice) calculatedPrice = rpcPrice
 
+    let days = 1
+    if (isActuallyHospedagem && checkInDate && checkOutDate) {
+        const start = new Date(checkInDate)
+        const end = new Date(checkOutDate)
+        start.setHours(12, 0, 0, 0)
+        end.setHours(12, 0, 0, 0)
+
+        const diffTime = Math.abs(end.getTime() - start.getTime())
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+        days = diffDays > 0 ? diffDays : 1
+
+        calculatedPrice = calculatedPrice * days
+    }
+
     const updateData: any = {
         service_id: serviceId,
         service_category_id: serviceData?.category_id,
         scheduled_at: scheduledAt,
         notes: notes || null,
+        has_taxi: hasTaxi,
+        taxi_fee: taxiFee,
         calculated_price: calculatedPrice,
-        final_price: calculatedPrice, // Reset final price to new base price
+        final_price: calculatedPrice + (hasTaxi ? taxiFee : 0), // Reset final price to new base price + taxi
         discount_percent: 0, // Reset discount when service changes
         discount: 0
     }
@@ -553,7 +571,6 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
 
     // Se NÃO for hospedagem, garantir que as datas de check-in/out sejam removidas
     // Isso evita que o card fique "preso" em um range de datas antigo na agenda
-    const isActuallyHospedagem = (serviceData as any)?.service_categories?.name === 'Hospedagem';
     if (!isActuallyHospedagem) {
         updateData.check_in_date = null
         updateData.check_out_date = null
