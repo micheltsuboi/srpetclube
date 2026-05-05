@@ -77,6 +77,9 @@ export default function BanhoTosaPage() {
     const [loadingPrices, setLoadingPrices] = useState(false)
     const [petSearchTerm, setPetSearchTerm] = useState('')
     const [showPetResults, setShowPetResults] = useState(false)
+    const [hasTaxi, setHasTaxi] = useState(false)
+    const [taxiFee, setTaxiFee] = useState('0')
+    const [ignorePackage, setIgnorePackage] = useState(false)
 
     const fetchBanhoTosaData = useCallback(async (isBackground = false) => {
         try {
@@ -643,6 +646,24 @@ export default function BanhoTosaPage() {
                                 <div className={styles.formGroup}>
                                     <label className={styles.label}>Hora *</label>
                                     <input name="time" type="time" className={styles.input} required />
+                                </div>
+                            </div>
+                            <div style={{ background: 'rgba(232, 130, 106, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(232, 130, 106, 0.1)', marginBottom: '1rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontWeight: 600 }}>
+                                    <input type="checkbox" name="hasTaxi" value="true" checked={hasTaxi} onChange={e => setHasTaxi(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#E8826A' }} />
+                                    🚗 Taxi Dog?
+                                </label>
+                                {hasTaxi && (
+                                    <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed rgba(232, 130, 106, 0.2)' }}>
+                                        <label className={styles.label}>Valor do Transporte (R$)</label>
+                                        <input type="number" name="taxiFee" step="0.01" className={styles.input} value={taxiFee} onChange={e => setTaxiFee(e.target.value)} placeholder="0.00" />
+                                    </div>
+                                )}
+                                <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed rgba(232, 130, 106, 0.2)' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontWeight: 600 }}>
+                                        <input type="checkbox" name="ignorePackage" value="true" checked={ignorePackage} onChange={e => setIgnorePackage(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#E8826A' }} />
+                                        Agendar como serviço avulso (Não utilizar pacote)
+                                    </label>
                                 </div>
                             </div>
                             <div className={styles.formGroup}>

@@ -536,6 +536,9 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
     const [loadingPrices, setLoadingPrices] = useState(false)
     const [petSearchTerm, setPetSearchTerm] = useState('')
     const [showPetResults, setShowPetResults] = useState(false)
+    const [hasTaxi, setHasTaxi] = useState(false)
+    const [taxiFee, setTaxiFee] = useState('0')
+    const [ignorePackage, setIgnorePackage] = useState(false)
 
     useEffect(() => {
         const loadData = async () => {
@@ -609,6 +612,11 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
         formData.append('checkInDate', checkInDate)
         formData.append('checkOutDate', checkOutDate)
         if (notes) formData.append('notes', notes)
+        formData.append('hasTaxi', String(hasTaxi))
+        formData.append('taxiFee', taxiFee)
+        if (ignorePackage) {
+            formData.append('ignorePackage', 'true')
+        }
 
         // Pass fake date/time for compatibility (will be ignored by backend for Hospedagem)
         formData.append('date', checkInDate)
@@ -729,6 +737,25 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
                             <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Check-out *</label>
                             <input type="date" required value={checkOutDate} onChange={e => setCheckOutDate(e.target.value)}
                                 style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }} />
+                        </div>
+                    </div>
+                    <div style={{ background: 'rgba(232, 130, 106, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(232, 130, 106, 0.1)', marginBottom: '1rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontWeight: 600 }}>
+                            <input type="checkbox" checked={hasTaxi} onChange={e => setHasTaxi(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#E8826A' }} />
+                            🚗 Taxi Dog?
+                        </label>
+                        {hasTaxi && (
+                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed rgba(232, 130, 106, 0.2)' }}>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Valor do Transporte (R$)</label>
+                                <input type="number" step="0.01" value={taxiFee} onChange={e => setTaxiFee(e.target.value)} placeholder="0.00"
+                                    style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }} />
+                            </div>
+                        )}
+                        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed rgba(232, 130, 106, 0.2)' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontWeight: 600 }}>
+                                <input type="checkbox" checked={ignorePackage} onChange={e => setIgnorePackage(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#E8826A' }} />
+                                Agendar como serviço avulso (Não utilizar pacote)
+                            </label>
                         </div>
                     </div>
                     <div style={{ marginBottom: '1.5rem' }}>

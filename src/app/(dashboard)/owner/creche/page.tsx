@@ -514,6 +514,9 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
     const [loadingPrices, setLoadingPrices] = useState(false)
     const [petSearchTerm, setPetSearchTerm] = useState('')
     const [showPetResults, setShowPetResults] = useState(false)
+    const [hasTaxi, setHasTaxi] = useState(false)
+    const [taxiFee, setTaxiFee] = useState('0')
+    const [ignorePackage, setIgnorePackage] = useState(false)
 
     useEffect(() => {
         const loadData = async () => {
@@ -576,11 +579,6 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
 
         setLoading(true)
 
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-
-        const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
-
         // Validate year
         const year = parseInt(selectedDate.split('-')[0], 10)
         if (year < 2024) {
@@ -589,19 +587,25 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
             return
         }
 
-        const { error } = await supabase.from('appointments').insert({
-            org_id: profile?.org_id,
-            pet_id: selectedPetId,
-            service_id: selectedServiceId,
-            scheduled_at: `${selectedDate}T${selectedTime}:00`,
-            status: 'confirmed',
-            notes: notes || null
-        })
+        const formData = new FormData()
+        formData.append('petId', selectedPetId)
+        formData.append('serviceId', selectedServiceId)
+        formData.append('date', selectedDate)
+        formData.append('time', selectedTime)
+        formData.append('notes', notes)
+        formData.append('hasTaxi', String(hasTaxi))
+        formData.append('taxiFee', taxiFee)
+        if (ignorePackage) {
+            formData.append('ignorePackage', 'true')
+        }
+
+        const { createAppointment } = await import('@/app/actions/appointment')
+        const result = await createAppointment({ success: false, message: '' }, formData)
 
         setLoading(false)
 
-        if (error) {
-            alert('Erro ao criar agendamento: ' + error.message)
+        if (!result.success) {
+            alert('Erro ao criar agendamento: ' + result.message)
         } else {
             alert('Agendamento criado com sucesso!')
             onSave()
@@ -700,6 +704,25 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
                             <label className={styles.label}>Hora *</label>
                             <input type="time" required value={selectedTime} onChange={e => setSelectedTime(e.target.value)}
                                 className={styles.input} />
+                        </div>
+                    </div>
+
+                    <div style={{ background: 'rgba(232, 130, 106, 0.05)', padding: '1rem', borderRadius: '12px', border: '1px solid rgba(232, 130, 106, 0.1)', marginBottom: '1rem' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontWeight: 600 }}>
+                            <input type="checkbox" checked={hasTaxi} onChange={e => setHasTaxi(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#E8826A' }} />
+                            🚗 Taxi Dog?
+                        </label>
+                        {hasTaxi && (
+                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed rgba(232, 130, 106, 0.2)' }}>
+                                <label className={styles.label}>Valor do Transporte (R$)</label>
+                                <input type="number" step="0.01" className={styles.input} value={taxiFee} onChange={e => setTaxiFee(e.target.value)} placeholder="0.00" />
+                            </div>
+                        )}
+                        <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px dashed rgba(232, 130, 106, 0.2)' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', color: 'white', fontWeight: 600 }}>
+                                <input type="checkbox" checked={ignorePackage} onChange={e => setIgnorePackage(e.target.checked)} style={{ width: '18px', height: '18px', accentColor: '#E8826A' }} />
+                                Agendar como serviço avulso (Não utilizar pacote)
+                            </label>
                         </div>
                     </div>
                     <div className={styles.formGroup}>
