@@ -1,8 +1,10 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import Image from 'next/image'
+import Cropper from 'react-easy-crop'
+import { getCroppedImg } from '@/lib/image-utils'
 
 interface ImageUploadProps {
     bucket: 'products' | 'avatars' | 'pets'
@@ -11,6 +13,8 @@ interface ImageUploadProps {
     onRemove: () => void
     label?: string
     circle?: boolean // For avatars
+    resetAfterUpload?: boolean // For galleries
+    aspect?: number // Aspect ratio for crop (e.g. 1 for square, 3/4 for cards)
 }
 
 export default function ImageUpload({
@@ -19,92 +23,76 @@ export default function ImageUpload({
     onUpload,
     onRemove,
     label = 'Foto',
-    circle = false
+    circle = false,
+    resetAfterUpload = false,
+    aspect = 1
 }: ImageUploadProps) {
     const supabase = createClient()
     const [uploading, setUploading] = useState(false)
     const [previewUrl, setPreviewUrl] = useState<string | null>(url || null)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
-    const processImage = async (file: File): Promise<Blob> => {
-        return new Promise((resolve, reject) => {
+    // Crop State
+    const [imageToCrop, setImageToCrop] = useState<string | null>(null)
+    const [crop, setCrop] = useState({ x: 0, y: 0 })
+    const [zoom, setZoom] = useState(1)
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
+    const [showCropModal, setShowCropModal] = useState(false)
+
+    const onCropComplete = useCallback((_croppedArea: any, croppedAreaPixels: any) => {
+        setCroppedAreaPixels(croppedAreaPixels)
+    }, [])
+
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        if (event.target.files && event.target.files.length > 0) {
+            const file = event.target.files[0]
             const reader = new FileReader()
+            reader.addEventListener('load', () => {
+                setImageToCrop(reader.result as string)
+                setShowCropModal(true)
+            })
             reader.readAsDataURL(file)
-            reader.onload = (event) => {
-                const img = document.createElement('img')
-                img.src = event.target?.result as string
-                img.onload = () => {
-                    const canvas = document.createElement('canvas')
-                    const MAX_WIDTH = 800
-                    const MAX_HEIGHT = 800
-                    let width = img.width
-                    let height = img.height
-
-                    if (width > height) {
-                        if (width > MAX_WIDTH) {
-                            height *= MAX_WIDTH / width
-                            width = MAX_WIDTH
-                        }
-                    } else {
-                        if (height > MAX_HEIGHT) {
-                            width *= MAX_HEIGHT / height
-                            height = MAX_HEIGHT
-                        }
-                    }
-
-                    canvas.width = width
-                    canvas.height = height
-                    const ctx = canvas.getContext('2d')
-                    ctx?.drawImage(img, 0, 0, width, height)
-
-                    canvas.toBlob((blob) => {
-                        if (blob) {
-                            resolve(blob)
-                        } else {
-                            reject(new Error('Canvas to Blob conversion failed'))
-                        }
-                    }, 'image/webp', 0.8)
-                }
-                img.onerror = (err) => reject(err)
-            }
-            reader.onerror = (err) => reject(err)
-        })
+        }
     }
 
-    const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleUpload = async () => {
+        if (!imageToCrop || !croppedAreaPixels) return
+
         try {
             setUploading(true)
+            setShowCropModal(false)
 
-            if (!event.target.files || event.target.files.length === 0) {
-                return
-            }
+            // 1. Crop image
+            const croppedImageBlob = await getCroppedImg(imageToCrop, croppedAreaPixels)
+            if (!croppedImageBlob) throw new Error('Falha ao processar imagem.')
 
-            const originalFile = event.target.files[0]
-
-            // Generate filename with .webp extension
+            // 2. Generate filename
             const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.webp`
             const filePath = `${fileName}`
 
-            // Process image (Resize + WebP)
-            const processedBlob = await processImage(originalFile)
-            const processedFile = new File([processedBlob], fileName, { type: 'image/webp' })
-
-            // 1. Upload to Supabase
+            // 3. Upload to Supabase
             const { error: uploadError } = await supabase.storage
                 .from(bucket)
-                .upload(filePath, processedFile)
+                .upload(filePath, croppedImageBlob, {
+                    contentType: 'image/webp'
+                })
 
-            if (uploadError) {
-                throw uploadError
-            }
+            if (uploadError) throw uploadError
 
-            // 2. Get Public URL
+            // 4. Get Public URL
             const { data: { publicUrl } } = supabase.storage
                 .from(bucket)
                 .getPublicUrl(filePath)
 
-            setPreviewUrl(publicUrl)
+            if (!resetAfterUpload) {
+                setPreviewUrl(publicUrl)
+            } else {
+                setPreviewUrl(null)
+                if (fileInputRef.current) fileInputRef.current.value = ''
+            }
+            
             onUpload(publicUrl)
+            setImageToCrop(null)
 
         } catch (error) {
             console.error('Erro ao fazer upload:', error)
@@ -127,49 +115,52 @@ export default function ImageUpload({
             {label && <label style={{ fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{label}</label>}
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                <div
-                    style={{
-                        position: 'relative',
-                        width: circle ? '100px' : '120px',
-                        height: circle ? '100px' : '120px',
-                        borderRadius: circle ? '50%' : '12px',
-                        overflow: 'hidden',
-                        backgroundColor: 'var(--bg-secondary)',
-                        border: '2px dashed var(--border)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        transition: 'all 0.2s'
-                    }}
-                >
-                    {previewUrl ? (
-                        <Image
-                            src={previewUrl}
-                            alt="Preview"
-                            fill
-                            style={{ objectFit: 'cover' }}
-                        />
-                    ) : (
-                        <span style={{ fontSize: '2rem', opacity: 0.5 }}>📷</span>
-                    )}
-
-                    {uploading && (
-                        <div style={{
-                            position: 'absolute',
-                            inset: 0,
-                            backgroundColor: 'rgba(0,0,0,0.6)',
+                {!resetAfterUpload && (
+                    <div
+                        style={{
+                            position: 'relative',
+                            width: circle ? '100px' : '120px',
+                            height: circle ? '100px' : '120px',
+                            borderRadius: circle ? '50%' : '12px',
+                            overflow: 'hidden',
+                            backgroundColor: 'var(--bg-secondary)',
+                            border: '2px dashed var(--border)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontSize: '0.8rem',
-                            fontWeight: 'bold',
-                            backdropFilter: 'blur(4px)'
-                        }}>
-                            <div className="animate-spin" style={{ width: '20px', height: '20px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%' }} />
-                        </div>
-                    )}
-                </div>
+                            flexShrink: 0,
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        {previewUrl ? (
+                            <Image
+                                src={previewUrl}
+                                alt="Preview"
+                                fill
+                                style={{ objectFit: 'cover' }}
+                            />
+                        ) : (
+                            <span style={{ fontSize: '2rem', opacity: 0.5 }}>📷</span>
+                        )}
+
+                        {uploading && (
+                            <div style={{
+                                position: 'absolute',
+                                inset: 0,
+                                backgroundColor: 'rgba(0,0,0,0.6)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                fontSize: '0.8rem',
+                                fontWeight: 'bold',
+                                backdropFilter: 'blur(4px)',
+                                zIndex: 10
+                            }}>
+                                <div style={{ width: '24px', height: '24px', border: '3px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <button
@@ -177,24 +168,36 @@ export default function ImageUpload({
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploading}
                         style={{
-                            padding: '8px 16px',
-                            backgroundColor: 'var(--color-primary)',
+                            padding: '10px 20px',
+                            backgroundColor: 'var(--color-primary, #6366f1)',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '8px',
+                            borderRadius: '10px',
                             cursor: 'pointer',
                             fontSize: '0.9rem',
                             fontWeight: 600,
                             transition: 'all 0.2s',
-                            boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
                         }}
-                        onMouseOver={(e) => e.currentTarget.style.filter = 'brightness(1.1)'}
-                        onMouseOut={(e) => e.currentTarget.style.filter = 'none'}
+                        onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+                        onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                     >
-                        {uploading ? 'Enviando...' : (previewUrl ? 'Alterar Foto' : 'Selecionar Foto')}
+                        {uploading ? (
+                            <>
+                                <div style={{ width: '16px', height: '16px', border: '2px solid white', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+                                Enviando...
+                            </>
+                        ) : (
+                            <>
+                                <span>{resetAfterUpload ? '➕ Adicionar Foto' : (previewUrl ? 'Alterar Foto' : 'Selecionar Foto')}</span>
+                            </>
+                        )}
                     </button>
 
-                    {previewUrl && (
+                    {previewUrl && !resetAfterUpload && (
                         <button
                             type="button"
                             onClick={handleRemove}
@@ -202,15 +205,15 @@ export default function ImageUpload({
                             style={{
                                 padding: '8px 16px',
                                 backgroundColor: 'transparent',
-                                color: 'var(--status-canceled)',
-                                border: '1px solid var(--status-canceled)',
+                                color: '#ef4444',
+                                border: '1px solid #ef4444',
                                 borderRadius: '8px',
                                 cursor: 'pointer',
-                                fontSize: '0.9rem',
+                                fontSize: '0.85rem',
                                 transition: 'all 0.2s'
                             }}
                             onMouseOver={(e) => {
-                                e.currentTarget.style.backgroundColor = 'rgba(212, 107, 107, 0.1)';
+                                e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
                             }}
                             onMouseOut={(e) => {
                                 e.currentTarget.style.backgroundColor = 'transparent';
@@ -226,10 +229,116 @@ export default function ImageUpload({
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handleUpload}
+                onChange={handleFileSelect}
                 style={{ display: 'none' }}
                 disabled={uploading}
             />
+
+            {/* Modal de Crop */}
+            {showCropModal && (
+                <div style={{
+                    position: 'fixed',
+                    inset: 0,
+                    backgroundColor: 'rgba(0,0,0,0.85)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 9999,
+                    padding: '20px',
+                    backdropFilter: 'blur(8px)'
+                }}>
+                    <div style={{
+                        backgroundColor: 'var(--bg-primary, #ffffff)',
+                        width: '100%',
+                        maxWidth: '600px',
+                        borderRadius: '20px',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                    }}>
+                        <div style={{ padding: '20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 700 }}>Ajustar Imagem</h3>
+                            <button 
+                                onClick={() => setShowCropModal(false)}
+                                style={{ background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer', opacity: 0.5 }}
+                            >
+                                &times;
+                            </button>
+                        </div>
+
+                        <div style={{ position: 'relative', height: '400px', backgroundColor: '#000' }}>
+                            <Cropper
+                                image={imageToCrop!}
+                                crop={crop}
+                                zoom={zoom}
+                                aspect={aspect}
+                                onCropChange={setCrop}
+                                onCropComplete={onCropComplete}
+                                onZoomChange={setZoom}
+                                cropShape={circle ? 'round' : 'rect'}
+                                showGrid={true}
+                            />
+                        </div>
+
+                        <div style={{ padding: '24px' }}>
+                            <div style={{ marginBottom: '20px' }}>
+                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Zoom</label>
+                                <input
+                                    type="range"
+                                    value={zoom}
+                                    min={1}
+                                    max={3}
+                                    step={0.1}
+                                    onChange={(e) => setZoom(Number(e.target.value))}
+                                    style={{ width: '100%', accentColor: 'var(--color-primary, #6366f1)' }}
+                                />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                                <button
+                                    onClick={() => setShowCropModal(false)}
+                                    style={{
+                                        padding: '10px 20px',
+                                        backgroundColor: 'transparent',
+                                        border: '1px solid var(--border)',
+                                        borderRadius: '10px',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem',
+                                        fontWeight: 600
+                                    }}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleUpload}
+                                    style={{
+                                        padding: '10px 24px',
+                                        backgroundColor: 'var(--color-primary, #6366f1)',
+                                        color: 'white',
+                                        border: 'none',
+                                        borderRadius: '10px',
+                                        cursor: 'pointer',
+                                        fontSize: '0.9rem',
+                                        fontWeight: 600,
+                                        boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)'
+                                    }}
+                                >
+                                    Confirmar e Salvar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <style jsx global>{`
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+            `}</style>
         </div>
     )
 }
+

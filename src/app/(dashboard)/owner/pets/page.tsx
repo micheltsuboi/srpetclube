@@ -659,9 +659,6 @@ function PetsContent() {
                                                         bucket="pets"
                                                         url={selectedPet?.photo_url || null}
                                                         onUpload={(url) => {
-                                                            // We need to handle this via hidden input since it's a server action form
-                                                            // But for now let's just use state or a hidden input.
-                                                            // Since the form uses native action, we need a hidden input for photo_url
                                                             const input = document.getElementById('photo_url_input') as HTMLInputElement;
                                                             if (input) input.value = url;
                                                         }}
@@ -671,6 +668,7 @@ function PetsContent() {
                                                         }}
                                                         label="Foto do Pet"
                                                         circle={true}
+                                                        aspect={1}
                                                     />
                                                     <input type="hidden" id="photo_url_input" name="photo_url" defaultValue={selectedPet?.photo_url || ''} />
                                                     <input type="hidden" id="vaccine_card_urls_input" name="vaccine_card_urls" defaultValue={JSON.stringify(selectedPet?.vaccine_card_urls || [])} />
@@ -870,6 +868,8 @@ function PetsContent() {
                                                                 }}
                                                                 onRemove={() => { }}
                                                                 label=""
+                                                                resetAfterUpload={true}
+                                                                aspect={3/4}
                                                             />
                                                             <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--accent)', fontWeight: '600' }}>Adicionar Página</p>
                                                         </div>
