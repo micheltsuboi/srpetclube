@@ -140,7 +140,7 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
                 </div>
 
                 <div style={{ marginBottom: '1rem', color: '#cbd5e1', fontSize: '0.9rem' }}>
-                    Pet: <strong style={{ color: 'white' }}>{appointment.pets.name}</strong>
+                    Pet: <strong style={{ color: 'white' }}>{appointment.pets?.name || 'Pet Desconhecido'}</strong>
                 </div>
 
                 <form onSubmit={handleSave}>

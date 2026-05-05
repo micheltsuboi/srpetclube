@@ -484,6 +484,17 @@ export default function CrechePage() {
                     }}
                 />
             )}
+
+            {editingAppointment && (
+                <EditAppointmentModal
+                    appointment={editingAppointment as any}
+                    onClose={() => setEditingAppointment(null)}
+                    onSave={() => {
+                        fetchCrecheData()
+                        setEditingAppointment(null)
+                    }}
+                />
+            )}
         </div>
     )
 }
