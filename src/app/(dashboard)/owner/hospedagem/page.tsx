@@ -663,7 +663,7 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
                                 setPetSearchTerm(e.target.value)
                                 setShowPetResults(true)
                             }}
-                            onFocus={() => setShowPetResults(true)}
+                            onFocus={() => { if (pets.find(p => p.id === selectedPetId)?.name !== petSearchTerm) { setShowPetResults(true) } }}
                             required={!selectedPetId}
                             style={{ width: '100%', padding: '0.75rem', border: '1px solid #334155', borderRadius: '8px', background: '#0f172a', color: 'white' }}
                         />

@@ -140,6 +140,27 @@ export default function Notifications() {
                                     </div>
                                     <p className={styles.message}>{notif.message}</p>
                                     <div className={styles.actions}>
+                                        {notif.type === 'package_expiry' && notif.reference_id && (
+                                            <button
+                                                className={styles.linkBtn}
+                                                style={{ background: '#10B981', color: 'white', borderColor: '#10B981' }}
+                                                disabled={loading}
+                                                onClick={async () => {
+                                                    setLoading(true)
+                                                    const { renewCustomerPackage } = await import('@/app/actions/package')
+                                                    const res = await renewCustomerPackage(notif.reference_id)
+                                                    if (res.success) {
+                                                        await handleMarkAsRead(notif.id)
+                                                        alert('Pacote renovado com sucesso! Os agendamentos automáticos foram gerados.')
+                                                    } else {
+                                                        alert(res.message || 'Erro ao renovar pacote.')
+                                                    }
+                                                    setLoading(false)
+                                                }}
+                                            >
+                                                Renovar
+                                            </button>
+                                        )}
                                         {notif.link && (
                                             <button
                                                 className={styles.linkBtn}

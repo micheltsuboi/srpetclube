@@ -137,6 +137,51 @@ export async function syncNotifications() {
             }
         }
 
+        // 3. Check Expiring Packages (7 days)
+        const { data: expiringPackages } = await supabase
+            .from('customer_packages')
+            .select(`
+                id, expires_at, is_active, 
+                pets(name), customers(name), service_packages(name)
+            `)
+            .eq('org_id', orgId)
+            .eq('is_active', true)
+            .not('expires_at', 'is', null)
+            .lte('expires_at', sevenDaysLaterStr)
+
+        if (expiringPackages) {
+            for (const pkg of expiringPackages) {
+                const expiry = new Date(pkg.expires_at)
+                const isExpired = expiry < today
+                const title = isExpired ? 'Pacote Vencido ⚠️' : 'Pacote Vencendo 📦'
+                const targetName = (pkg.pets as any)?.name || (pkg.customers as any)?.name || 'Cliente'
+                const packageName = (pkg.service_packages as any)?.name || 'Pacote'
+                
+                const [pYear, pMonth, pDay] = pkg.expires_at.split('T')[0].split('-')
+                const formattedExpiry = `${pDay}/${pMonth}/${pYear}`
+                const message = `O ${packageName} de ${targetName} ${isExpired ? 'venceu' : 'vence'} em ${formattedExpiry}.`
+
+                // Check if exists
+                const { data: existing } = await supabase
+                    .from('notifications')
+                    .select('id')
+                    .eq('reference_id', pkg.id)
+                    .eq('type', 'package_expiry')
+                    .single()
+
+                if (!existing) {
+                    await supabase.from('notifications').insert({
+                        org_id: orgId,
+                        type: 'package_expiry',
+                        title,
+                        message,
+                        reference_id: pkg.id,
+                        link: `/owner/packages`
+                    })
+                }
+            }
+        }
+
         revalidatePath('/owner')
         return { success: true }
     } catch (error) {

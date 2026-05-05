@@ -631,7 +631,7 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
                                 setPetSearchTerm(e.target.value)
                                 setShowPetResults(true)
                             }}
-                            onFocus={() => setShowPetResults(true)}
+                            onFocus={() => { if (pets.find(p => p.id === selectedPetId)?.name !== petSearchTerm) { setShowPetResults(true) } }}
                             required={!selectedPetId}
                         />
 

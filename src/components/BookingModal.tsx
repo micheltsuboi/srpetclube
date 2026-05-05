@@ -114,7 +114,10 @@ export default function BookingModal({
             try {
                 const results = await searchPets(petSearchTerm)
                 setSearchResults(results as any[])
-                setShowPetResults(true)
+                // Only show results if the user is actually typing a search, not just after auto-filling the input
+                if (selectedPet?.name !== petSearchTerm) {
+                    setShowPetResults(true)
+                }
             } catch (err) {
                 console.error('Error searching pets:', err)
             } finally {
@@ -256,8 +259,17 @@ export default function BookingModal({
                                 placeholder="🔍 Pesquisar pet ou tutor..."
                                 className={styles.input}
                                 value={petSearchTerm}
-                                onChange={(e) => setPetSearchTerm(e.target.value)}
-                                onFocus={() => setShowPetResults(true)}
+                                onChange={(e) => {
+                                    setPetSearchTerm(e.target.value)
+                                    // Always show results when user is actively typing
+                                    setShowPetResults(true)
+                                }}
+                                onFocus={() => {
+                                    // Only show results on focus if we haven't exactly matched the selected pet yet
+                                    if (selectedPet?.name !== petSearchTerm) {
+                                        setShowPetResults(true)
+                                    }
+                                }}
                             />
                             
                             {showPetResults && (isSearching || petSearchTerm.length >= 2) && (

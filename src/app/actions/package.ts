@@ -756,7 +756,11 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
     // Buscar pacote atual
     const { data: currentPackage, error: fetchError } = await supabase
         .from('customer_packages')
-        .select('id, customer_id, package_id, org_id, service_packages(validity_days, total_price, package_items(service_id, quantity))')
+        .select(`
+            id, customer_id, package_id, org_id, pet_id, 
+            preferred_weekdays, preferred_time, is_auto_schedule, has_taxi, taxi_fee,
+            service_packages(validity_days, total_price, package_items(service_id, quantity))
+        `)
         .eq('id', customerPackageId)
         .single()
 
@@ -786,8 +790,15 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
             customer_id: currentPackage.customer_id,
             package_id: currentPackage.package_id,
             org_id: currentPackage.org_id,
+            pet_id: currentPackage.pet_id,
+            preferred_weekdays: currentPackage.preferred_weekdays,
+            preferred_time: currentPackage.preferred_time,
+            is_auto_schedule: currentPackage.is_auto_schedule,
+            has_taxi: currentPackage.has_taxi,
+            taxi_fee: currentPackage.taxi_fee,
             calculated_price: (currentPackage.service_packages as any)?.total_price || 0,
             total_paid: 0, // Renovação pode ser gratuita ou paga manualmente
+            payment_status: 'pending',
             payment_method: 'other',
             notes: 'Renovação automática',
             expires_at: new_expires_at
@@ -828,6 +839,20 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
         .from('customer_packages')
         .update({ is_active: false })
         .eq('id', customerPackageId)
+
+    // Se auto-schedule, gerar slots
+    if (newPackage.is_auto_schedule && newPackage.preferred_weekdays && newPackage.preferred_weekdays.length > 0) {
+        try {
+            await supabase.rpc('generate_package_slots', {
+                p_customer_package_id: newPackage.id
+            })
+            if (newPackage.pet_id) {
+                await fixPackageUsageIndices(newPackage.pet_id)
+            }
+        } catch (err) {
+            console.error('Erro ao gerar slots na renovação:', err)
+        }
+    }
 
     revalidatePath('/owner/packages')
     revalidatePath('/staff')
