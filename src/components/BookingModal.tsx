@@ -428,6 +428,18 @@ export default function BookingModal({
                         )}
                         <input type="hidden" name="hasTaxi" value={String(hasTaxi)} />
                         <input type="hidden" name="taxiFee" value={taxiFee} />
+
+                        <div className={styles.taxiHeader} style={{ marginTop: '1rem' }}>
+                            <label className={styles.checkboxLabel}>
+                                <input 
+                                    type="checkbox" 
+                                    name="ignorePackage" 
+                                    value="true"
+                                    className={styles.checkbox}
+                                />
+                                <span className={styles.taxiTitle}>Agendar como serviço avulso (Não utilizar pacote)</span>
+                            </label>
+                        </div>
                     </div>
 
                     <div className={styles.formGroup}>

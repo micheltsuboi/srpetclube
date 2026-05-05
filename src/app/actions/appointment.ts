@@ -217,13 +217,17 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
 
     // Verify Credits
     let packageCreditId: string | null = null
-    const { data: creditData } = await supabase.rpc('use_package_credit_for_pet', {
-        p_pet_id: petId,
-        p_service_id: serviceId
-    })
+    const ignorePackage = formData.get('ignorePackage') === 'true'
 
-    if (creditData) {
-        packageCreditId = creditData
+    if (!ignorePackage) {
+        const { data: creditData } = await supabase.rpc('use_package_credit_for_pet', {
+            p_pet_id: petId,
+            p_service_id: serviceId
+        })
+
+        if (creditData) {
+            packageCreditId = creditData
+        }
     }
 
     // Pricing Calculation Logic
