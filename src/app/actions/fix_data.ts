@@ -78,7 +78,7 @@ export async function listServicesWithCategories() {
     return { services: services || [], categories: categories || [] }
 }
 
-export async function fixPackageUsageIndices(petId?: string) {
+export async function fixPackageUsageIndices(petId?: string, linkOrphans: boolean = false) {
     console.log(`Starting package usage index fix... ${petId ? '(pet: ' + petId + ')' : ''}`)
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -134,38 +134,40 @@ export async function fixPackageUsageIndices(petId?: string) {
         let indexedCount = 0
 
         // 4. Vincular Órfãos
-        for (const appt of appts) {
-            if (appt.package_credit_id) continue
+        if (linkOrphans) {
+            for (const appt of appts) {
+                if (appt.package_credit_id) continue
 
-            const apptCategoryId = serviceMap[appt.service_id]
-            if (!apptCategoryId) continue
+                const apptCategoryId = serviceMap[appt.service_id]
+                if (!apptCategoryId) continue
 
-            const petCustomerId = (appt.pets as any)?.customer_id
+                const petCustomerId = (appt.pets as any)?.customer_id
 
-            const possibleCredits = allCredits.filter(c => {
-                const cp = Array.isArray(c.customer_packages) ? c.customer_packages[0] : c.customer_packages;
-                if (!cp) return false;
+                const possibleCredits = allCredits.filter(c => {
+                    const cp = Array.isArray(c.customer_packages) ? c.customer_packages[0] : c.customer_packages;
+                    if (!cp) return false;
 
-                const creditCategoryId = serviceMap[c.service_id]
-                const isSameService = c.service_id === appt.service_id
-                const isSameCategory = creditCategoryId === apptCategoryId
-                
-                const isPetMatch = cp.pet_id === appt.pet_id
-                const isCustomerMatch = !cp.pet_id && cp.customer_id === petCustomerId
+                    const creditCategoryId = serviceMap[c.service_id]
+                    const isSameService = c.service_id === appt.service_id
+                    const isSameCategory = creditCategoryId === apptCategoryId
+                    
+                    const isPetMatch = cp.pet_id === appt.pet_id
+                    const isCustomerMatch = !cp.pet_id && cp.customer_id === petCustomerId
 
-                return (isSameService || isSameCategory) && (isPetMatch || isCustomerMatch)
-            })
+                    return (isSameService || isSameCategory) && (isPetMatch || isCustomerMatch)
+                })
 
-            if (possibleCredits.length > 0) {
-                const creditToLink = possibleCredits[0]
-                const { error: updErr } = await supabase
-                    .from('appointments')
-                    .update({ package_credit_id: creditToLink.id })
-                    .eq('id', appt.id)
-                
-                if (!updErr) {
-                    appt.package_credit_id = creditToLink.id
-                    linkedCount++
+                if (possibleCredits.length > 0) {
+                    const creditToLink = possibleCredits[0]
+                    const { error: updErr } = await supabase
+                        .from('appointments')
+                        .update({ package_credit_id: creditToLink.id })
+                        .eq('id', appt.id)
+                    
+                    if (!updErr) {
+                        appt.package_credit_id = creditToLink.id
+                        linkedCount++
+                    }
                 }
             }
         }
