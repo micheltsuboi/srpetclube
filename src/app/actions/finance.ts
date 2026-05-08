@@ -164,8 +164,26 @@ export async function processRecurringExpenses(specificId?: string) {
                     continue
                 }
 
-                // OTIMIZAÇÃO: Como já buscamos a última transação acima, 
-                // não precisamos re-verificar no meio do loop unless we created one.
+                // OTIMIZAÇÃO E PREVENÇÃO DE DUPLICIDADE:
+                // Verifica se JÁ EXISTE uma transação para esta despesa neste mês específico
+                const startOfMonth = new Date(yearToCheck, monthToCheck, 1).toISOString()
+                const endOfMonth = new Date(yearToCheck, monthToCheck + 1, 0, 23, 59, 59).toISOString()
+                
+                const { data: existingTx } = await supabase
+                    .from('financial_transactions')
+                    .select('id')
+                    .eq('recurring_id', expense.id)
+                    .gte('date', startOfMonth)
+                    .lte('date', endOfMonth)
+                    .limit(1)
+                    .single()
+
+                if (existingTx) {
+                    // Já existe para este mês (pode ter sido gerado por outro usuário/sessão)
+                    checkDate.setMonth(checkDate.getMonth() + 1)
+                    continue
+                }
+
                 const originalStartDay = expense.start_date ? new Date(expense.start_date).getDate() : 1
                 const dayToUse = new Date(yearToCheck, monthToCheck, originalStartDay).getMonth() === monthToCheck 
                     ? originalStartDay 
