@@ -394,7 +394,7 @@ export default function CrechePage() {
                                                     finalPrice={(appt as any).final_price}
                                                     taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
                                                     discountPercent={(appt as any).discount_percent}
-                                                    paymentStatus={isPackage ? (cp?.payment_status || (appt as any).payment_status || 'paid') : ((appt as any).payment_status || null)}
+                                                    paymentStatus={isPackage ? (cp?.payment_status || 'pending') : ((appt as any).payment_status || 'pending')}
                                                     paymentMethod={(cp?.payment_method || (appt as any).payment_method) ?? null}
                                                     onUpdate={() => fetchCrecheData(true)}
                                                     compact
@@ -404,6 +404,7 @@ export default function CrechePage() {
                                                     packageDate={cp?.purchased_at ?? null}
                                                     packageHasTaxi={cp?.has_taxi ?? false}
                                                     packageTaxiFee={cp?.taxi_fee ?? 0}
+                                                    customerPackageId={cp?.id ?? null}
                                                 />
                                             );
                                         })()}

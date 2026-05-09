@@ -1220,7 +1220,7 @@ function PetsContent() {
                                                                             calculatedPrice={pkgGroup.calculated_price}
                                                                             totalPaid={pkgGroup.total_paid}
                                                                             discountPercent={pkgGroup.discount_percent}
-                                                                            paymentStatus={pkgGroup.payment_status || 'paid'}
+                                                                            paymentStatus={pkgGroup.payment_status || 'pending'}
                                                                             paymentMethod={pkgGroup.payment_method || 'other'}
                                                                             hasTaxi={pkgGroup.has_taxi}
                                                                             taxiFee={pkgGroup.taxi_fee}

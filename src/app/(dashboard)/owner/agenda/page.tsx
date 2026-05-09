@@ -537,13 +537,14 @@ export default function AgendaPage() {
                             finalPrice={appt.final_price ?? null}
                             taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
                             discountPercent={appt.discount_percent ?? null}
-                            paymentStatus={isPackage ? (cp?.payment_status || appt.payment_status || 'paid') : (appt.payment_status || null)}
+                            paymentStatus={isPackage ? (cp?.payment_status || 'pending') : (appt.payment_status || 'pending')}
                             paymentMethod={(cp?.payment_method || appt.payment_method) ?? null}
                             packageTotal={cp?.calculated_price ?? null}
                             packageMethod={cp?.payment_method ?? null}
                             packageDate={cp?.purchased_at ?? null}
                             packageHasTaxi={cp?.has_taxi ?? false}
                             packageTaxiFee={cp?.taxi_fee ?? 0}
+                            customerPackageId={cp?.id ?? null}
                             onUpdate={() => fetchData()}
                             compact
                             isPackage={isPackage}

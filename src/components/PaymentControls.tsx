@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { updatePaymentStatus, applyDiscount } from '@/app/actions/appointment'
+import { updatePackagePaymentStatus } from '@/app/actions/package'
 import { createPortal } from 'react-dom'
 
 interface PaymentControlsProps {
@@ -16,6 +17,7 @@ interface PaymentControlsProps {
     packageDate?: string | null
     packageHasTaxi?: boolean
     packageTaxiFee?: number
+    customerPackageId?: string | null
     onUpdate?: () => void
     compact?: boolean
     isPackage?: boolean
@@ -42,6 +44,7 @@ export default function PaymentControls({
     packageDate,
     packageHasTaxi = false,
     packageTaxiFee = 0,
+    customerPackageId,
     onUpdate,
     compact = false,
     isPackage = false,
@@ -69,7 +72,11 @@ export default function PaymentControls({
     const handlePayment = async (method: string) => {
         setLoading(true)
         try {
-            await updatePaymentStatus(appointmentId, 'paid', method)
+            if (isPackage && customerPackageId) {
+                await updatePackagePaymentStatus(customerPackageId, 'paid', method)
+            } else {
+                await updatePaymentStatus(appointmentId, 'paid', method)
+            }
             onUpdate?.()
             setShowModal(false)
         } finally {
@@ -80,7 +87,11 @@ export default function PaymentControls({
     const handleUnpay = async () => {
         setLoading(true)
         try {
-            await updatePaymentStatus(appointmentId, 'pending')
+            if (isPackage && customerPackageId) {
+                await updatePackagePaymentStatus(customerPackageId, 'pending')
+            } else {
+                await updatePaymentStatus(appointmentId, 'pending')
+            }
             onUpdate?.()
         } finally {
             setLoading(false)
@@ -173,6 +184,11 @@ export default function PaymentControls({
                 </div>
 
                 {/* Discount Section */}
+                {isPackage && !isPaid && (
+                    <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(122, 201, 160, 0.2)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        ℹ️ Você está pagando a <strong>mensalidade de um pacote</strong>. Descontos não estão disponíveis por aqui. Eles devem ser aplicados na Gestão de Pets ou no momento da venda.
+                    </div>
+                )}
                 {!isPackage && !isPaid && (
                    <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
