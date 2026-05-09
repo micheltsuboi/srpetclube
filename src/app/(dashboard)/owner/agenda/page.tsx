@@ -249,6 +249,7 @@ export default function AgendaPage() {
                         total_quantity,
                         used_quantity,
                         customer_packages (
+                            id,
                             calculated_price,
                             total_paid,
                             payment_status,
@@ -288,6 +289,7 @@ export default function AgendaPage() {
                             total_quantity,
                             used_quantity,
                             customer_packages (
+                                id,
                                 calculated_price,
                                 total_paid,
                                 payment_status,

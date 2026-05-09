@@ -419,6 +419,10 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
     revalidatePath('/owner/packages')
     revalidatePath('/owner')
     revalidatePath('/owner/financeiro')
+    revalidatePath('/owner/agenda')
+    revalidatePath('/owner/creche')
+    revalidatePath('/owner/banho-tosa')
+    revalidatePath('/owner/hospedagem')
 }
 
 export async function applyPackageDiscount(id: string, value: number, type: 'percent' | 'fixed', basePrice: number) {

@@ -104,6 +104,7 @@ export default function HospedagemPage() {
                         total_quantity,
                         used_quantity,
                         customer_packages (
+                            id,
                             calculated_price,
                             total_paid,
                             payment_status,
@@ -426,11 +427,12 @@ export default function HospedagemPage() {
                                                         finalPrice={appt.final_price}
                                                         taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
                                                         discountPercent={appt.discount_percent}
-                                                        paymentStatus={appt.payment_status}
-                                                        paymentMethod={appt.payment_method}
+                                                        paymentStatus={appt.package_credit_id ? (cp?.payment_status || 'pending') : (appt.payment_status || 'pending')}
+                                                        paymentMethod={(cp?.payment_method || appt.payment_method) ?? null}
                                                         onUpdate={() => fetchHospedagemData(true)}
                                                         compact
                                                         isPackage={!!appt.package_credit_id}
+                                                        customerPackageId={cp?.id ?? null}
                                                         packageTotal={cp?.calculated_price ?? null}
                                                         packageMethod={cp?.payment_method ?? null}
                                                         packageDate={cp?.purchased_at ?? null}
