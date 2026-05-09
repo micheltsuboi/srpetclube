@@ -299,24 +299,22 @@ export default function PaymentControls({
                             }}>
                                 ✅ {isPackage ? 'Pacote' : ''} Pago via {paymentMethodLabels[packageMethod || paymentMethod || ''] || packageMethod || paymentMethod}
                             </div>
-                            {!isPackage && (
-                                <button
-                                    onClick={handleUnpay}
-                                    disabled={loading}
-                                    style={{
-                                        background: 'rgba(255, 255, 255, 0.05)',
-                                        border: '1px solid var(--border)',
-                                        padding: '0.5rem 1rem',
-                                        borderRadius: '6px',
-                                        color: 'var(--text-secondary)',
-                                        cursor: 'pointer',
-                                        fontSize: '0.9rem',
-                                        width: '100%'
-                                    }}
-                                >
-                                    ↺ Desfazer Pagamento
-                                </button>
-                            )}
+                            <button
+                                onClick={handleUnpay}
+                                disabled={loading}
+                                style={{
+                                    background: 'rgba(255, 255, 255, 0.05)',
+                                    border: '1px solid var(--border)',
+                                    padding: '0.5rem 1rem',
+                                    borderRadius: '6px',
+                                    color: 'var(--text-secondary)',
+                                    cursor: 'pointer',
+                                    fontSize: '0.9rem',
+                                    width: '100%'
+                                }}
+                            >
+                                ↺ Desfazer Pagamento
+                            </button>
                         </div>
                     ) : (
                         <div>
