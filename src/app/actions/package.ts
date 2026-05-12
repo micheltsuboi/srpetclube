@@ -467,7 +467,8 @@ export async function sellPackageToPet(
     preferredTime?: string,
     isAutoSchedule?: boolean,
     hasTaxi?: boolean,
-    taxiFee?: number
+    taxiFee?: number,
+    startDate?: string // Data de início das sessões (YYYY-MM-DD)
 ): Promise<ActionState> {
     console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekdays, preferredTime, isAutoSchedule, hasTaxi, taxiFee })
     const supabase = await createClient()
@@ -565,9 +566,10 @@ export async function sellPackageToPet(
     // Se agendamento automático, gerar slots via RPC
     if (isAutoSchedule && preferredWeekdays && preferredWeekdays.length > 0) {
         try {
-            await supabase.rpc('generate_package_slots', {
-                p_customer_package_id: customerPackage.id
-            })
+            const rpcParams: any = { p_customer_package_id: customerPackage.id }
+            // Se informada, usa a data de início desejada para gerar as sessões a partir dela
+            if (startDate) rpcParams.p_period_start = startDate
+            await supabase.rpc('generate_package_slots', rpcParams)
             // Sincronizar índices de uso para evitar erro "1 de 4" em todos os cards
             await fixPackageUsageIndices(petId)
         } catch (slotErr) {

@@ -69,6 +69,7 @@ function PetsContent() {
     const [isSelling, setIsSelling] = useState(false)
     const [prefWeekdays, setPrefWeekdays] = useState<number[]>([])
     const [prefTime, setPrefTime] = useState('')
+    const [scheduleStartDate, setScheduleStartDate] = useState('') // Data de início das sessões
     const [hasTaxiPackage, setHasTaxiPackage] = useState(false)
     const [taxiFeePackage, setTaxiFeePackage] = useState(0)
     const [isAutoSchedule, setIsAutoSchedule] = useState(false)
@@ -442,7 +443,8 @@ function PetsContent() {
                 isAutoSchedule && prefTime ? prefTime : undefined,
                 isAutoSchedule && prefWeekdays.length > 0,
                 hasTaxiPackage,
-                taxiFeePackage
+                taxiFeePackage,
+                isAutoSchedule && scheduleStartDate ? scheduleStartDate : undefined
             )
 
             if (res.success) {
@@ -451,6 +453,7 @@ function PetsContent() {
                 setSelectedPackageId('')
                 setPrefWeekdays([])
                 setPrefTime('')
+                setScheduleStartDate('')
                 setIsAutoSchedule(false)
                 setHasTaxiPackage(false)
                 setTaxiFeePackage(0)
@@ -1107,6 +1110,19 @@ function PetsContent() {
                                                                             className={styles.input}
                                                                             style={{ width: '100%', maxWidth: '150px' }}
                                                                         />
+                                                                    </div>
+                                                                    <div style={{ gridColumn: 'span 2' }}>
+                                                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Data de início das sessões (opcional)</label>
+                                                                        <input
+                                                                            type="date"
+                                                                            value={scheduleStartDate}
+                                                                            onChange={e => setScheduleStartDate(e.target.value)}
+                                                                            className={styles.input}
+                                                                            style={{ width: '100%', maxWidth: '180px' }}
+                                                                        />
+                                                                        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.3rem' }}>
+                                                                            Se vazio, começa a partir de hoje. Use para corrigir pacotes contratados com atraso.
+                                                                        </p>
                                                                     </div>
                                                                 </div>
                                                             )}
