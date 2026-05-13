@@ -72,7 +72,7 @@ function PetsContent() {
     const [scheduleStartDate, setScheduleStartDate] = useState('') // Data de início das sessões
     const [hasTaxiPackage, setHasTaxiPackage] = useState(false)
     const [taxiFeePackage, setTaxiFeePackage] = useState(0)
-    const [isAutoSchedule, setIsAutoSchedule] = useState(false)
+    const [isAutoSchedule, setIsAutoSchedule] = useState(true)
     const [petSlots, setPetSlots] = useState<Record<string, any[]>>({})
     const [expandedSlotPackage, setExpandedSlotPackage] = useState<string | null>(null)
     const [reschedulingSlot, setReschedulingSlot] = useState<any | null>(null)
