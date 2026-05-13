@@ -815,18 +815,15 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
         return { message: 'Erro ao renovar pacote.', success: false }
     }
 
-    // Criar créditos considerando os antigos
+    // Criar créditos considerando apenas a quantidade original do pacote
     const packageItems = (currentPackage.service_packages as any)?.package_items || []
     const newCredits = packageItems.map((item: any) => {
-        const existingCredit = existingCredits?.find(c => c.service_id === item.service_id)
-        const carryOver = existingCredit?.remaining_quantity || 0
-
         return {
             customer_package_id: newPackage.id,
             service_id: item.service_id,
-            total_quantity: item.quantity + carryOver,
+            total_quantity: item.quantity,
             used_quantity: 0,
-            remaining_quantity: item.quantity + carryOver
+            remaining_quantity: item.quantity
         }
     })
 
@@ -968,4 +965,22 @@ export async function checkAndProcessAutoRenewals(): Promise<ActionState> {
         success: true,
         data: { total: packagesToRenew.length, success: successCount }
     }
+}
+
+/**
+ * Atualiza a configuração de renovação automática de um pacote específico.
+ */
+export async function updatePackageAutoRenew(id: string, autoRenew: boolean): Promise<ActionState> {
+    const supabase = await createClient()
+    const { error } = await supabase
+        .from('customer_packages')
+        .update({ auto_renew: autoRenew })
+        .eq('id', id)
+
+    if (error) {
+        return { message: 'Erro ao atualizar renovação: ' + error.message, success: false }
+    }
+
+    revalidatePath('/owner/pets')
+    return { message: 'Configuração de renovação atualizada!', success: true }
 }
