@@ -430,6 +430,11 @@ function PetsContent() {
         const taxiInfo = hasTaxiPackage ? ` | Taxi Dog: R$ ${taxiFeePackage.toFixed(2)}` : ''
         const finalTotal = pkg.total_price + (hasTaxiPackage ? taxiFeePackage : 0)
         
+        if (isAutoSchedule && prefWeekdays.length === 0) {
+            alert('Por favor, selecione pelo menos um dia da semana para o agendamento automático.')
+            return
+        }
+
         if (!confirm(`Confirmar contratação do pacote "${pkg.name}" para ${selectedPet.name} por R$ ${finalTotal.toFixed(2)}?${autoInfo}${taxiInfo}`)) return
 
         setIsSelling(true)

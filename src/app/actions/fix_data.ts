@@ -99,7 +99,7 @@ export async function fixPackageUsageIndices(petId?: string, linkOrphans: boolea
         // 2. Buscar agendamentos (não cancelados)
         let query = supabase
             .from('appointments')
-            .select('id, scheduled_at, package_credit_id, pet_id, service_id, status, pets(customer_id)')
+            .select('id, scheduled_at, package_credit_id, pet_id, service_id, status, package_usage_index, pets(customer_id)')
             .eq('org_id', profile.org_id)
             .not('status', 'eq', 'cancelled')
             .order('scheduled_at', { ascending: true })
