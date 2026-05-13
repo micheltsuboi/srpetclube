@@ -73,6 +73,7 @@ function PetsContent() {
     const [hasTaxiPackage, setHasTaxiPackage] = useState(false)
     const [taxiFeePackage, setTaxiFeePackage] = useState(0)
     const [isAutoSchedule, setIsAutoSchedule] = useState(true)
+    const [isAutoRenew, setIsAutoRenew] = useState(true)
     const [petSlots, setPetSlots] = useState<Record<string, any[]>>({})
     const [expandedSlotPackage, setExpandedSlotPackage] = useState<string | null>(null)
     const [reschedulingSlot, setReschedulingSlot] = useState<any | null>(null)
@@ -428,6 +429,7 @@ function PetsContent() {
             ? ` | Dias: ${selectedDaysNames} às ${prefTime || '09:00'}`
             : ' | Agendamento manual'
         const taxiInfo = hasTaxiPackage ? ` | Taxi Dog: R$ ${taxiFeePackage.toFixed(2)}` : ''
+        const renewInfo = isAutoRenew ? ' | Renovação automática: Sim' : ' | Renovação automática: Não'
         const finalTotal = pkg.total_price + (hasTaxiPackage ? taxiFeePackage : 0)
         
         if (isAutoSchedule && prefWeekdays.length === 0) {
@@ -435,7 +437,7 @@ function PetsContent() {
             return
         }
 
-        if (!confirm(`Confirmar contratação do pacote "${pkg.name}" para ${selectedPet.name} por R$ ${finalTotal.toFixed(2)}?${autoInfo}${taxiInfo}`)) return
+        if (!confirm(`Confirmar contratação do pacote "${pkg.name}" para ${selectedPet.name} por R$ ${finalTotal.toFixed(2)}?${autoInfo}${taxiInfo}${renewInfo}`)) return
 
         setIsSelling(true)
         try {
@@ -449,7 +451,8 @@ function PetsContent() {
                 isAutoSchedule && prefWeekdays.length > 0,
                 hasTaxiPackage,
                 taxiFeePackage,
-                isAutoSchedule && scheduleStartDate ? scheduleStartDate : undefined
+                isAutoSchedule && scheduleStartDate ? scheduleStartDate : undefined,
+                isAutoRenew
             )
 
             if (res.success) {
@@ -462,6 +465,7 @@ function PetsContent() {
                 setIsAutoSchedule(false)
                 setHasTaxiPackage(false)
                 setTaxiFeePackage(0)
+                setIsAutoRenew(true)
             } else {
                 alert(res.message)
             }
@@ -1145,6 +1149,15 @@ function PetsContent() {
                                                                         onChange={e => setHasTaxiPackage(e.target.checked)}
                                                                     />
                                                                     <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>🚗 Incluir Taxi Dog no Pacote?</span>
+                                                                </label>
+                                                                
+                                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginTop: '0.75rem', color: 'var(--text-primary)' }}>
+                                                                    <input
+                                                                        type="checkbox"
+                                                                        checked={isAutoRenew}
+                                                                        onChange={e => setIsAutoRenew(e.target.checked)}
+                                                                    />
+                                                                    <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>🔄 Renovar automaticamente no vencimento?</span>
                                                                 </label>
                                                                 
                                                                 {hasTaxiPackage && (

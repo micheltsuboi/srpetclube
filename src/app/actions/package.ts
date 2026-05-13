@@ -468,7 +468,8 @@ export async function sellPackageToPet(
     isAutoSchedule?: boolean,
     hasTaxi?: boolean,
     taxiFee?: number,
-    startDate?: string // Data de início das sessões (YYYY-MM-DD)
+    startDate?: string, // Data de início das sessões (YYYY-MM-DD)
+    autoRenew?: boolean
 ): Promise<ActionState> {
     console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekdays, preferredTime, isAutoSchedule, hasTaxi, taxiFee })
     const supabase = await createClient()
@@ -531,6 +532,7 @@ export async function sellPackageToPet(
             is_auto_schedule: isAutoSchedule ?? false,
             has_taxi: hasTaxi ?? false,
             taxi_fee: taxiFee ?? 0,
+            auto_renew: autoRenew ?? false,
             payment_status: 'pending'
         })
         .select(`
@@ -563,18 +565,14 @@ export async function sellPackageToPet(
         return { message: creditsError.message, success: false }
     }
 
-    // Se agendamento automático, gerar slots via RPC
-    if (isAutoSchedule && preferredWeekdays && preferredWeekdays.length > 0) {
-        try {
-            const rpcParams: any = { p_customer_package_id: customerPackage.id }
-            // Se informada, usa a data de início desejada para gerar as sessões a partir dela
-            if (startDate) rpcParams.p_period_start = startDate
-            await supabase.rpc('generate_package_slots', rpcParams)
-            // Sincronizar índices de uso para evitar erro "1 de 4" em todos os cards
-            await fixPackageUsageIndices(petId)
-        } catch (slotErr) {
-            console.warn('Slots não gerados (non-critical):', slotErr)
-        }
+    // Gerar slots (Automático ou Manual via RPC)
+    try {
+        const rpcParams: any = { p_customer_package_id: customerPackage.id }
+        if (startDate) rpcParams.p_period_start = startDate
+        await supabase.rpc('generate_package_slots', rpcParams)
+        await fixPackageUsageIndices(petId)
+    } catch (slotErr) {
+        console.warn('Slots não gerados (non-critical):', slotErr)
     }
 
     revalidatePath('/owner/packages')
@@ -764,7 +762,7 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
         .from('customer_packages')
         .select(`
             id, customer_id, package_id, org_id, pet_id, 
-            preferred_weekdays, preferred_time, is_auto_schedule, has_taxi, taxi_fee,
+            preferred_weekdays, preferred_time, is_auto_schedule, has_taxi, taxi_fee, auto_renew,
             service_packages(validity_days, total_price, package_items(service_id, quantity))
         `)
         .eq('id', customerPackageId)
@@ -802,6 +800,7 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
             is_auto_schedule: currentPackage.is_auto_schedule,
             has_taxi: currentPackage.has_taxi,
             taxi_fee: currentPackage.taxi_fee,
+            auto_renew: currentPackage.auto_renew,
             calculated_price: (currentPackage.service_packages as any)?.total_price || 0,
             total_paid: 0, // Renovação pode ser gratuita ou paga manualmente
             payment_status: 'pending',
@@ -846,18 +845,16 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
         .update({ is_active: false })
         .eq('id', customerPackageId)
 
-    // Se auto-schedule, gerar slots
-    if (newPackage.is_auto_schedule && newPackage.preferred_weekdays && newPackage.preferred_weekdays.length > 0) {
-        try {
-            await supabase.rpc('generate_package_slots', {
-                p_customer_package_id: newPackage.id
-            })
-            if (newPackage.pet_id) {
-                await fixPackageUsageIndices(newPackage.pet_id)
-            }
-        } catch (err) {
-            console.error('Erro ao gerar slots na renovação:', err)
+    // Gerar slots (Automático ou Manual conforme a configuração do pacote)
+    try {
+        await supabase.rpc('generate_package_slots', {
+            p_customer_package_id: newPackage.id
+        })
+        if (newPackage.pet_id) {
+            await fixPackageUsageIndices(newPackage.pet_id)
         }
+    } catch (err) {
+        console.error('Erro ao gerar slots na renovação:', err)
     }
 
     revalidatePath('/owner/packages')
@@ -927,4 +924,48 @@ export async function getPetPackagesWithUsage(petId: string) {
     }))
 
     return packagesWithUsage
+}
+
+/**
+ * Busca todos os pacotes ativos que estão vencendo hoje (ou já vencidos) 
+ * e que possuem a flag auto_renew = true, processando a renovação de cada um.
+ */
+export async function checkAndProcessAutoRenewals(): Promise<ActionState> {
+    const supabase = await createClient()
+    
+    // Buscar pacotes ativos, com auto_renew, onde a data de expiração é hoje ou anterior
+    const now = new Date().toISOString()
+    const { data: packagesToRenew, error } = await supabase
+        .from('customer_packages')
+        .select('id, pet_id')
+        .eq('is_active', true)
+        .eq('auto_renew', true)
+        .lte('expires_at', now)
+
+    if (error) {
+        console.error('Erro ao buscar pacotes para renovação:', error)
+        return { message: 'Erro ao buscar pacotes.', success: false }
+    }
+
+    if (!packagesToRenew || packagesToRenew.length === 0) {
+        return { message: 'Nenhum pacote para renovar hoje.', success: true }
+    }
+
+    console.log(`Iniciando renovação automática de ${packagesToRenew.length} pacotes...`)
+    
+    let successCount = 0
+    for (const pkg of packagesToRenew) {
+        try {
+            const res = await renewCustomerPackage(pkg.id)
+            if (res.success) successCount++
+        } catch (err) {
+            console.error(`Falha ao renovar pacote ${pkg.id}:`, err)
+        }
+    }
+
+    return { 
+        message: `${successCount} pacotes renovados com sucesso.`, 
+        success: true,
+        data: { total: packagesToRenew.length, success: successCount }
+    }
 }
