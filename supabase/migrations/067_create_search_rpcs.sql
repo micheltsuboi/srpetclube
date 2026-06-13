@@ -56,7 +56,16 @@ RETURNS TABLE (
   name TEXT,
   email TEXT,
   phone_1 TEXT,
+  phone_2 TEXT,
+  cpf TEXT,
+  address TEXT,
+  neighborhood TEXT,
   city TEXT,
+  instagram TEXT,
+  birth_date DATE,
+  user_id UUID,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
   pets_data JSONB
 ) AS $$
 BEGIN
@@ -66,7 +75,16 @@ BEGIN
     c.name, 
     c.email, 
     c.phone_1, 
+    c.phone_2,
+    c.cpf,
+    c.address,
+    c.neighborhood,
     c.city,
+    c.instagram,
+    c.birth_date,
+    c.user_id,
+    c.created_at,
+    c.updated_at,
     COALESCE(
       (SELECT jsonb_agg(jsonb_build_object('id', p.id, 'name', p.name, 'species', p.species))
        FROM public.pets p 
