@@ -33,6 +33,7 @@ export default function DashboardLayout({
         { name: 'Hospedagem', href: '/owner/hospedagem', icon: '🏨' },
         { name: 'Tutores', href: '/owner/tutors', icon: '👤' },
         { name: 'Pets', href: '/owner/pets', icon: '🐾' },
+        { name: 'Vacinas', href: '/owner/vacinas-pets', icon: '💉' },
         { name: 'Serviços', href: '/owner/services', icon: '✂️' },
         { name: 'Pacotes', href: '/owner/packages', icon: '📦' },
         { name: 'Petshop', href: '/owner/petshop', icon: '🛍️' },
@@ -48,6 +49,7 @@ export default function DashboardLayout({
         { name: 'Financeiro', href: '/owner/financeiro', icon: '💰' },
         { name: 'Tutores', href: '/owner/tutors', icon: '👤' },
         { name: 'Pets', href: '/owner/pets', icon: '🐶' },
+        { name: 'Vacinas', href: '/owner/vacinas-pets', icon: '💉' },
         { name: 'Serviços', href: '/owner/services', icon: '✂️' },
         { name: 'Pacotes', href: '/owner/packages', icon: '📦' },
         { name: 'Petshop', href: '/owner/petshop', icon: '🛍️' },
@@ -158,6 +160,7 @@ export default function DashboardLayout({
             if (item.name === 'Hospedagem') return perms.includes('hospedagem')
             if (item.name === 'Tutores') return perms.includes('tutores')
             if (item.name === 'Pets') return perms.includes('pets')
+            if (item.name === 'Vacinas') return perms.includes('pets')
             if (item.name === 'Petshop') return perms.includes('petshop')
             if (item.name === 'Serviços') return perms.includes('servicos')
             if (item.name === 'Pacotes') return perms.includes('pacotes')
