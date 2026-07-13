@@ -165,6 +165,9 @@ export interface Appointment {
     package_usage_index: number | null
     has_taxi: boolean
     taxi_fee: number
+    has_extras?: boolean
+    extras_fee?: number
+    extras?: any
     created_at: string
     updated_at: string
 }

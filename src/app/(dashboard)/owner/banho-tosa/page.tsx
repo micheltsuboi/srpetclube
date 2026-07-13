@@ -42,6 +42,9 @@ interface Appointment {
     package_usage_index?: number | null
     has_taxi?: boolean
     taxi_fee?: number
+    has_extras?: boolean
+    extras_fee?: number | null
+    extras?: any
     package_credits?: {
         total_quantity: number
         used_quantity: number
@@ -108,7 +111,7 @@ export default function BanhoTosaPage() {
                     calculated_price, checklist,
                     final_price, discount_percent, payment_status, payment_method,
                     actual_check_in, actual_check_out,
-                    has_taxi, taxi_fee,
+                    has_taxi, taxi_fee, has_extras, extras_fee, extras,
                     package_credit_id, package_usage_index,
                     package_credits:package_credit_id (
                         total_quantity,
@@ -401,6 +404,12 @@ export default function BanhoTosaPage() {
                                                     onUpdate={() => fetchBanhoTosaData(true)}
                                                     compact
                                                     isPackage={!!appt.package_credit_id}
+                                                    hasExtras={appt.has_extras}
+                                                    extrasFee={appt.extras_fee}
+                                                    extras={appt.extras}
+                                                    apptPaymentStatus={appt.payment_status}
+                                                    apptPaymentMethod={appt.payment_method}
+                                                    packagePaymentStatus={cp?.payment_status ?? null}
                                                 />
                                             );
                                         })()}

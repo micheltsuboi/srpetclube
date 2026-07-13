@@ -22,6 +22,9 @@ interface EditAppointmentModalProps {
         check_out_date?: string | null
         has_taxi?: boolean
         taxi_fee?: number
+        has_extras?: boolean
+        extras_fee?: number | null
+        extras?: any
         pets: { name: string }
         services?: { name: string, service_categories?: { name: string } }
     }
@@ -43,6 +46,52 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
     const [checkOutDate, setCheckOutDate] = useState(appointment.check_out_date || '')
     const [hasTaxi, setHasTaxi] = useState(appointment.has_taxi || false)
     const [taxiFee, setTaxiFee] = useState(appointment.taxi_fee?.toString() || '0')
+
+    // Extras States
+    const [extrasList, setExtrasList] = useState<Array<{ name: string, price: number }>>(() => {
+        if (Array.isArray(appointment.extras)) return appointment.extras
+        try {
+            return typeof appointment.extras === 'string' ? JSON.parse(appointment.extras) : []
+        } catch {
+            return []
+        }
+    })
+    const [extraName, setExtraName] = useState('')
+    const [extraPrice, setExtraPrice] = useState('')
+    const [selectedExtraServiceId, setSelectedExtraServiceId] = useState('')
+
+    const handleSelectExtraService = (serviceId: string) => {
+        setSelectedExtraServiceId(serviceId)
+        if (!serviceId) {
+            setExtraName('')
+            setExtraPrice('')
+            return
+        }
+        const svc = services.find(s => s.id === serviceId)
+        if (svc) {
+            setExtraName(svc.name)
+            setExtraPrice(svc.base_price.toString())
+        }
+    }
+
+    const handleAddExtra = (e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (!extraName || !extraPrice) return
+        const price = parseFloat(extraPrice)
+        if (isNaN(price) || price < 0) return
+
+        setExtrasList([...extrasList, { name: extraName, price }])
+        setExtraName('')
+        setExtraPrice('')
+        setSelectedExtraServiceId('')
+    }
+
+    const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setExtrasList(extrasList.filter((_, i) => i !== index))
+    }
 
     const selectedService = services.find(s => s.id === serviceId)
     const isHospedagem = selectedService?.name === 'Hospedagem' || (appointment.services as any)?.service_categories?.name === 'Hospedagem'
@@ -80,6 +129,7 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
         if (checkOutDate) formData.append('checkOutDate', checkOutDate)
         formData.append('hasTaxi', String(hasTaxi))
         formData.append('taxiFee', taxiFee)
+        formData.append('extras', JSON.stringify(extrasList))
 
         const result = await updateAppointment({ message: '', success: false }, formData)
 
@@ -233,6 +283,111 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
                                         style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white' }}
                                         placeholder="0.00"
                                     />
+                                </div>
+                            )}
+                        </div>
+
+                        <div style={{ 
+                            background: 'rgba(232, 130, 106, 0.05)', 
+                            padding: '1rem', 
+                            borderRadius: '12px', 
+                            border: '1px solid rgba(232, 130, 106, 0.1)',
+                            marginBottom: '0.5rem'
+                        }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                                <span style={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>➕ Adicionar Serviços Extras?</span>
+                                <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>Inclua serviços adicionais que serão cobrados à parte deste agendamento.</span>
+                            </div>
+                            
+                            <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '0.25rem' }}>SELECIONAR SERVIÇO CADASTRADO (OPCIONAL)</label>
+                                    <select
+                                        value={selectedExtraServiceId}
+                                        onChange={(e) => handleSelectExtraService(e.target.value)}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '0.85rem' }}
+                                    >
+                                        <option value="">Selecione para autocompletar...</option>
+                                        {services.map(s => (
+                                            <option key={s.id} value={s.id}>{s.name} - R$ {(s.base_price ?? 0).toFixed(2)}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '0.5rem', alignItems: 'end' }}>
+                                    <div>
+                                        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '0.25rem' }}>NOME DO EXTRA</label>
+                                        <input
+                                            type="text"
+                                            value={extraName}
+                                            onChange={(e) => setExtraName(e.target.value)}
+                                            placeholder="Ex: Corte de Unha"
+                                            style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '0.85rem' }}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '0.25rem' }}>VALOR (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={extraPrice}
+                                            onChange={(e) => setExtraPrice(e.target.value)}
+                                            placeholder="0.00"
+                                            style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '0.85rem' }}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={handleAddExtra}
+                                        style={{
+                                            padding: '0.5rem 1rem',
+                                            fontSize: '0.85rem',
+                                            height: '34px',
+                                            borderColor: '#E8826A',
+                                            color: 'white',
+                                            background: '#E8826A',
+                                            borderRadius: '8px',
+                                            fontWeight: 'bold',
+                                            cursor: 'pointer',
+                                            border: 'none'
+                                        }}
+                                    >
+                                        + Add
+                                    </button>
+                                </div>
+                            </div>
+
+                            {extrasList.length > 0 && (
+                                <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(255, 255, 255, 0.02)', padding: '0.75rem', borderRadius: '12px', border: '1px solid #334155' }}>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'white' }}>EXTRAS ADICIONADOS:</span>
+                                    {extrasList.map((item, index) => (
+                                        <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255, 255, 255, 0.05)', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'white' }}>{item.name}</span>
+                                                <span style={{ fontSize: '0.8rem', color: '#E8826A', fontWeight: 700 }}>R$ {item.price.toFixed(2)}</span>
+                                            </div>
+                                            <button
+                                                onClick={(e) => handleRemoveExtra(e, index)}
+                                                style={{
+                                                    background: 'transparent',
+                                                    border: 'none',
+                                                    color: '#ef4444',
+                                                    fontSize: '1.2rem',
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    padding: '4px'
+                                                }}
+                                                title="Remover"
+                                            >
+                                                &times;
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #334155', paddingTop: '0.5rem', marginTop: '0.25rem', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                                        <span style={{ color: '#cbd5e1' }}>Total Extras:</span>
+                                        <span style={{ color: '#E8826A' }}>R$ {extrasList.reduce((sum, item) => sum + item.price, 0).toFixed(2)}</span>
+                                    </div>
                                 </div>
                             )}
                         </div>

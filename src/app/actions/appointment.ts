@@ -43,6 +43,17 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     const hasTaxi = formData.get('hasTaxi') === 'true'
     const taxiFee = parseFloat(formData.get('taxiFee') as string || '0')
 
+    // Extras Extract
+    const extrasStr = formData.get('extras') as string || '[]'
+    let extrasList: Array<{ name: string, price: number }> = []
+    try {
+        extrasList = JSON.parse(extrasStr)
+    } catch (e) {
+        console.error('Error parsing extras JSON:', e)
+    }
+    const hasExtras = extrasList.length > 0
+    const extrasFee = extrasList.reduce((sum, item) => sum + (item.price || 0), 0)
+
     if (!petId || !serviceId) {
         return { message: 'Preencha todos os campos obrigatórios.', success: false }
     }
@@ -354,9 +365,12 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             check_in_date: checkIn,
             check_out_date: checkOut,
             calculated_price: calculatedPrice,
-            final_price: calculatedPrice + (inheritedHasTaxi ? inheritedTaxiFee : 0),
+            final_price: calculatedPrice + (inheritedHasTaxi ? inheritedTaxiFee : 0) + extrasFee,
             has_taxi: inheritedHasTaxi,
             taxi_fee: inheritedTaxiFee,
+            has_extras: hasExtras,
+            extras_fee: extrasFee,
+            extras: extrasList,
             payment_status: 'pending',
             discount_percent: 0
         })
@@ -500,6 +514,17 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
     const hasTaxi = formData.get('hasTaxi') === 'true'
     const taxiFee = parseFloat(formData.get('taxiFee') as string || '0')
 
+    // Extras Extract
+    const extrasStr = formData.get('extras') as string || '[]'
+    let extrasList: Array<{ name: string, price: number }> = []
+    try {
+        extrasList = JSON.parse(extrasStr)
+    } catch (e) {
+        console.error('Error parsing extras JSON:', e)
+    }
+    const hasExtras = extrasList.length > 0
+    const extrasFee = extrasList.reduce((sum, item) => sum + (item.price || 0), 0)
+
     if (!id || !date || !time || !serviceId) {
         return { message: 'Dados incompletos.', success: false }
     }
@@ -564,8 +589,11 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
         notes: notes || null,
         has_taxi: hasTaxi,
         taxi_fee: taxiFee,
+        has_extras: hasExtras,
+        extras_fee: extrasFee,
+        extras: extrasList,
         calculated_price: calculatedPrice,
-        final_price: calculatedPrice + (hasTaxi ? taxiFee : 0), // Reset final price to new base price + taxi
+        final_price: calculatedPrice + (hasTaxi ? taxiFee : 0) + extrasFee, // Reset final price to new base price + taxi + extras
         discount_percent: 0, // Reset discount when service changes
         discount: 0
     }

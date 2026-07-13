@@ -22,6 +22,12 @@ interface PaymentControlsProps {
     compact?: boolean
     isPackage?: boolean
     taxiFee?: number | null
+    hasExtras?: boolean
+    extrasFee?: number | null
+    extras?: any
+    apptPaymentStatus?: string | null
+    apptPaymentMethod?: string | null
+    packagePaymentStatus?: string | null
 }
 
 const paymentMethodLabels: Record<string, string> = {
@@ -48,20 +54,44 @@ export default function PaymentControls({
     onUpdate,
     compact = false,
     isPackage = false,
-    taxiFee = 0
+    taxiFee = 0,
+    hasExtras = false,
+    extrasFee = 0,
+    extras = [],
+    apptPaymentStatus = 'pending',
+    apptPaymentMethod = null,
+    packagePaymentStatus = null
 }: PaymentControlsProps) {
     const [showModal, setShowModal] = useState(false)
     const [discountValue, setDiscountValue] = useState(discountPercent?.toString() || '0')
     const [loading, setLoading] = useState(false)
     const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent')
 
-    const isPaid = paymentStatus === 'paid'
-    
-    // For packages, use packageTotal if available, else fallback
-    const displayPrice = isPackage && packageTotal !== undefined ? (packageTotal || 0) : (finalPrice ?? calculatedPrice ?? 0)
+    // Determine if the main package or appointment is paid
+    const isPaid = isPackage ? (packagePaymentStatus === 'paid') : (paymentStatus === 'paid')
+
+    // Calculations for addons and extras
+    const effectiveExtrasFee = Number(extrasFee || 0)
+    const effectiveTaxiFee = Number(taxiFee || 0)
+    const taxiIsAddon = isPackage && !packageHasTaxi && effectiveTaxiFee > 0
+    const hasAddons = effectiveExtrasFee > 0 || taxiIsAddon
+    const addonsTotal = effectiveExtrasFee + (taxiIsAddon ? effectiveTaxiFee : 0)
+    const isAddonsPaid = apptPaymentStatus === 'paid'
+
+    // Format extras array
+    const parsedExtras = Array.isArray(extras) 
+        ? extras 
+        : (typeof extras === 'string' ? JSON.parse(extras || '[]') : [])
+
+    // For packages, use packageTotal if available, else fallback. For regular appointments, sum service + taxi + extras
+    const displayPrice = isPackage && packageTotal !== undefined 
+        ? (packageTotal || 0) 
+        : (finalPrice ?? ((calculatedPrice || 0) + effectiveTaxiFee + effectiveExtrasFee))
     
     // Se for pacote, o basePrice real do pacote é o total dele menos o taxi de pacote (se houver)
-    const effectivePackageBase = isPackage && packageTotal !== undefined ? ((packageTotal || 0) - (packageHasTaxi ? packageTaxiFee : 0)) : (calculatedPrice || 0)
+    const effectivePackageBase = isPackage && packageTotal !== undefined 
+        ? ((packageTotal || 0) - (packageHasTaxi ? packageTaxiFee : 0)) 
+        : (calculatedPrice || 0)
     const basePrice = isPackage ? effectivePackageBase : (calculatedPrice ?? 0)
 
     // Reset local state when props change
@@ -69,13 +99,11 @@ export default function PaymentControls({
         setDiscountValue(discountPercent?.toString() || '0')
     }, [discountPercent])
 
-    const handlePayment = async (method: string) => {
+    const handlePackagePayment = async (method: string) => {
         setLoading(true)
         try {
-            if (isPackage && customerPackageId) {
+            if (customerPackageId) {
                 await updatePackagePaymentStatus(customerPackageId, 'paid', method)
-            } else {
-                await updatePaymentStatus(appointmentId, 'paid', method)
             }
             onUpdate?.()
             setShowModal(false)
@@ -84,14 +112,33 @@ export default function PaymentControls({
         }
     }
 
-    const handleUnpay = async () => {
+    const handlePackageUnpay = async () => {
         setLoading(true)
         try {
-            if (isPackage && customerPackageId) {
+            if (customerPackageId) {
                 await updatePackagePaymentStatus(customerPackageId, 'pending')
-            } else {
-                await updatePaymentStatus(appointmentId, 'pending')
             }
+            onUpdate?.()
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleApptPayment = async (method: string) => {
+        setLoading(true)
+        try {
+            await updatePaymentStatus(appointmentId, 'paid', method)
+            onUpdate?.()
+            setShowModal(false)
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const handleApptUnpay = async () => {
+        setLoading(true)
+        try {
+            await updatePaymentStatus(appointmentId, 'pending')
             onUpdate?.()
         } finally {
             setLoading(false)
@@ -154,33 +201,60 @@ export default function PaymentControls({
                         &times;
                     </button>
                 </div>
-
                 {/* Price Summary */}
                 <div style={{ background: 'rgba(232, 130, 106, 0.05)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px dashed rgba(232, 130, 106, 0.2)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                        <span>{isPackage ? 'Valor do Pacote:' : 'Serviço:'}</span>
+                        <span>{isPackage ? 'Valor do Pacote:' : 'Serviço Principal:'}</span>
                         <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {(basePrice || 0).toFixed(2)}</span>
                     </div>
                     
-                    {/* Exibir Taxi Dog (Se for pacote, exibir taxi do pacote, senão exibir taxi regular da sessão) */}
-                    {(isPackage ? packageHasTaxi : !!taxiFee) && (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: isPackage ? 'var(--status-done)' : 'var(--text-secondary)' }}>
-                            <span>🚗 {isPackage ? 'Adicional Taxi Dog (Pacote):' : 'Taxi Dog:'}</span>
-                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {(isPackage ? packageTaxiFee : (taxiFee || 0)).toFixed(2)}</span>
+                    {/* Exibir Taxi Dog */}
+                    {(isPackage ? (packageHasTaxi || effectiveTaxiFee > 0) : !!effectiveTaxiFee) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: (isPackage && packageHasTaxi) ? 'var(--status-done)' : 'var(--text-secondary)' }}>
+                            <span>🚗 {isPackage ? (packageHasTaxi ? 'Taxi Dog (Incluso no Pacote):' : 'Taxi Dog Avulso:') : 'Taxi Dog:'}</span>
+                            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {(isPackage && packageHasTaxi ? packageTaxiFee : effectiveTaxiFee).toFixed(2)}</span>
+                        </div>
+                    )}
+
+                    {/* Exibir Serviços Extras detalhados */}
+                    {parsedExtras.length > 0 && (
+                        <div style={{ borderTop: '1px dashed rgba(255, 255, 255, 0.1)', marginTop: '0.5rem', paddingTop: '0.5rem' }}>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '0.25rem' }}>Serviços Extras:</span>
+                            {parsedExtras.map((e: any, i: number) => (
+                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem', fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                                    <span style={{ color: '#94a3b8' }}>➕ {e.name}</span>
+                                    <span>R$ {Number(e.price || 0).toFixed(2)}</span>
+                                </div>
+                            ))}
                         </div>
                     )}
                     
                     {!isPackage && discountPercent && discountPercent > 0 ? (
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--status-canceled)' }}>
                             <span>Desconto aplicado:</span>
-                            <span>- R$ {((basePrice + (taxiFee || 0)) - displayPrice).toFixed(2)}</span>
+                            <span>- R$ {((basePrice + effectiveTaxiFee + effectiveExtrasFee) - displayPrice).toFixed(2)}</span>
                         </div>
                     ) : null}
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)', fontWeight: 700, color: 'var(--text-primary)' }}>
-                        <span>Total:</span>
-                        <span style={{ fontSize: '1.1rem', color: 'var(--color-coral)' }}>R$ {(displayPrice || 0).toFixed(2)}</span>
-                    </div>
+                    {isPackage ? (
+                        <div style={{ borderTop: '1px solid var(--border)', marginTop: '0.5rem', paddingTop: '0.5rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                <span>Mensalidade Pacote:</span>
+                                <span>R$ {(packageTotal || 0).toFixed(2)}</span>
+                            </div>
+                            {hasAddons && (
+                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 600, color: '#E8826A', marginTop: '0.25rem' }}>
+                                    <span>Adicionais Sessão (A pagar):</span>
+                                    <span>R$ {addonsTotal.toFixed(2)}</span>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border)', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            <span>Total Geral:</span>
+                            <span style={{ fontSize: '1.1rem', color: 'var(--color-coral)' }}>R$ {(displayPrice || 0).toFixed(2)}</span>
+                        </div>
+                    )}
                 </div>
 
                 {/* Discount Section */}
@@ -281,70 +355,207 @@ export default function PaymentControls({
                 )}
 
                 {/* Actions */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {isPaid ? (
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{
-                                background: 'rgba(122, 201, 160, 0.1)',
-                                color: 'var(--status-done)',
-                                padding: '0.75rem',
-                                borderRadius: '8px',
-                                marginBottom: '1rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '0.5rem',
-                                fontWeight: 600,
-                                border: '1px solid rgba(122, 201, 160, 0.2)'
-                            }}>
-                                ✅ {isPackage ? 'Pacote' : ''} Pago via {paymentMethodLabels[packageMethod || paymentMethod || ''] || packageMethod || paymentMethod}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {isPackage ? (
+                        <>
+                            {/* Bloco de Mensalidade do Pacote */}
+                            <div style={{ borderBottom: hasAddons ? '1px dashed var(--border)' : 'none', paddingBottom: hasAddons ? '1rem' : '0' }}>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem', color: '#94a3b8' }}>1. PAGAMENTO DA MENSALIDADE DO PACOTE</div>
+                                {isPaid ? (
+                                    <div style={{ textAlign: 'center' }}>
+                                        <div style={{
+                                            background: 'rgba(122, 201, 160, 0.1)',
+                                            color: 'var(--status-done)',
+                                            padding: '0.5rem',
+                                            borderRadius: '8px',
+                                            marginBottom: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: '0.5rem',
+                                            fontWeight: 600,
+                                            fontSize: '0.85rem',
+                                            border: '1px solid rgba(122, 201, 160, 0.2)'
+                                        }}>
+                                            ✅ Mensalidade Paga via {paymentMethodLabels[packageMethod || ''] || packageMethod || 'N/A'}
+                                        </div>
+                                        <button
+                                            onClick={handlePackageUnpay}
+                                            disabled={loading}
+                                            style={{
+                                                background: 'rgba(255, 255, 255, 0.05)',
+                                                border: '1px solid var(--border)',
+                                                padding: '4px 8px',
+                                                borderRadius: '6px',
+                                                color: 'var(--text-secondary)',
+                                                cursor: 'pointer',
+                                                fontSize: '0.8rem',
+                                                width: '100%'
+                                            }}
+                                        >
+                                            ↺ Desfazer Pagamento da Mensalidade
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                            {Object.entries(paymentMethodLabels).filter(([k]) => k !== 'credit_package').map(([key, label]) => (
+                                                <button
+                                                    key={key}
+                                                    onClick={() => handlePackagePayment(key)}
+                                                    disabled={loading}
+                                                    style={{
+                                                        padding: '0.5rem',
+                                                        borderRadius: '6px',
+                                                        border: '1px solid var(--border)',
+                                                        background: 'var(--bg-secondary)',
+                                                        color: 'var(--text-primary)',
+                                                        cursor: loading ? 'wait' : 'pointer',
+                                                        fontSize: '0.85rem',
+                                                        textAlign: 'left',
+                                                    }}
+                                                >
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
-                            <button
-                                onClick={handleUnpay}
-                                disabled={loading}
-                                style={{
-                                    background: 'rgba(255, 255, 255, 0.05)',
-                                    border: '1px solid var(--border)',
-                                    padding: '0.5rem 1rem',
-                                    borderRadius: '6px',
-                                    color: 'var(--text-secondary)',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem',
-                                    width: '100%'
-                                }}
-                            >
-                                ↺ Desfazer Pagamento
-                            </button>
-                        </div>
+
+                            {/* Bloco de Adicionais Avulsos do Agendamento */}
+                            {hasAddons && (
+                                <div>
+                                    <div style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem', color: '#E8826A' }}>2. PAGAMENTO DOS EXTRAS DA SESSÃO (R$ {addonsTotal.toFixed(2)})</div>
+                                    {isAddonsPaid ? (
+                                        <div style={{ textAlign: 'center' }}>
+                                            <div style={{
+                                                background: 'rgba(122, 201, 160, 0.1)',
+                                                color: 'var(--status-done)',
+                                                padding: '0.5rem',
+                                                borderRadius: '8px',
+                                                marginBottom: '0.5rem',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '0.5rem',
+                                                fontWeight: 600,
+                                                fontSize: '0.85rem',
+                                                border: '1px solid rgba(122, 201, 160, 0.2)'
+                                            }}>
+                                                ✅ Extras Pagos via {paymentMethodLabels[apptPaymentMethod || ''] || apptPaymentMethod || 'N/A'}
+                                            </div>
+                                            <button
+                                                onClick={handleApptUnpay}
+                                                disabled={loading}
+                                                style={{
+                                                    background: 'rgba(255, 255, 255, 0.05)',
+                                                    border: '1px solid var(--border)',
+                                                    padding: '4px 8px',
+                                                    borderRadius: '6px',
+                                                    color: 'var(--text-secondary)',
+                                                    cursor: 'pointer',
+                                                    fontSize: '0.8rem',
+                                                    width: '100%'
+                                                }}
+                                            >
+                                                ↺ Desfazer Pagamento dos Extras
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                                {Object.entries(paymentMethodLabels).filter(([k]) => k !== 'credit_package').map(([key, label]) => (
+                                                    <button
+                                                        key={key}
+                                                        onClick={() => handleApptPayment(key)}
+                                                        disabled={loading}
+                                                        style={{
+                                                            padding: '0.5rem',
+                                                            borderRadius: '6px',
+                                                            border: '1px solid var(--border)',
+                                                            background: 'var(--bg-secondary)',
+                                                            color: 'var(--text-primary)',
+                                                            cursor: loading ? 'wait' : 'pointer',
+                                                            fontSize: '0.85rem',
+                                                            textAlign: 'left',
+                                                        }}
+                                                    >
+                                                        {label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
                     ) : (
+                        /* Agendamento comum (não pacote) */
                         <div>
-                            <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
-                                Confirmar Pagamento:
-                            </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                {Object.entries(paymentMethodLabels).map(([key, label]) => (
+                            {isPaid ? (
+                                <div style={{ textAlign: 'center' }}>
+                                    <div style={{
+                                        background: 'rgba(122, 201, 160, 0.1)',
+                                        color: 'var(--status-done)',
+                                        padding: '0.75rem',
+                                        borderRadius: '8px',
+                                        marginBottom: '1rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '0.5rem',
+                                        fontWeight: 600,
+                                        border: '1px solid rgba(122, 201, 160, 0.2)'
+                                    }}>
+                                        ✅ Pago via {paymentMethodLabels[paymentMethod || ''] || paymentMethod || 'N/A'}
+                                    </div>
                                     <button
-                                        key={key}
-                                        onClick={() => handlePayment(key)}
+                                        onClick={handleApptUnpay}
                                         disabled={loading}
                                         style={{
-                                            padding: '0.75rem',
-                                            borderRadius: '8px',
+                                            background: 'rgba(255, 255, 255, 0.05)',
                                             border: '1px solid var(--border)',
-                                            background: 'var(--bg-secondary)',
-                                            color: 'var(--text-primary)',
-                                            cursor: loading ? 'wait' : 'pointer',
+                                            padding: '0.5rem 1rem',
+                                            borderRadius: '6px',
+                                            color: 'var(--text-secondary)',
+                                            cursor: 'pointer',
                                             fontSize: '0.9rem',
-                                            textAlign: 'left',
-                                            transition: 'all 0.2s',
+                                            width: '100%'
                                         }}
-                                        onMouseOver={(e) => e.currentTarget.style.borderColor = 'var(--primary)'}
-                                        onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--border)'}
                                     >
-                                        {label}
+                                        ↺ Desfazer Pagamento
                                     </button>
-                                ))}
-                            </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>
+                                        Confirmar Pagamento:
+                                    </div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                                        {Object.entries(paymentMethodLabels).map(([key, label]) => (
+                                            <button
+                                                key={key}
+                                                onClick={() => handleApptPayment(key)}
+                                                disabled={loading}
+                                                style={{
+                                                    padding: '0.75rem',
+                                                    borderRadius: '8px',
+                                                    border: '1px solid var(--border)',
+                                                    background: 'var(--bg-secondary)',
+                                                    color: 'var(--text-primary)',
+                                                    cursor: loading ? 'wait' : 'pointer',
+                                                    fontSize: '0.9rem',
+                                                    textAlign: 'left',
+                                                    transition: 'all 0.2s',
+                                                }}
+                                            >
+                                                {label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -353,8 +564,63 @@ export default function PaymentControls({
     )
 
     // Main Card Display (Compact Badge)
-    return (
-        <>
+    const renderBadge = () => {
+        if (isPackage) {
+            return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginTop: compact ? '0.25rem' : '0.5rem' }}>
+                    {/* Badge do Pacote */}
+                    <div
+                        onClick={(e) => { e.stopPropagation(); setShowModal(true); }}
+                        style={{
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            background: isPaid ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            border: `1px solid ${isPaid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(245, 158, 11, 0.2)'}`,
+                            transition: 'opacity 0.2s',
+                            width: 'fit-content'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
+                        onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+                    >
+                        <span style={{ fontSize: '0.85rem', fontWeight: 700, color: isPaid ? '#10b981' : '#f59e0b' }}>PACOTE</span>
+                        <span style={{ width: '1px', height: '12px', background: isPaid ? 'rgba(16, 185, 129, 0.3)' : 'rgba(245, 158, 11, 0.3)' }} />
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: isPaid ? '#10b981' : '#f59e0b' }}>{isPaid ? 'Pago' : 'Pendente'}</span>
+                    </div>
+                    
+                    {/* Badge de Adicionais/Extras */}
+                    {hasAddons && (
+                        <div
+                            onClick={(e) => { e.stopPropagation(); setShowModal(true); }}
+                            style={{
+                                cursor: 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.5rem',
+                                background: isAddonsPaid ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                border: `1px solid ${isAddonsPaid ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                                transition: 'opacity 0.2s',
+                                width: 'fit-content'
+                            }}
+                            onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
+                            onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+                        >
+                            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: isAddonsPaid ? '#10b981' : '#ef4444' }}>EXTRAS: R$ {addonsTotal.toFixed(2)}</span>
+                            <span style={{ width: '1px', height: '12px', background: isAddonsPaid ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)' }} />
+                            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: isAddonsPaid ? '#10b981' : '#ef4444' }}>{isAddonsPaid ? 'Pago' : 'Pendente'}</span>
+                        </div>
+                    )}
+                </div>
+            )
+        }
+
+        // Agendamento comum
+        return (
             <div
                 onClick={(e) => {
                     e.stopPropagation()
@@ -383,7 +649,7 @@ export default function PaymentControls({
                         fontWeight: 700,
                         color: isPaid ? '#10b981' : '#f59e0b'
                     }}>
-                        {isPackage ? 'PACOTE' : `R$ ${displayPrice.toFixed(2)}`}
+                        R$ {displayPrice.toFixed(2)}
                     </span>
                     <span style={{
                         width: '1px',
@@ -399,7 +665,12 @@ export default function PaymentControls({
                     </span>
                 </div>
             </div>
+        )
+    }
 
+    return (
+        <>
+            {renderBadge()}
             {showModal && typeof document !== 'undefined' && createPortal(paymentModalJSX, document.body)}
         </>
     )

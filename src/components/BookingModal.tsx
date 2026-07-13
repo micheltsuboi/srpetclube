@@ -84,6 +84,46 @@ export default function BookingModal({
     const [dynamicPrices, setDynamicPrices] = useState<Record<string, number>>({})
     const [loadingPrices, setLoadingPrices] = useState(false)
 
+    // Extras States
+    const [extrasList, setExtrasList] = useState<Array<{ name: string, price: number }>>([])
+    const [extraName, setExtraName] = useState('')
+    const [extraPrice, setExtraPrice] = useState('')
+    const [selectedExtraServiceId, setSelectedExtraServiceId] = useState('')
+
+    const handleSelectExtraService = (serviceId: string) => {
+        setSelectedExtraServiceId(serviceId)
+        if (!serviceId) {
+            setExtraName('')
+            setExtraPrice('')
+            return
+        }
+        const svc = services.find(s => s.id === serviceId)
+        if (svc) {
+            setExtraName(svc.name)
+            const price = dynamicPrices[svc.id] ?? svc.base_price ?? 0
+            setExtraPrice(price.toString())
+        }
+    }
+
+    const handleAddExtra = (e: React.MouseEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (!extraName || !extraPrice) return
+        const price = parseFloat(extraPrice)
+        if (isNaN(price) || price < 0) return
+
+        setExtrasList([...extrasList, { name: extraName, price }])
+        setExtraName('')
+        setExtraPrice('')
+        setSelectedExtraServiceId('')
+    }
+
+    const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setExtrasList(extrasList.filter((_, i) => i !== index))
+    }
+
     // Reset when modal opens with new initials
     useEffect(() => {
         if (isOpen) {
@@ -93,6 +133,10 @@ export default function BookingModal({
             setSelectedTime(initialHour)
             setBookingError(null)
             setPetSearchTerm('')
+            setExtrasList([])
+            setExtraName('')
+            setExtraPrice('')
+            setSelectedExtraServiceId('')
             
             // If petId is provided, we might want to fetch its details
             if (initialPetId) {
@@ -452,6 +496,109 @@ export default function BookingModal({
                                 <span className={styles.taxiTitle}>Agendar como serviço avulso (Não utilizar pacote)</span>
                             </label>
                         </div>
+                    </div>
+
+                    <div className={styles.taxiGroup} style={{ marginTop: '1rem' }}>
+                        <div className={styles.taxiHeader} style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                            <span className={styles.taxiTitle}>➕ Adicionar Serviços Extras?</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Inclua serviços adicionais que serão cobrados à parte deste agendamento.</span>
+                        </div>
+                        
+                        <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.5rem' }}>
+                                <label className={styles.labelSmall} style={{ fontSize: '0.8rem', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '0.25rem' }}>SELECIONAR SERVIÇO CADASTRADO (OPCIONAL)</label>
+                                <select
+                                    className={styles.select}
+                                    value={selectedExtraServiceId}
+                                    onChange={(e) => handleSelectExtraService(e.target.value)}
+                                    style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                                >
+                                    <option value="">Selecione para autocompletar...</option>
+                                    {services.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name} - R$ {(dynamicPrices[s.id] ?? s.base_price ?? 0).toFixed(2)}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '0.5rem', alignItems: 'end' }}>
+                                <div>
+                                    <label className={styles.labelSmall} style={{ fontSize: '0.8rem', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '0.25rem' }}>NOME DO EXTRA</label>
+                                    <input
+                                        type="text"
+                                        className={styles.input}
+                                        value={extraName}
+                                        onChange={(e) => setExtraName(e.target.value)}
+                                        placeholder="Ex: Corte de Unha"
+                                        style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className={styles.labelSmall} style={{ fontSize: '0.8rem', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '0.25rem' }}>VALOR (R$)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        className={styles.input}
+                                        value={extraPrice}
+                                        onChange={(e) => setExtraPrice(e.target.value)}
+                                        placeholder="0.00"
+                                        style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                                    />
+                                </div>
+                                <button
+                                    onClick={handleAddExtra}
+                                    className={styles.cancelBtn}
+                                    style={{
+                                        padding: '0.5rem 1rem',
+                                        fontSize: '0.85rem',
+                                        height: '38px',
+                                        borderColor: 'var(--primary)',
+                                        color: 'white',
+                                        background: 'var(--primary)',
+                                        borderRadius: '8px',
+                                        fontWeight: 'bold',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    + Add
+                                </button>
+                            </div>
+                        </div>
+
+                        {extrasList.length > 0 && (
+                            <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'rgba(255, 255, 255, 0.02)', padding: '0.75rem', borderRadius: '12px', border: '1px solid var(--border)' }}>
+                                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>EXTRAS ADICIONADOS:</span>
+                                {extrasList.map((item, index) => (
+                                    <div key={index} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255, 255, 255, 0.05)', padding: '0.5rem 0.75rem', borderRadius: '8px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'white' }}>{item.name}</span>
+                                            <span style={{ fontSize: '0.8rem', color: '#E8826A', fontWeight: 700 }}>R$ {item.price.toFixed(2)}</span>
+                                        </div>
+                                        <button
+                                            onClick={(e) => handleRemoveExtra(e, index)}
+                                            style={{
+                                                background: 'transparent',
+                                                border: 'none',
+                                                color: '#ef4444',
+                                                fontSize: '1.2rem',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                padding: '4px'
+                                            }}
+                                            title="Remover"
+                                        >
+                                            &times;
+                                        </button>
+                                    </div>
+                                ))}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--border)', paddingTop: '0.5rem', marginTop: '0.25rem', fontSize: '0.85rem', fontWeight: 'bold' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Total Extras:</span>
+                                    <span style={{ color: '#E8826A' }}>R$ {extrasList.reduce((sum, item) => sum + item.price, 0).toFixed(2)}</span>
+                                </div>
+                            </div>
+                        )}
+                        <input type="hidden" name="extras" value={JSON.stringify(extrasList)} />
                     </div>
 
                     <div className={styles.formGroup}>
