@@ -69,7 +69,9 @@ function PetsContent() {
     const [isSelling, setIsSelling] = useState(false)
     const [prefWeekdays, setPrefWeekdays] = useState<number[]>([])
     const [prefTime, setPrefTime] = useState('')
-    const [scheduleStartDate, setScheduleStartDate] = useState('') // Data de início das sessões
+    // Define a data atual considerando o fuso horário local para o campo Data de Início
+    const todayLocal = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
+    const [scheduleStartDate, setScheduleStartDate] = useState(todayLocal) // Data de início das sessões
     const [hasTaxiPackage, setHasTaxiPackage] = useState(false)
     const [taxiFeePackage, setTaxiFeePackage] = useState(0)
     const [isAutoSchedule, setIsAutoSchedule] = useState(true)
@@ -457,11 +459,16 @@ function PetsContent() {
 
             if (res.success) {
                 alert(res.message)
-                fetchPetPackageSummary()
+                await fetchPetPackageSummary()
+                router.refresh()
                 setSelectedPackageId('')
                 setPrefWeekdays([])
                 setPrefTime('')
-                setScheduleStartDate('')
+                
+                // Redefine para a data de hoje após o sucesso
+                const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
+                setScheduleStartDate(today)
+                
                 setIsAutoSchedule(false)
                 setHasTaxiPackage(false)
                 setTaxiFeePackage(0)
@@ -1217,6 +1224,8 @@ function PetsContent() {
                                                                     payment_method: curr.payment_method,
                                                                     has_taxi: curr.has_taxi,
                                                                     taxi_fee: curr.taxi_fee,
+                                                                    auto_renew: curr.auto_renew,
+                                                                    purchased_at: curr.purchased_at,
                                                                     services: []
                                                                 };
                                                             }
@@ -1231,22 +1240,10 @@ function PetsContent() {
                                                             })
                                                             const isExpanded = expandedSlotPackage === cpId
 
-                                                            // Encontrar o mês de referência (maioria das sessões)
-                                                            let referenceMonth = '';
-                                                            if (slots.length > 0) {
-                                                                const monthCounts: Record<string, number> = {};
-                                                                slots.forEach((s: any) => {
-                                                                    if (s.slot_date) {
-                                                                        const m = new Date(s.slot_date + 'T12:00:00').toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                                                                        monthCounts[m] = (monthCounts[m] || 0) + 1;
-                                                                    }
-                                                                });
-                                                                referenceMonth = Object.entries(monthCounts).reduce((a, b) => (a[1] > b[1] ? a : b))[0];
-                                                            } else {
-                                                                // Fallback: usar data de compra ou validade se não houver sessões
-                                                                const fallbackDate = pkgGroup.purchased_at || pkgGroup.expires_at || new Date().toISOString();
-                                                                referenceMonth = new Date(fallbackDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                                                            }
+                                                            // Usar a data de compra como mês de referência para evitar saltos visuais
+                                                            const fallbackDate = pkgGroup.purchased_at || pkgGroup.expires_at || new Date().toISOString();
+                                                            let referenceMonth = new Date(fallbackDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                                                            
                                                             if (referenceMonth) {
                                                                 referenceMonth = referenceMonth.charAt(0).toUpperCase() + referenceMonth.slice(1);
                                                             }

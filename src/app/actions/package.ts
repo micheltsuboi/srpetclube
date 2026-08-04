@@ -615,11 +615,13 @@ export async function reschedulePackageSlot(
     // Buscar o slot atual
     const { data: slot, error: slotError } = await supabase
         .from('package_schedule_slots')
-        .select('id, appointment_id, customer_packages(org_id, preferred_time), services(id, name)')
+        .select('id, appointment_id, customer_package_id, customer_packages(pet_id, org_id, preferred_time), services(id, name)')
         .eq('id', slotId)
         .single()
 
     if (slotError || !slot) return { message: 'Sessão não encontrada.', success: false }
+
+    const scheduledAt = `${newDate}T${newTime}:00`
 
     // Atualizar o slot
     const { error: updateError } = await supabase
@@ -636,11 +638,43 @@ export async function reschedulePackageSlot(
 
     // Se tinha agendamento vinculado, atualizar também
     if (slot.appointment_id) {
-        const scheduledAt = `${newDate}T${newTime}:00`
         await supabase
             .from('appointments')
             .update({ scheduled_at: scheduledAt })
             .eq('id', slot.appointment_id)
+    } else {
+        // Criar appointment como 'pending' para refletir na agenda
+        const cpData = Array.isArray(slot.customer_packages) ? slot.customer_packages[0] : slot.customer_packages
+        const serviceData = Array.isArray(slot.services) ? slot.services[0] : slot.services
+        if (cpData && cpData.pet_id && cpData.org_id && serviceData?.id) {
+            const { data: credit } = await supabase
+                .from('package_credits')
+                .select('id')
+                .eq('customer_package_id', slot.customer_package_id)
+                .eq('service_id', serviceData.id)
+                .single()
+
+            const { data: newAppt } = await supabase
+                .from('appointments')
+                .insert({
+                    org_id: cpData.org_id,
+                    pet_id: cpData.pet_id,
+                    service_id: serviceData.id,
+                    scheduled_at: scheduledAt,
+                    status: 'pending',
+                    package_slot_id: slotId,
+                    package_credit_id: credit?.id || null
+                })
+                .select('id')
+                .single()
+
+            if (newAppt) {
+                await supabase
+                    .from('package_schedule_slots')
+                    .update({ appointment_id: newAppt.id })
+                    .eq('id', slotId)
+            }
+        }
     }
 
     revalidatePath('/owner/pets')
