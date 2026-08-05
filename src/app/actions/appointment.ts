@@ -331,13 +331,24 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
                     .neq('status', 'cancelled')
 
                 // Count sessions for the whole customer package
-                const { count: totalInPkg } = await supabase
-                    .from('appointments')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('package_credits.customer_package_id', creditInfo.customer_package_id)
-                    .neq('status', 'cancelled')
-
-                packageUsageIndex = (totalInPkg || 0) + 1
+                // 1. Encontrar todos os créditos que pertencem a este pacote
+                const { data: siblingCredits } = await supabase
+                    .from('package_credits')
+                    .select('id')
+                    .eq('customer_package_id', creditInfo.customer_package_id)
+                
+                if (siblingCredits && siblingCredits.length > 0) {
+                    const creditIds = siblingCredits.map(c => c.id)
+                    const { count: totalInPkg } = await supabase
+                        .from('appointments')
+                        .select('id', { count: 'exact', head: true })
+                        .in('package_credit_id', creditIds)
+                        .neq('status', 'cancelled')
+                        
+                    packageUsageIndex = (totalInPkg || 0) + 1
+                } else {
+                    packageUsageIndex = 1
+                }
             }
         } catch (e) {
             console.error('Error calculating session index:', e)

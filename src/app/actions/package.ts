@@ -910,7 +910,10 @@ export async function cancelCustomerPackage(id: string): Promise<ActionState> {
     return { message: 'Pacote cancelado.', success: true }
 }
 
+import { unstable_noStore as noStore } from 'next/cache'
+
 export async function getPetPackagesWithUsage(petId: string) {
+    noStore();
     const supabase = await createClient()
 
     // 1. Buscar resumo dos pacotes (usando a função RPC existente para facilitar)
