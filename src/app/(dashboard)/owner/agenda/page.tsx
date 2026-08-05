@@ -462,22 +462,17 @@ export default function AgendaPage() {
                 }}
             >
                 {isPackage && (() => {
-                    const pgRaw = appt.package_credits || appt.package_schedule_slots;
+                    // Usa o total_quantity do crédito específico do appointment (e não a soma de todos os serviços)
+                    const pgRaw = appt.package_credits;
                     const pg = Array.isArray(pgRaw) ? pgRaw[0] : pgRaw;
-                    const cpRaw = pg?.customer_packages;
-                    const cpData = Array.isArray(cpRaw) ? cpRaw[0] : cpRaw;
-                    const allCredits = cpData?.package_credits || [];
-                    const globalTotal = Array.isArray(allCredits) 
-                        ? allCredits.reduce((sum: number, c: any) => sum + (c.total_quantity || 0), 0)
-                        : (pg?.total_quantity || 0);
-
-                    const total = globalTotal || pg?.total_quantity;
-                    const rawIdx = appt.package_usage_index || 1;
-                    const idx = total ? Math.min(rawIdx, total) : rawIdx;
+                    const total = pg?.total_quantity || null;
+                    // package_usage_index é a posição real (1-based) gravada no banco ao criar o slot
+                    const rawIdx = appt.package_usage_index;
+                    const idx = rawIdx ? (total ? Math.min(rawIdx, total) : rawIdx) : null;
                     return (
-                        <div className={styles.packageHeaderBadge} title={`Sessão do pacote ${idx}`}>
+                        <div className={styles.packageHeaderBadge} title={idx ? `Sessão ${idx} de ${total}` : 'Sessão de pacote'}>
                             <Package size={14} style={{ marginRight: '4px' }} />
-                            Sessão {idx} {total ? ` de ${total}` : ''}
+                            {idx && total ? `Sessão ${idx} de ${total}` : idx ? `Sessão ${idx}` : 'Pacote'}
                         </div>
                     );
                 })()}
