@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { createPet, updatePet, deletePet, updatePetVaccineCard, searchPets } from '@/app/actions/pet'
 import { sellPackageToPet, getPetPackagesWithUsage, deleteCustomerPackage, updatePackageAutoRenew } from '@/app/actions/package'
 import { getPetAssessment } from '@/app/actions/petAssessment'
-import { getPetAppointmentsByCategory as getPetAppointments } from '@/app/actions/appointment'
+import { getPetAppointmentsByCategory as getPetAppointments, updateAppointmentStatus } from '@/app/actions/appointment'
 import { getPetshopHistory, payPetshopSale } from '@/app/actions/petshop'
 import { createVaccine, deleteVaccine, getPetVaccines } from '@/app/actions/vaccine'
 import PetAssessmentForm from '@/components/PetAssessmentForm'
@@ -507,6 +507,16 @@ function PetsContent() {
             fetchPetPackageSummary()
         } else {
             alert(res.message)
+        }
+    }
+
+    const handleUndoNoShow = async (appointmentId: string) => {
+        if (!confirm('Deseja realmente desfazer a Falta? O agendamento voltará a ficar Pendente.')) return;
+        const result = await updateAppointmentStatus(appointmentId, 'pending')
+        if (result.success) {
+            fetchPetPackageSummary()
+        } else {
+            alert(result.message)
         }
     }
 
@@ -1369,7 +1379,7 @@ function PetsContent() {
                                                                                             }
                                                                                             const s = statusMap[slot.status] || statusMap.pending
                                                                                             return (
-                                                                                                <div key={slot.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.75rem', background: 'var(--bg-primary)', borderRadius: '6px', borderLeft: `3px solid ${s.color}` }}>
+                                                                                                <div key={slot.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.75rem', background: slot.status === 'no_show' ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-primary)', borderRadius: '6px', borderLeft: `3px solid ${s.color}` }}>
                                                                                                     <div>
                                                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                                                                             <span>{s.icon}</span>
@@ -1393,6 +1403,15 @@ function PetsContent() {
                                                                                                             style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: 'none', background: 'rgba(139,92,246,0.2)', color: '#8B5CF6', cursor: 'pointer' }}
                                                                                                         >
                                                                                                             Reagendar
+                                                                                                        </button>
+                                                                                                    )}
+                                                                                                    {slot.status === 'no_show' && (
+                                                                                                        <button
+                                                                                                            type="button"
+                                                                                                            onClick={() => handleUndoNoShow(slot.id)}
+                                                                                                            style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid #8B5CF6', background: 'transparent', color: '#8B5CF6', cursor: 'pointer' }}
+                                                                                                        >
+                                                                                                            Desfazer Falta
                                                                                                         </button>
                                                                                                     )}
                                                                                                 </div>

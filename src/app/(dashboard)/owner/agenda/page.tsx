@@ -383,12 +383,13 @@ export default function AgendaPage() {
         }
     }
 
-    const handleSmartAction = async (appt: Appointment, action: 'checkin' | 'checkout' | 'start' | 'noshow') => {
+    const handleSmartAction = async (appt: Appointment, action: 'checkin' | 'checkout' | 'start' | 'noshow' | 'undo_noshow') => {
         let res
         if (action === 'checkin') res = await checkInAppointment(appt.id)
         else if (action === 'checkout') res = await checkOutAppointment(appt.id)
         else if (action === 'start') res = await updateAppointmentStatus(appt.id, 'in_progress')
         else if (action === 'noshow') res = await updateAppointmentStatus(appt.id, 'no_show')
+        else if (action === 'undo_noshow') res = await updateAppointmentStatus(appt.id, 'pending')
 
         if (res?.success) fetchData()
         else alert(res?.message || 'Erro ao atualizar status')
@@ -570,6 +571,9 @@ export default function AgendaPage() {
                     )}
                     {!appt.actual_check_in && appt.status !== 'done' && appt.status !== 'no_show' && (
                         <button className={styles.actionBtn} style={{ background: 'transparent', color: '#EF4444' }} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'noshow') }}>Falta ❌</button>
+                    )}
+                    {appt.status === 'no_show' && (
+                        <button className={styles.actionBtn} style={{ background: 'transparent', color: '#8B5CF6' }} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'undo_noshow') }}>Desfazer Falta ↩️</button>
                     )}
                     <div className={styles.cardTopActions}>
                         <button className={styles.quickEditBtn} onClick={(e) => { e.stopPropagation(); setEditingAppointment(appt); }} title="Editar">✏️</button>

@@ -183,6 +183,16 @@ export default function HospedagemPage() {
         }
     }
 
+    const handleUndoNoShow = async (appointmentId: string) => {
+        if (!confirm('Deseja realmente desfazer a Falta? O agendamento voltará a ficar Pendente.')) return;
+        const result = await updateAppointmentStatus(appointmentId, 'pending')
+        if (result.success) {
+            fetchHospedagemData()
+        } else {
+            alert(result.message)
+        }
+    }
+
     const handleCheckOut = async (appointmentId: string) => {
         const result = await checkOutAppointment(appointmentId)
         if (result.success) {
@@ -495,10 +505,22 @@ export default function HospedagemPage() {
                                         </div>
                                     )}
                                     {viewMode === 'history' && (
-                                        <button
-                                            style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#475569', color: '#e2e8f0', cursor: 'pointer', fontWeight: 600 }}>
-                                            📜 Ver Relatório
-                                        </button>
+                                        <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                                            <button
+                                                style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#475569', color: '#e2e8f0', cursor: 'pointer', fontWeight: 600 }}>
+                                                📜 Ver Relatório
+                                            </button>
+                                            {appt.status === 'no_show' && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleUndoNoShow(appt.id)
+                                                    }}
+                                                    style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #8B5CF6', background: 'transparent', color: '#8B5CF6', cursor: 'pointer', fontWeight: 600 }}>
+                                                    ↩️ Desfazer Falta
+                                                </button>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             </div>
