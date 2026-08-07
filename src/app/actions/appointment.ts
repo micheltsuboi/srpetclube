@@ -427,6 +427,12 @@ export async function updateAppointmentStatus(id: string, status: string) {
 
     if (error) return { message: error.message, success: false }
 
+    // Sync status to package_schedule_slots if it belongs to a package
+    await supabase
+        .from('package_schedule_slots')
+        .update({ status })
+        .eq('appointment_id', id)
+
     revalidatePath('/owner/agenda')
     return { message: 'Status atualizado.', success: true }
 }

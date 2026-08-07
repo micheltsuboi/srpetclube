@@ -1405,10 +1405,10 @@ function PetsContent() {
                                                                                                             Reagendar
                                                                                                         </button>
                                                                                                     )}
-                                                                                                    {slot.status === 'no_show' && (
+                                                                                                    {slot.status === 'no_show' && slot.appointment_id && (
                                                                                                         <button
                                                                                                             type="button"
-                                                                                                            onClick={() => handleUndoNoShow(slot.id)}
+                                                                                                            onClick={() => handleUndoNoShow(slot.appointment_id)}
                                                                                                             style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid #8B5CF6', background: 'transparent', color: '#8B5CF6', cursor: 'pointer' }}
                                                                                                         >
                                                                                                             Desfazer Falta
