@@ -89,7 +89,7 @@ export default function HospedagemPage() {
             // Status Filter based on viewMode
             const statusFilter = viewMode === 'active'
                 ? ['pending', 'confirmed', 'in_progress']
-                : ['done', 'completed']
+                : ['done', 'completed', 'no_show']
 
             // Fetch Appointments
 
@@ -167,6 +167,16 @@ export default function HospedagemPage() {
         const result = await checkInAppointment(appointmentId)
         if (result.success) {
             alert(result.message)
+            fetchHospedagemData()
+        } else {
+            alert(result.message)
+        }
+    }
+
+    const handleNoShow = async (appointmentId: string) => {
+        if (!confirm('Tem certeza que deseja marcar Falta para este agendamento? O crédito será consumido.')) return;
+        const result = await updateAppointmentStatus(appointmentId, 'no_show')
+        if (result.success) {
             fetchHospedagemData()
         } else {
             alert(result.message)
@@ -274,9 +284,9 @@ export default function HospedagemPage() {
                                 key={appt.id}
                                 className={`${styles.appointmentCard} ${appt.package_credit_id ? styles.packageCard : ''}`}
                                 style={{
-                                    borderLeft: `4px solid ${categoryColor}`,
+                                    borderLeft: `4px solid ${appt.status === 'no_show' ? '#EF4444' : categoryColor}`,
+                                    opacity: appt.status === 'no_show' ? 0.7 : 1,
                                     background: appt.package_credit_id ? 'rgba(155, 89, 182, 0.05)' : 'var(--bg-secondary)',
-                                    opacity: 1,
                                     cursor: 'default',
                                     position: 'relative'
                                 }}>
@@ -460,11 +470,20 @@ export default function HospedagemPage() {
                                     {viewMode === 'active' && (
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                                             {appt.status !== 'in_progress' && (
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); handleCheckIn(appt.id) }}
-                                                    style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#10B981', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
-                                                    📥 Check-in
-                                                </button>
+                                                <>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); handleCheckIn(appt.id) }}
+                                                        style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#10B981', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
+                                                        📥 Check-in
+                                                    </button>
+                                                    {appt.status !== 'no_show' && (
+                                                        <button
+                                                            onClick={(e) => { e.stopPropagation(); handleNoShow(appt.id) }}
+                                                            style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #EF4444', background: 'transparent', color: '#EF4444', cursor: 'pointer', fontWeight: 600 }}>
+                                                            ❌ Falta
+                                                        </button>
+                                                    )}
+                                                </>
                                             )}
                                             {appt.status === 'in_progress' && (
                                                 <button

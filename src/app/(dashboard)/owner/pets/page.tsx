@@ -1365,6 +1365,7 @@ function PetsContent() {
                                                                                                 pending: { icon: '📅', label: 'Pendente', color: '#F59E0B' },
                                                                                                 skipped: { icon: '⏭️', label: 'Pulado', color: '#6B7280' },
                                                                                                 rescheduled: { icon: '🔄', label: 'Reagendado', color: '#8B5CF6' },
+                                                                                                no_show: { icon: '❌', label: 'Falta', color: '#EF4444' },
                                                                                             }
                                                                                             const s = statusMap[slot.status] || statusMap.pending
                                                                                             return (
@@ -1462,7 +1463,7 @@ function PetsContent() {
                                                 ) : (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                         {crecheHistory.map((appt: any) => (
-                                                            <div key={appt.id} style={{ padding: '0.75rem', borderRadius: '6px', background: 'var(--bg-secondary)', borderLeft: `4px solid #10B981` }}>
+                                                            <div key={appt.id} style={{ padding: '0.75rem', borderRadius: '6px', background: appt.status === 'no_show' ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-secondary)', borderLeft: `4px solid ${appt.status === 'no_show' ? '#EF4444' : '#10B981'}` }}>
                                                                 {appt.package_credit_id && appt.package_usage_index && (() => {
                                                                     const pg = appt.package_credits;
                                                                     const cpData = Array.isArray(pg?.customer_packages) ? pg.customer_packages[0] : pg?.customer_packages;
@@ -1472,14 +1473,14 @@ function PetsContent() {
                                                                         : (pg?.total_quantity || 0);
                                                                     const idx = total ? Math.min(appt.package_usage_index, total) : appt.package_usage_index;
                                                                     return (
-                                                                        <div style={{ fontSize: '0.7rem', color: '#8b5cf6', fontWeight: 600, marginBottom: '2px' }}>
+                                                                        <div style={{ fontSize: '0.7rem', color: appt.status === 'no_show' ? '#EF4444' : '#8b5cf6', fontWeight: 600, marginBottom: '2px' }}>
                                                                             Sessão {idx} {total ? ` de ${total}` : ''}
                                                                         </div>
                                                                     );
                                                                 })()}
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                                                     <span style={{ fontWeight: 600 }}>{new Date(appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
-                                                                    <span style={{ fontSize: '0.85rem' }}>{appt.status}</span>
+                                                                    <span style={{ fontSize: '0.85rem', color: appt.status === 'no_show' ? '#EF4444' : 'inherit' }}>{appt.status === 'no_show' ? '❌ Falta' : (appt.status === 'done' ? '✅ Realizado' : (appt.status === 'pending' ? '📅 Pendente' : appt.status))}</span>
                                                                 </div>
                                                                 <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{new Date(appt.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
                                                             </div>

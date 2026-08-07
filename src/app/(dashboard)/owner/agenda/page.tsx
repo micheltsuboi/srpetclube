@@ -383,11 +383,12 @@ export default function AgendaPage() {
         }
     }
 
-    const handleSmartAction = async (appt: Appointment, action: 'checkin' | 'checkout' | 'start') => {
+    const handleSmartAction = async (appt: Appointment, action: 'checkin' | 'checkout' | 'start' | 'noshow') => {
         let res
         if (action === 'checkin') res = await checkInAppointment(appt.id)
         else if (action === 'checkout') res = await checkOutAppointment(appt.id)
         else if (action === 'start') res = await updateAppointmentStatus(appt.id, 'in_progress')
+        else if (action === 'noshow') res = await updateAppointmentStatus(appt.id, 'no_show')
 
         if (res?.success) fetchData()
         else alert(res?.message || 'Erro ao atualizar status')
@@ -400,6 +401,7 @@ export default function AgendaPage() {
             case 'in_progress': return '🔥 Em Andamento'
             case 'done': return '🏁 Finalizado'
             case 'cancelled': return '❌ Cancelado'
+            case 'no_show': return '❌ Falta'
             default: return status
         }
     }
@@ -456,9 +458,9 @@ export default function AgendaPage() {
                 onClick={(e) => { e.stopPropagation(); handleOpenDetail(appt) }}
                 style={{
                     minWidth: '300px',
-                    borderLeft: `4px solid ${needsAdaptation ? '#f1c40f' : categoryColor}`,
-                    backgroundColor: appt.status === 'done' ? 'var(--bg-tertiary)' : (isPackage ? 'rgba(155, 89, 182, 0.05)' : (needsAdaptation ? 'rgba(241, 196, 15, 0.05)' : 'var(--bg-secondary)')),
-                    opacity: appt.status === 'done' ? 0.7 : 1
+                    borderLeft: `4px solid ${appt.status === 'no_show' ? '#EF4444' : (needsAdaptation ? '#f1c40f' : categoryColor)}`,
+                    backgroundColor: appt.status === 'done' ? 'var(--bg-tertiary)' : appt.status === 'no_show' ? 'rgba(239, 68, 68, 0.05)' : (isPackage ? 'rgba(155, 89, 182, 0.05)' : (needsAdaptation ? 'rgba(241, 196, 15, 0.05)' : 'var(--bg-secondary)')),
+                    opacity: appt.status === 'done' || appt.status === 'no_show' ? 0.7 : 1
                 }}
             >
                 {isPackage && (() => {
@@ -560,11 +562,14 @@ export default function AgendaPage() {
                 })()}
 
                 <div className={styles.quickActions}>
-                    {!appt.actual_check_in && (
+                    {!appt.actual_check_in && appt.status !== 'no_show' && (
                         <button className={styles.actionBtn} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'checkin') }}>Entrada ➡️</button>
                     )}
                     {appt.actual_check_in && !appt.actual_check_out && (
                         <button className={styles.actionBtn} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'checkout') }}>Saída ⬅️</button>
+                    )}
+                    {!appt.actual_check_in && appt.status !== 'done' && appt.status !== 'no_show' && (
+                        <button className={styles.actionBtn} style={{ background: 'transparent', color: '#EF4444' }} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'noshow') }}>Falta ❌</button>
                     )}
                     <div className={styles.cardTopActions}>
                         <button className={styles.quickEditBtn} onClick={(e) => { e.stopPropagation(); setEditingAppointment(appt); }} title="Editar">✏️</button>
