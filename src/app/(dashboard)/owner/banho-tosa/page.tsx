@@ -524,15 +524,6 @@ export default function BanhoTosaPage() {
                                             <button
                                                 onClick={(e) => {
                                                     e.stopPropagation()
-                                                    handleCheckIn(appt.id)
-                                                }}
-                                                style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#10B981', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
-                                                🟢 Iniciar Atendimento
-                                            </button>
-                                        ) : !appt.actual_check_out ? (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
                                                     handleCheckOut(appt.id)
                                                 }}
                                                 style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#2563EB', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
