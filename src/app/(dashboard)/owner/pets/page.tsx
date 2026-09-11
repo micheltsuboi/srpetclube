@@ -446,7 +446,7 @@ function PetsContent() {
             const res = await sellPackageToPet(
                 selectedPet.id,
                 selectedPackageId,
-                pkg.total_price,
+                finalTotal,
                 'other',
                 isAutoSchedule && prefWeekdays.length > 0 ? prefWeekdays : undefined,
                 isAutoSchedule && prefTime ? prefTime : undefined,

@@ -41,8 +41,13 @@ export default function PackagePaymentControls({
     const [loading, setLoading] = useState(false)
 
     const isPaid = paymentStatus === 'paid'
-    const displayPrice = totalPaid ?? calculatedPrice ?? 0
     const basePrice = (calculatedPrice ?? 0) - (hasTaxi ? taxiFee : 0) // Preço do pacote sem o taxi
+    let displayPrice = totalPaid ?? calculatedPrice ?? 0
+
+    // Corrige pacotes antigos onde o totalPaid foi salvo apenas com o valor base (sem o taxi)
+    if (hasTaxi && (!discountPercent || discountPercent === 0) && totalPaid === basePrice) {
+        displayPrice = basePrice + taxiFee
+    }
 
     useEffect(() => {
         setDiscountValue(discountPercent?.toString() || '0')
