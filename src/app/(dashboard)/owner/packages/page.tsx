@@ -43,6 +43,66 @@ const initialState = { message: '', success: false }
 export default function PackagesPage() {
     const supabase = createClient()
     const [packages, setPackages] = useState<ServicePackage[]>([])
+    const [activeTab, setActiveTab] = useState<'modelos' | 'ativos'>('modelos')
+    const [activePackages, setActivePackages] = useState<any[]>([])
+
+    const fetchActivePackages = useCallback(async () => {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
+
+        const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+        if (!profile) return
+
+        const { data } = await supabase
+            .from('customer_packages')
+            .select(`
+                id,
+                created_at,
+                expires_at,
+                is_active,
+                total_price,
+                discount_percent,
+                calculated_price,
+                payment_status,
+                payment_method,
+                service_packages (
+                    name,
+                    validity_type,
+                    validity_days
+                ),
+                pets (
+                    id,
+                    name,
+                    customers (
+                        name,
+                        phone_1
+                    )
+                ),
+                package_credits (
+                    id,
+                    total_quantity,
+                    used_quantity,
+                    remaining_quantity,
+                    services (
+                        name
+                    )
+                )
+            `)
+            .eq('org_id', profile.org_id)
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+
+        if (data) {
+            setActivePackages(data)
+        }
+    }, [supabase])
+
+    useEffect(() => {
+        if (activeTab === 'ativos') {
+            fetchActivePackages()
+        }
+    }, [activeTab, fetchActivePackages])
+
     const [services, setServices] = useState<Service[]>([])
 
     // Modal State
@@ -228,13 +288,50 @@ export default function PackagesPage() {
                     <Link href="/owner" style={{ color: 'var(--primary)', marginBottom: '0.5rem', fontSize: '0.9rem', textDecoration: 'none' }}>← Voltar</Link>
                     <h1 className={styles.title}>Pacotes de Serviços</h1>
                     <p style={{ color: '#666', fontSize: '0.9rem' }}>
-                        Crie pacotes mensais com múltiplos serviços. Créditos não utilizados acumulam para o próximo mês.
+                        Gerencie os modelos e visualize os pacotes ativos dos clientes.
                     </p>
                 </div>
-                <button className={styles.actionButton} onClick={handleCreate}>
-                    + Novo Pacote
+                {activeTab === 'modelos' && (
+                    <button className={styles.actionButton} onClick={handleCreate}>
+                        + Novo Pacote
+                    </button>
+                )}
+            </div>
+
+            <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #334155', marginBottom: '2rem' }}>
+                <button
+                    onClick={() => setActiveTab('modelos')}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: activeTab === 'modelos' ? '2px solid var(--primary)' : '2px solid transparent',
+                        color: activeTab === 'modelos' ? 'white' : '#94a3b8',
+                        padding: '0.5rem 1rem',
+                        fontSize: '1rem',
+                        fontWeight: activeTab === 'modelos' ? 'bold' : 'normal',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Modelos de Pacotes
+                </button>
+                <button
+                    onClick={() => setActiveTab('ativos')}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: activeTab === 'ativos' ? '2px solid var(--primary)' : '2px solid transparent',
+                        color: activeTab === 'ativos' ? 'white' : '#94a3b8',
+                        padding: '0.5rem 1rem',
+                        fontSize: '1rem',
+                        fontWeight: activeTab === 'ativos' ? 'bold' : 'normal',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Pacotes Vendidos Ativos
                 </button>
             </div>
+
+            {activeTab === 'modelos' ? (
 
             <div className={styles.grid}>
                 {packages.map(pkg => (
@@ -286,6 +383,57 @@ export default function PackagesPage() {
                     </div>
                 )}
             </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {activePackages.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '3rem', color: '#999' }}>Nenhum pacote ativo encontrado.</div>
+                    ) : (
+                        activePackages.map((cp) => (
+                            <div key={cp.id} style={{ background: 'var(--bg-secondary)', borderRadius: '12px', padding: '1.5rem', border: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: '2fr 1.5fr 1fr', gap: '1rem', alignItems: 'center' }}>
+                                <div>
+                                    <h3 style={{ fontSize: '1.1rem', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                        📦 {cp.service_packages?.name}
+                                    </h3>
+                                    <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                        <strong>Pet:</strong> <Link href={`/owner/pets?petId=${cp.pets?.id}`} style={{ color: 'var(--primary)', textDecoration: 'none' }}>{cp.pets?.name}</Link> ({cp.pets?.customers?.name})
+                                    </p>
+                                    <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>
+                                        Adquirido em: {new Date(cp.created_at).toLocaleDateString('pt-BR')} 
+                                        {cp.expires_at && ` • Vence em: ${new Date(cp.expires_at).toLocaleDateString('pt-BR')}`}
+                                    </p>
+                                </div>
+                                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '1rem', borderRadius: '8px' }}>
+                                    <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '0.85rem', color: '#94a3b8', textTransform: 'uppercase' }}>Créditos Atuais</h4>
+                                    {cp.package_credits?.map((cred: any) => (
+                                        <div key={cred.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '0.25rem' }}>
+                                            <span>{cred.services?.name}</span>
+                                            <strong style={{ color: cred.remaining_quantity > 0 ? 'var(--primary)' : '#ef4444' }}>
+                                                {cred.remaining_quantity} / {cred.total_quantity}
+                                            </strong>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div style={{ textAlign: 'right' }}>
+                                    <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+                                        R$ {cp.calculated_price?.toFixed(2)}
+                                    </div>
+                                    <span style={{ 
+                                        display: 'inline-block', 
+                                        padding: '0.25rem 0.5rem', 
+                                        borderRadius: '4px', 
+                                        fontSize: '0.75rem', 
+                                        fontWeight: 'bold',
+                                        background: cp.payment_status === 'paid' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                        color: cp.payment_status === 'paid' ? '#10B981' : '#ef4444'
+                                    }}>
+                                        {cp.payment_status === 'paid' ? 'Pago' : 'Pendente'}
+                                    </span>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            )}
 
             {/* Modal */}
             {showModal && (
