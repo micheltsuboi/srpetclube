@@ -10,7 +10,7 @@ import { createPet, updatePet, deletePet, updatePetVaccineCard, searchPets } fro
 import { sellPackageToPet, getPetPackagesWithUsage, deleteCustomerPackage, renewCustomerPackage } from '@/app/actions/package'
 import { getPetAssessment } from '@/app/actions/petAssessment'
 import { getPetAppointmentsByCategory as getPetAppointments, updateAppointmentStatus } from '@/app/actions/appointment'
-import { getPetshopHistory, payPetshopSale } from '@/app/actions/petshop'
+import { getPetshopHistory, payPetshopSale, deletePetshopSale } from '@/app/actions/petshop'
 import { createVaccine, deleteVaccine, getPetVaccines } from '@/app/actions/vaccine'
 import PetAssessmentForm from '@/components/PetAssessmentForm'
 import ImageUpload from '@/components/ImageUpload'
@@ -1680,28 +1680,47 @@ function PetsContent() {
                                                                 </div>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                     <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{new Date(sale.created_at).toLocaleDateString('pt-BR')} • {sale.payment_status === 'paid' ? 'Pago' : 'Pendente'}</div>
-                                                                    {sale.payment_status === 'pending' && (
+                                                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                                        {sale.payment_status === 'pending' && (
+                                                                            <button
+                                                                                type="button"
+                                                                                style={{ padding: '0.25rem 0.5rem', background: '#10B981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                                                onClick={async () => {
+                                                                                    if (confirm(`Confirmar pagamento de R$ ${sale.total_price.toFixed(2)} para ${sale.product_name}?`)) {
+                                                                                        const paymentMethod = prompt('Qual a forma de pagamento? (pix, cash, credit, debit)', 'pix')
+                                                                                        if (paymentMethod) {
+                                                                                            const res = await payPetshopSale(sale.id, paymentMethod)
+                                                                                            if (res.success) {
+                                                                                                alert(res.message)
+                                                                                                getPetshopHistory(selectedPet.id).then(r => setPetshopHistory(r.data || []))
+                                                                                            } else {
+                                                                                                alert(res.message)
+                                                                                            }
+                                                                                        }
+                                                                                    }
+                                                                                }}
+                                                                            >
+                                                                                💵 Marcar como Pago
+                                                                            </button>
+                                                                        )}
                                                                         <button
                                                                             type="button"
-                                                                            style={{ padding: '0.25rem 0.5rem', background: '#10B981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
+                                                                            style={{ padding: '0.25rem 0.5rem', background: '#EF4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}
                                                                             onClick={async () => {
-                                                                                if (confirm(`Confirmar pagamento de R$ ${sale.total_price.toFixed(2)} para ${sale.product_name}?`)) {
-                                                                                    const paymentMethod = prompt('Qual a forma de pagamento? (pix, cash, credit, debit)', 'pix')
-                                                                                    if (paymentMethod) {
-                                                                                        const res = await payPetshopSale(sale.id, paymentMethod)
-                                                                                        if (res.success) {
-                                                                                            alert(res.message)
-                                                                                            getPetshopHistory(selectedPet.id).then(r => setPetshopHistory(r.data || []))
-                                                                                        } else {
-                                                                                            alert(res.message)
-                                                                                        }
+                                                                                if (confirm(`Tem certeza que deseja excluir esta venda de ${sale.product_name}? O estoque será devolvido e o financeiro (se pago) removido.`)) {
+                                                                                    const res = await deletePetshopSale(sale.id)
+                                                                                    if (res.success) {
+                                                                                        alert(res.message)
+                                                                                        getPetshopHistory(selectedPet.id).then(r => setPetshopHistory(r.data || []))
+                                                                                    } else {
+                                                                                        alert(res.message)
                                                                                     }
                                                                                 }
                                                                             }}
                                                                         >
-                                                                            💵 Marcar como Pago
+                                                                            🗑️ Excluir
                                                                         </button>
-                                                                    )}
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         ))}

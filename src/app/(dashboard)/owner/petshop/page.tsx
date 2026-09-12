@@ -16,6 +16,7 @@ export default function PetshopPage() {
     const [editingProduct, setEditingProduct] = useState<Product | null>(null)
     const [viewProduct, setViewProduct] = useState<Product | null>(null)
     const [isSaleModalOpen, setIsSaleModalOpen] = useState(false)
+    const [isSavingSale, setIsSavingSale] = useState(false)
     const [saleData, setSaleData] = useState({
         quantity: 1,
         tempDiscountPercent: 0,
@@ -171,7 +172,8 @@ export default function PetshopPage() {
 
     const handleConfirmSale = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!productToSell) return
+        if (!productToSell || isSavingSale) return
+        setIsSavingSale(true)
 
         try {
             const discountAmount = (productToSell.price * saleData.quantity) * (saleData.tempDiscountPercent / 100)
