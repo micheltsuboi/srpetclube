@@ -41,25 +41,31 @@ export default function CreditAlerts() {
                     return
                 }
 
-                // Fetch credits with remaining <= 2 and join with pets and customers
+                // Fetch credits with remaining <= 1 and join with pets and customers
                 const { data: credits, error } = await supabase
-                    .from('service_credits')
+                    .from('package_credits')
                     .select(`
                         id,
-                        pet_id,
-                        service_type,
                         remaining_quantity,
-                        pets!inner (
-                            id,
-                            name,
-                            customers!inner (
+                        customer_packages!inner (
+                            org_id,
+                            is_active,
+                            pets (
+                                id,
                                 name,
-                                phone_1
+                                customers (
+                                    name,
+                                    phone_1
+                                )
                             )
+                        ),
+                        services!inner (
+                            name
                         )
                     `)
-                    .eq('org_id', profile.org_id)
-                    .lte('remaining_quantity', 2)
+                    .eq('customer_packages.org_id', profile.org_id)
+                    .eq('customer_packages.is_active', true)
+                    .lte('remaining_quantity', 1)
                     .gt('remaining_quantity', 0)
                     .order('remaining_quantity', { ascending: true })
 
@@ -72,16 +78,18 @@ export default function CreditAlerts() {
                 // Transform data - Supabase returns nested relations
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 const transformedAlerts: LowCreditAlert[] = (credits || []).map((credit: any) => {
-                    const pet = Array.isArray(credit.pets) ? credit.pets[0] : credit.pets
-                    const customer = pet ? (Array.isArray(pet.customers) ? pet.customers[0] : pet.customers) : null
+                    const cp = Array.isArray(credit.customer_packages) ? credit.customer_packages[0] : credit.customer_packages
+                    const pet = cp?.pets ? (Array.isArray(cp.pets) ? cp.pets[0] : cp.pets) : null
+                    const customer = pet?.customers ? (Array.isArray(pet.customers) ? pet.customers[0] : pet.customers) : null
+                    const service = Array.isArray(credit.services) ? credit.services[0] : credit.services
 
                     return {
                         credit_id: credit.id,
-                        pet_id: credit.pet_id,
+                        pet_id: pet?.id || '',
                         pet_name: pet?.name || 'Desconhecido',
                         customer_name: customer?.name || 'Desconhecido',
                         customer_phone: customer?.phone_1 || null,
-                        service_type: credit.service_type,
+                        service_type: service?.name || 'Serviço',
                         remaining: credit.remaining_quantity
                     }
                 })

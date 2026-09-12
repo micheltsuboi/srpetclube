@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
 import { createPet, updatePet, deletePet, updatePetVaccineCard, searchPets } from '@/app/actions/pet'
-import { sellPackageToPet, getPetPackagesWithUsage, deleteCustomerPackage, updatePackageAutoRenew } from '@/app/actions/package'
+import { sellPackageToPet, getPetPackagesWithUsage, deleteCustomerPackage, renewCustomerPackage } from '@/app/actions/package'
 import { getPetAssessment } from '@/app/actions/petAssessment'
 import { getPetAppointmentsByCategory as getPetAppointments, updateAppointmentStatus } from '@/app/actions/appointment'
 import { getPetshopHistory, payPetshopSale } from '@/app/actions/petshop'
@@ -501,9 +501,11 @@ function PetsContent() {
         }
     }
 
-    const handleToggleAutoRenew = async (customerPackageId: string, currentValue: boolean) => {
-        const res = await updatePackageAutoRenew(customerPackageId, !currentValue)
+    const handleManualRenew = async (customerPackageId: string) => {
+        if (!confirm('Deseja renovar este pacote agora? Os agendamentos seguirão o mesmo padrão de dia e horário.')) return
+        const res = await renewCustomerPackage(customerPackageId)
         if (res.success) {
+            alert('Pacote renovado com sucesso!')
             fetchPetPackageSummary()
         } else {
             alert(res.message)
@@ -1177,15 +1179,6 @@ function PetsContent() {
                                                                     <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>🚗 Incluir Taxi Dog no Pacote?</span>
                                                                 </label>
                                                                 
-                                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginTop: '0.75rem', color: 'var(--text-primary)' }}>
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={isAutoRenew}
-                                                                        onChange={e => setIsAutoRenew(e.target.checked)}
-                                                                    />
-                                                                    <span style={{ fontWeight: 600, fontSize: '0.95rem' }}>🔄 Renovar automaticamente no vencimento?</span>
-                                                                </label>
-                                                                
                                                                 {hasTaxiPackage && (
                                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', background: 'rgba(255,255,255,0.05)', padding: '0.75rem', borderRadius: '8px' }}>
                                                                         <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Taxa Total de Transporte (R$):</label>
@@ -1265,14 +1258,11 @@ function PetsContent() {
                                                                             <h4 style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>📦 {pkgGroup.name} {referenceMonth && <span style={{ fontSize: '0.85rem', color: 'var(--primary)', marginLeft: '0.5rem', fontWeight: 'normal' }}>({referenceMonth})</span>}</h4>
                                                                             <div className={styles.packageDate} style={{ marginTop: '0.2rem' }}>Validade: {pkgGroup.expires_at ? new Date(pkgGroup.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}</div>
                                                                             <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                                                <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', backgroundColor: pkgGroup.auto_renew ? 'rgba(var(--primary-rgb), 0.15)' : 'rgba(0,0,0,0.05)', color: pkgGroup.auto_renew ? 'var(--primary)' : 'var(--text-secondary)' }}>
-                                                                                    {pkgGroup.auto_renew ? '🔄 Renovação Automática: ATIVA' : '⏹️ Renovação Automática: DESATIVADA'}
-                                                                                </span>
                                                                                 <button 
-                                                                                    onClick={() => handleToggleAutoRenew(cpId, pkgGroup.auto_renew)}
-                                                                                    style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg-primary)', cursor: 'pointer', color: 'var(--text-primary)' }}
+                                                                                    onClick={() => handleManualRenew(cpId)}
+                                                                                    style={{ fontSize: '0.75rem', fontWeight: 600, padding: '4px 10px', borderRadius: '4px', border: '1px solid var(--primary)', background: 'var(--primary)', cursor: 'pointer', color: 'white' }}
                                                                                 >
-                                                                                    Alterar
+                                                                                    🔄 Renovar Pacote
                                                                                 </button>
                                                                             </div>
                                                                         </div>
