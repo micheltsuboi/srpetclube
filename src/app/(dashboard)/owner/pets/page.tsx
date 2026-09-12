@@ -1257,10 +1257,28 @@ function PetsContent() {
                                                                         <div className={styles.packageInfo} style={{ flex: 1 }}>
                                                                             <h4 style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>📦 {pkgGroup.name} {referenceMonth && <span style={{ fontSize: '0.85rem', color: 'var(--primary)', marginLeft: '0.5rem', fontWeight: 'normal' }}>({referenceMonth})</span>}</h4>
                                                                             <div className={styles.packageDate} style={{ marginTop: '0.2rem' }}>Validade: {pkgGroup.expires_at ? new Date(pkgGroup.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}</div>
-                                                                            <div style={{ marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                            <div style={{ marginTop: '0.75rem' }}>
                                                                                 <button 
+                                                                                    type="button"
                                                                                     onClick={() => handleManualRenew(cpId)}
-                                                                                    style={{ fontSize: '0.75rem', fontWeight: 600, padding: '4px 10px', borderRadius: '4px', border: '1px solid var(--primary)', background: 'var(--primary)', cursor: 'pointer', color: 'white' }}
+                                                                                    style={{ 
+                                                                                        display: 'flex', 
+                                                                                        alignItems: 'center', 
+                                                                                        justifyContent: 'center', 
+                                                                                        gap: '0.5rem', 
+                                                                                        fontSize: '0.9rem', 
+                                                                                        fontWeight: 700, 
+                                                                                        padding: '0.75rem 1.25rem', 
+                                                                                        borderRadius: '8px', 
+                                                                                        border: 'none', 
+                                                                                        background: 'linear-gradient(135deg, var(--primary) 0%, #E8826A 100%)', 
+                                                                                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1)', 
+                                                                                        cursor: 'pointer', 
+                                                                                        color: 'white',
+                                                                                        width: '100%',
+                                                                                        textTransform: 'uppercase',
+                                                                                        letterSpacing: '0.5px'
+                                                                                    }}
                                                                                 >
                                                                                     🔄 Renovar Pacote
                                                                                 </button>
