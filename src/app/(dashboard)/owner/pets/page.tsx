@@ -107,6 +107,58 @@ function PetsContent() {
     const [responsible2Phone, setResponsible2Phone] = useState('')
     const [selectedCustomerId, setSelectedCustomerId] = useState('')
     const [expandedVaccineCard, setExpandedVaccineCard] = useState<string | null>(null)
+    
+    // Update Vaccine Modal States
+    const [updateVaccineModalOpen, setUpdateVaccineModalOpen] = useState(false)
+    const [selectedUpdateVaccine, setSelectedUpdateVaccine] = useState<any>(null)
+    const [vacNewAppDate, setVacNewAppDate] = useState('')
+    const [vacNewExpDate, setVacNewExpDate] = useState('')
+    const [vacNewBatch, setVacNewBatch] = useState('')
+    const [isSavingVacUpdate, setIsSavingVacUpdate] = useState(false)
+
+    const handleOpenVacUpdateModal = (vac: any) => {
+        setSelectedUpdateVaccine(vac)
+        setVacNewAppDate(new Date().toISOString().split('T')[0])
+        setVacNewExpDate('')
+        setVacNewBatch('')
+        setUpdateVaccineModalOpen(true)
+    }
+
+    const handleSaveVacUpdate = async () => {
+        if (!selectedUpdateVaccine || !vacNewAppDate || !vacNewExpDate) {
+            alert('Preencha as datas de aplicação e vencimento.')
+            return
+        }
+        setIsSavingVacUpdate(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user?.id).single()
+
+        if (!profile) {
+            setIsSavingVacUpdate(false)
+            return
+        }
+
+        const { error } = await supabase.from('pet_vaccines').insert({
+            org_id: profile.org_id,
+            pet_id: selectedPet?.id,
+            name: selectedUpdateVaccine.name,
+            batch_number: vacNewBatch || null,
+            application_date: vacNewAppDate,
+            expiry_date: vacNewExpDate
+        })
+
+        setIsSavingVacUpdate(false)
+        if (error) {
+            console.error('Erro ao atualizar vacina', error)
+            alert('Erro ao atualizar a vacina.')
+        } else {
+            alert('Vacina atualizada com sucesso! O histórico foi mantido.')
+            setUpdateVaccineModalOpen(false)
+            if (selectedPet) {
+                getPetVaccines(selectedPet.id).then(setVaccines)
+            }
+        }
+    }
 
     const isPending = isCreatePending || isUpdatePending
 
@@ -977,18 +1029,27 @@ function PetsContent() {
                                                                             Vence: {expiry.toLocaleDateString('pt-BR')} {isExpired && '(VENCIDA)'}
                                                                         </div>
                                                                     </div>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={async () => {
-                                                                            if (confirm('Excluir esta vacina?')) {
-                                                                                await deleteVaccine(vac.id)
-                                                                                getPetVaccines(selectedPet.id).then(setVaccines)
-                                                                            }
-                                                                        }}
-                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#EF4444', opacity: 0.7 }}
-                                                                    >
-                                                                        &times;
-                                                                    </button>
+                                                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleOpenVacUpdateModal(vac)}
+                                                                            style={{ padding: '4px 8px', fontSize: '0.75rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                                                        >
+                                                                            Atualizar
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={async () => {
+                                                                                if (confirm('Excluir esta vacina?')) {
+                                                                                    await deleteVaccine(vac.id)
+                                                                                    getPetVaccines(selectedPet.id).then(setVaccines)
+                                                                                }
+                                                                            }}
+                                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#EF4444', opacity: 0.7 }}
+                                                                        >
+                                                                            &times;
+                                                                        </button>
+                                                                    </div>
                                                                 </div>
                                                             )
                                                         })}
@@ -1843,6 +1904,40 @@ function PetsContent() {
                     initialCategory={bookingCategory}
                     initialDate={new Date().toISOString().split('T')[0]}
                 />
+            )}
+            {updateVaccineModalOpen && selectedUpdateVaccine && (
+                <div className={styles.modalOverlay} onClick={() => setUpdateVaccineModalOpen(false)} style={{ zIndex: 10000 }}>
+                    <div className={styles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <h2 className={styles.title}>Atualizar Vacina</h2>
+                        <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            Nova aplicação de <strong>{selectedUpdateVaccine.name}</strong>. O registro anterior será mantido no histórico.
+                        </p>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Data da Aplicação *</label>
+                                <input type="date" value={vacNewAppDate} onChange={e => setVacNewAppDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }} />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Data de Vencimento *</label>
+                                <input type="date" value={vacNewExpDate} onChange={e => setVacNewExpDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }} />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Lote (Opcional)</label>
+                                <input type="text" value={vacNewBatch} onChange={e => setVacNewBatch(e.target.value)} placeholder="Ex: L12345" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }} />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
+                            <button onClick={() => setUpdateVaccineModalOpen(false)} style={{ padding: '0.5rem 1rem', background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }}>
+                                Cancelar
+                            </button>
+                            <button onClick={handleSaveVacUpdate} disabled={isSavingVacUpdate} style={{ padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: isSavingVacUpdate ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                                {isSavingVacUpdate ? 'Salvando...' : 'Salvar Nova Aplicação'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )
