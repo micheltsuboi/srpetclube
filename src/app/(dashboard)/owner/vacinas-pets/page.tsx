@@ -269,23 +269,25 @@ export default function PetVaccinesControlPage() {
                                 return (
                                     <tr key={vac.id}>
                                         <td data-label="Pet">
-                                            <div className={styles.petCell}>
-                                                <div className={styles.avatar}>
-                                                    {vac.pets?.photo_url ? (
-                                                        <img
-                                                            src={vac.pets.photo_url}
-                                                            alt={vac.pets.name}
-                                                            className={styles.avatarImg}
-                                                        />
-                                                    ) : (
-                                                        vac.pets?.species === 'cat' ? '🐱' : '🐶'
-                                                    )}
+                                            <Link href={vac.pets?.id ? `/owner/pets?petId=${vac.pets.id}` : '#'} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                                <div className={styles.petCell}>
+                                                    <div className={styles.avatar}>
+                                                        {vac.pets?.photo_url ? (
+                                                            <img
+                                                                src={vac.pets.photo_url}
+                                                                alt={vac.pets.name}
+                                                                className={styles.avatarImg}
+                                                            />
+                                                        ) : (
+                                                            vac.pets?.species === 'cat' ? '🐱' : '🐶'
+                                                        )}
+                                                    </div>
+                                                    <div className={styles.petInfo}>
+                                                        <span className={styles.petName} style={{ color: 'var(--primary)', cursor: 'pointer' }}>{vac.pets?.name || 'Pet desconhecido'}</span>
+                                                        <span className={styles.petBreed}>{vac.pets?.breed || 'Sem raça'}</span>
+                                                    </div>
                                                 </div>
-                                                <div className={styles.petInfo}>
-                                                    <span className={styles.petName}>{vac.pets?.name || 'Pet desconhecido'}</span>
-                                                    <span className={styles.petBreed}>{vac.pets?.breed || 'Sem raça'}</span>
-                                                </div>
-                                            </div>
+                                            </Link>
                                         </td>
                                         <td data-label="Tutor / Contato">
                                             <div className={styles.tutorCell}>
