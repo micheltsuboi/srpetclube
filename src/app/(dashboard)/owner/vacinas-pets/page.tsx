@@ -38,6 +38,56 @@ export default function PetVaccinesControlPage() {
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
     const [searchTerm, setSearchTerm] = useState('')
+    
+    // Modal states
+    const [updateModalOpen, setUpdateModalOpen] = useState(false)
+    const [selectedVac, setSelectedVac] = useState<PetVaccine | null>(null)
+    const [newAppDate, setNewAppDate] = useState('')
+    const [newExpDate, setNewExpDate] = useState('')
+    const [newBatch, setNewBatch] = useState('')
+    const [isSaving, setIsSaving] = useState(false)
+
+    const handleOpenUpdateModal = (vac: PetVaccine) => {
+        setSelectedVac(vac)
+        setNewAppDate(new Date().toISOString().split('T')[0])
+        setNewExpDate('')
+        setNewBatch('')
+        setUpdateModalOpen(true)
+    }
+
+    const handleSaveUpdate = async () => {
+        if (!selectedVac || !newAppDate || !newExpDate) {
+            alert('Preencha as datas de aplicação e vencimento.')
+            return
+        }
+        setIsSaving(true)
+        const { data: { user } } = await supabase.auth.getUser()
+        const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user?.id).single()
+
+        if (!profile) {
+            setIsSaving(false)
+            return
+        }
+
+        const { error } = await supabase.from('pet_vaccines').insert({
+            org_id: profile.org_id,
+            pet_id: selectedVac.pets?.id,
+            name: selectedVac.name,
+            batch_number: newBatch || null,
+            application_date: newAppDate,
+            expiry_date: newExpDate
+        })
+
+        setIsSaving(false)
+        if (error) {
+            console.error('Erro ao atualizar vacina', error)
+            alert('Erro ao atualizar a vacina.')
+        } else {
+            alert('Vacina atualizada com sucesso! O histórico foi mantido.')
+            setUpdateModalOpen(false)
+            fetchData()
+        }
+    }
 
     const fetchData = useCallback(async () => {
         setIsLoading(true)
@@ -94,7 +144,24 @@ export default function PetVaccinesControlPage() {
             const { data, error } = await query
             if (error) throw error
 
-            setVaccines((data as unknown as PetVaccine[]) || [])
+            const rawVaccines = (data as unknown as PetVaccine[]) || []
+            const latestVaccinesMap = new Map<string, PetVaccine>()
+            
+            rawVaccines.forEach(vac => {
+                const key = `${vac.pets?.id}_${vac.name}`
+                const existing = latestVaccinesMap.get(key)
+                if (!existing) {
+                    latestVaccinesMap.set(key, vac)
+                } else {
+                    const currentExp = new Date(vac.expiry_date).getTime()
+                    const existingExp = new Date(existing.expiry_date).getTime()
+                    if (currentExp > existingExp) {
+                        latestVaccinesMap.set(key, vac)
+                    }
+                }
+            })
+            
+            setVaccines(Array.from(latestVaccinesMap.values()))
         } catch (error) {
             console.error('Erro ao buscar vacinas dos pets:', error)
         } finally {
@@ -320,15 +387,58 @@ export default function PetVaccinesControlPage() {
                                             {formatDate(vac.expiry_date)}
                                         </td>
                                         <td data-label="Status">
-                                            <span className={`${styles.statusBadge} ${status.class}`}>
-                                                {status.label}
-                                            </span>
+                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                <span className={`${styles.statusBadge} ${status.class}`}>
+                                                    {status.label}
+                                                </span>
+                                                <button 
+                                                    onClick={() => handleOpenUpdateModal(vac)}
+                                                    style={{ padding: '6px 12px', fontSize: '0.75rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                                                    title="Atualizar Vacina (Nova Aplicação)"
+                                                >
+                                                    Atualizar
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 )
                             })}
                         </tbody>
                     </table>
+                </div>
+            )}
+            {updateModalOpen && selectedVac && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+                    <div style={{ background: 'var(--bg-secondary)', padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px', border: '1px solid var(--border-color)' }}>
+                        <h2 style={{ margin: '0 0 1rem 0', fontSize: '1.2rem' }}>Atualizar Vacina</h2>
+                        <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                            Você está registrando uma nova aplicação de <strong>{selectedVac.name}</strong> para o pet <strong>{selectedVac.pets?.name}</strong>. O registro anterior será mantido no histórico.
+                        </p>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Data da Aplicação *</label>
+                                <input type="date" value={newAppDate} onChange={e => setNewAppDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }} />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Data de Vencimento *</label>
+                                <input type="date" value={newExpDate} onChange={e => setNewExpDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }} />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Lote (Opcional)</label>
+                                <input type="text" value={newBatch} onChange={e => setNewBatch(e.target.value)} placeholder="Ex: L12345" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }} />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
+                            <button onClick={() => setUpdateModalOpen(false)} style={{ padding: '0.5rem 1rem', background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }}>
+                                Cancelar
+                            </button>
+                            <button onClick={handleSaveUpdate} disabled={isSaving} style={{ padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: isSaving ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
+                                {isSaving ? 'Salvando...' : 'Salvar Nova Aplicação'}
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
