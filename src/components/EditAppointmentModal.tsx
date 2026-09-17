@@ -240,10 +240,10 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
             bottom: 0,
             background: 'rgba(0,0,0,0.7)',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1100, // Higher than daily report modal
-            backdropFilter: 'blur(4px)'
+            zIndex: 1100,
+            backdropFilter: 'blur(4px)',
+            overflowY: 'auto',
+            padding: '2rem 1rem'
         }} onClick={onClose}>
             <div style={{
                 background: '#1e293b',
@@ -252,7 +252,8 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
                 width: '100%',
                 maxWidth: '500px',
                 border: '1px solid rgba(255,255,255,0.1)',
-                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)'
+                boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+                margin: 'auto'
             }} onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                     <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'white', margin: 0 }}>

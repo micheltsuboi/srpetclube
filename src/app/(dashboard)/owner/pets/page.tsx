@@ -1026,6 +1026,7 @@ function PetsContent() {
                                                                     <div>
                                                                         <div style={{ fontWeight: '600' }}>{vac.name}</div>
                                                                         <div style={{ fontSize: '0.8rem', color: isExpired ? '#EF4444' : 'var(--text-secondary)' }}>
+                                                                            {vac.application_date && <span>Aplicado: {new Date(vac.application_date + 'T12:00:00').toLocaleDateString('pt-BR')} • </span>}
                                                                             Vence: {expiry.toLocaleDateString('pt-BR')} {isExpired && '(VENCIDA)'}
                                                                         </div>
                                                                     </div>
