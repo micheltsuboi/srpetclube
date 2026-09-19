@@ -70,7 +70,6 @@ export default function PetVaccinesControlPage() {
         }
 
         const { error } = await supabase.from('pet_vaccines').insert({
-            org_id: profile.org_id,
             pet_id: selectedVac.pets?.id,
             name: selectedVac.name,
             batch_number: newBatch || null,

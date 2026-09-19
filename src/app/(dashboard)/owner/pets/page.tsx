@@ -139,7 +139,6 @@ function PetsContent() {
         }
 
         const { error } = await supabase.from('pet_vaccines').insert({
-            org_id: profile.org_id,
             pet_id: selectedPet?.id,
             name: selectedUpdateVaccine.name,
             batch_number: vacNewBatch || null,
