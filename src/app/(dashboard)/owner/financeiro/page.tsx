@@ -727,141 +727,160 @@ export default function FinanceiroPage() {
                         </div>
 
                         <div className={styles.extractList}>
-                            {/* Appointments list (for Revenue and Pending) */}
-                            {extractRecords.type !== 'expenses' && extractRecords.appointments
-                                .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
-                                .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
-                                .filter(a => {
-                                    if (!extractSearchTerm) return true
-                                    const search = extractSearchTerm.toLowerCase()
-                                    return a.pets?.name?.toLowerCase().includes(search) || 
-                                           a.services?.name?.toLowerCase().includes(search)
-                                })
-                                .map(appt => (
-                                    <div key={appt.id} className={styles.extractItem}>
-                                        <div className={styles.extractInfo}>
-                                            <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}</strong>
-                                            <span>{new Date(appt.payment_status === 'paid' ? appt.paid_at! : appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
-                                        </div>
-                                        <div className={styles.extractActions}>
-                                            <span className={styles.extractAmount}>
-                                                {formatCurrency(appt.final_price || appt.calculated_price || 0)}
-                                            </span>
-                                            {extractRecords.type === 'pending' && (
-                                                <button
-                                                    className={styles.confirmPayBtn}
-                                                    onClick={() => handleConfirmPayment(appt.id)}
-                                                >
-                                                    Confirmar Pago
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+{(() => {
+    const filteredAppts = extractRecords.type !== 'expenses' ? extractRecords.appointments
+        .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
+        .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
+        .filter(a => {
+            if (!extractSearchTerm) return true
+            const search = extractSearchTerm.toLowerCase()
+            return a.pets?.name?.toLowerCase().includes(search) || 
+                   a.services?.name?.toLowerCase().includes(search) ||
+                   a.pets?.customers?.name?.toLowerCase().includes(search)
+        }) : []
 
-                            {/* Pending Pet Shop Sales list */}
-                            {extractRecords.type === 'pending' && extractRecords.pendingSales
-                                .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
-                                .filter(s => {
-                                    if (!extractSearchTerm) return true
-                                    const search = extractSearchTerm.toLowerCase()
-                                    return s.pets?.name?.toLowerCase().includes(search) || 
-                                           s.product_name?.toLowerCase().includes(search)
-                                })
-                                .map(sale => (
-                                    <div key={sale.id} className={styles.extractItem}>
-                                        <div className={styles.extractInfo}>
-                                            <strong>{sale.pets?.name || 'Avulso'} ({sale.pets?.customers?.name || 'Sem tutor'}) • {sale.product_name}</strong>
-                                            <span>{new Date(sale.created_at).toLocaleDateString('pt-BR')}</span>
-                                        </div>
-                                        <div className={styles.extractActions}>
-                                            <span className={styles.extractAmount}>
-                                                {formatCurrency(sale.total_price)}
-                                            </span>
-                                            <button
-                                                className={styles.confirmPayBtn}
-                                                onClick={() => handleConfirmPetshopPayment(sale.id, sale.product_name, sale.total_price)}
-                                            >
-                                                Confirmar Pago
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
+    const filteredSales = extractRecords.type === 'pending' ? extractRecords.pendingSales
+        .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
+        .filter(s => {
+            if (!extractSearchTerm) return true
+            const search = extractSearchTerm.toLowerCase()
+            return s.pets?.name?.toLowerCase().includes(search) || 
+                   s.product_name?.toLowerCase().includes(search) ||
+                   s.pets?.customers?.name?.toLowerCase().includes(search)
+        }) : []
 
-                            {/* Pending Packages list */}
-                            {extractRecords.type === 'pending' && extractRecords.pendingPackages
-                                .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
-                                .filter(p => {
-                                    if (!extractSearchTerm) return true
-                                    const search = extractSearchTerm.toLowerCase()
-                                    return p.pets?.name?.toLowerCase().includes(search) || 
-                                           p.service_packages?.name?.toLowerCase().includes(search)
-                                })
-                                .map(pkg => (
-                                    <div key={pkg.id} className={styles.extractItem}>
-                                        <div className={styles.extractInfo}>
-                                            <strong>{pkg.pets?.name || 'Pet'} ({pkg.pets?.customers?.name || 'Sem tutor'}) • Pacote: {pkg.service_packages?.name || 'Serviço'}</strong>
-                                            <span>{new Date(pkg.purchased_at).toLocaleDateString('pt-BR')}</span>
-                                        </div>
-                                        <div className={styles.extractActions}>
-                                            <span className={styles.extractAmount}>
-                                                {formatCurrency(pkg.total_paid || pkg.calculated_price || 0)}
-                                            </span>
-                                            <button
-                                                className={styles.confirmPayBtn}
-                                                onClick={() => handleConfirmPackagePayment(pkg.id, pkg.service_packages?.name || 'Pacote', pkg.total_paid || pkg.calculated_price || 0)}
-                                            >
-                                                Confirmar Pago
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
+    const filteredPkgs = extractRecords.type === 'pending' ? extractRecords.pendingPackages
+        .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
+        .filter(p => {
+            if (!extractSearchTerm) return true
+            const search = extractSearchTerm.toLowerCase()
+            return p.pets?.name?.toLowerCase().includes(search) || 
+                   p.service_packages?.name?.toLowerCase().includes(search) ||
+                   p.pets?.customers?.name?.toLowerCase().includes(search)
+        }) : []
 
-                            {/* Transactions list (for Revenue and Expenses) */}
-                            {extractRecords.type !== 'pending' && extractRecords.transactions
-                                .filter(t => extractRecords.type === 'revenue' ? t.type === 'income' : t.type === 'expense')
-                                .filter(t => selectedCategory === 'all' || t.category === selectedCategory)
-                                .filter(t => {
-                                    if (!extractSearchTerm) return true
-                                    const search = extractSearchTerm.toLowerCase()
-                                    return t.name?.toLowerCase().includes(search) || 
-                                           t.category?.toLowerCase().includes(search) ||
-                                           (t.description || '').toLowerCase().includes(search)
-                                })
-                                .map(tx => (
-                                    <div key={tx.id} className={styles.extractItem}>
-                                        <div className={styles.extractInfo}>
-                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
-                                                <strong>{tx.name || tx.category}</strong>
-                                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({tx.category})</span>
-                                            </div>
-                                            {tx.description && <span>{tx.description}</span>}
-                                            <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
-                                        </div>
-                                        <div className={styles.extractActions}>
-                                            <span className={`${styles.extractAmount} ${tx.type === 'expense' ? styles.negativeValue : ''}`}>
-                                                {formatCurrency(tx.amount)}
-                                            </span>
-                                            <button
-                                                className={styles.deleteBtn}
-                                                onClick={() => handleDeleteTransaction(tx.id)}
-                                            >
-                                                Excluir
-                                            </button>
-                                        </div>
-                                    </div>
-                                ))}
+    const filteredTxs = extractRecords.type !== 'pending' ? extractRecords.transactions
+        .filter(t => extractRecords.type === 'revenue' ? t.type === 'income' : t.type === 'expense')
+        .filter(t => selectedCategory === 'all' || t.category === selectedCategory)
+        .filter(t => {
+            if (!extractSearchTerm) return true
+            const search = extractSearchTerm.toLowerCase()
+            return t.name?.toLowerCase().includes(search) || 
+                   t.category?.toLowerCase().includes(search) ||
+                   (t.description || '').toLowerCase().includes(search)
+        }) : []
 
-                            {/* Empty State */}
-                            {((extractRecords.type === 'pending' &&
-                                extractRecords.appointments.filter(a => a.payment_status !== 'paid' && (selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory) && (!extractSearchTerm || a.pets?.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()) || a.services?.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0 &&
-                                extractRecords.pendingSales.filter(s => (selectedCategory === 'all' || selectedCategory === 'Venda Produto') && (!extractSearchTerm || s.pets?.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()) || s.product_name?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0) ||
-                                (extractRecords.type === 'expenses' && extractRecords.transactions.filter(t => t.type === 'expense' && (selectedCategory === 'all' || t.category === selectedCategory) && (!extractSearchTerm || t.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()) || t.description?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0) ||
-                                (extractRecords.type === 'revenue' &&
-                                    extractRecords.appointments.filter(a => a.payment_status === 'paid' && (selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory) && (!extractSearchTerm || a.pets?.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0 &&
-                                    extractRecords.transactions.filter(t => t.type === 'income' && (selectedCategory === 'all' || t.category === selectedCategory) && (!extractSearchTerm || t.name?.toLowerCase().includes(extractSearchTerm.toLowerCase()) || t.description?.toLowerCase().includes(extractSearchTerm.toLowerCase()))).length === 0)) && (
-                                    <p className={styles.emptyExtract}>Nenhum registro encontrado para este termo/período/categoria.</p>
-                                )}
+    const totalFiltered = filteredAppts.reduce((acc, a) => acc + (a.final_price || a.calculated_price || 0), 0) +
+                          filteredSales.reduce((acc, s) => acc + s.total_price, 0) +
+                          filteredPkgs.reduce((acc, p) => acc + (p.total_paid || p.calculated_price || 0), 0) +
+                          filteredTxs.reduce((acc, t) => acc + t.amount, 0)
+
+    const isEmpty = filteredAppts.length === 0 && filteredSales.length === 0 && filteredPkgs.length === 0 && filteredTxs.length === 0
+
+    return (
+        <>
+            {extractSearchTerm && !isEmpty && (
+                <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <strong>Total Filtrado:</strong>
+                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: extractRecords.type === 'expenses' ? '#ef4444' : '#10b981' }}>
+                        {formatCurrency(totalFiltered)}
+                    </span>
+                </div>
+            )}
+
+            {filteredAppts.map(appt => (
+                <div key={appt.id} className={styles.extractItem}>
+                    <div className={styles.extractInfo}>
+                        <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}</strong>
+                        <span>{new Date(appt.payment_status === 'paid' ? appt.paid_at! : appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <div className={styles.extractActions}>
+                        <span className={styles.extractAmount}>
+                            {formatCurrency(appt.final_price || appt.calculated_price || 0)}
+                        </span>
+                        {extractRecords.type === 'pending' && (
+                            <button
+                                className={styles.confirmPayBtn}
+                                onClick={() => handleConfirmPayment(appt.id)}
+                            >
+                                Confirmar Pago
+                            </button>
+                        )}
+                    </div>
+                </div>
+            ))}
+
+            {filteredSales.map(sale => (
+                <div key={sale.id} className={styles.extractItem}>
+                    <div className={styles.extractInfo}>
+                        <strong>{sale.pets?.name || 'Avulso'} ({sale.pets?.customers?.name || 'Sem tutor'}) • {sale.product_name}</strong>
+                        <span>{new Date(sale.created_at).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <div className={styles.extractActions}>
+                        <span className={styles.extractAmount}>
+                            {formatCurrency(sale.total_price)}
+                        </span>
+                        <button
+                            className={styles.confirmPayBtn}
+                            onClick={() => handleConfirmPetshopPayment(sale.id, sale.product_name, sale.total_price)}
+                        >
+                            Confirmar Pago
+                        </button>
+                    </div>
+                </div>
+            ))}
+
+            {filteredPkgs.map(pkg => (
+                <div key={pkg.id} className={styles.extractItem}>
+                    <div className={styles.extractInfo}>
+                        <strong>{pkg.pets?.name || 'Pet'} ({pkg.pets?.customers?.name || 'Sem tutor'}) • Pacote: {pkg.service_packages?.name || 'Serviço'}</strong>
+                        <span>{new Date(pkg.purchased_at).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <div className={styles.extractActions}>
+                        <span className={styles.extractAmount}>
+                            {formatCurrency(pkg.total_paid || pkg.calculated_price || 0)}
+                        </span>
+                        <button
+                            className={styles.confirmPayBtn}
+                            onClick={() => handleConfirmPackagePayment(pkg.id, pkg.service_packages?.name || 'Pacote', pkg.total_paid || pkg.calculated_price || 0)}
+                        >
+                            Confirmar Pago
+                        </button>
+                    </div>
+                </div>
+            ))}
+
+            {filteredTxs.map(tx => (
+                <div key={tx.id} className={styles.extractItem}>
+                    <div className={styles.extractInfo}>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
+                            <strong>{tx.name || tx.category}</strong>
+                            <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({tx.category})</span>
+                        </div>
+                        {tx.description && <span>{tx.description}</span>}
+                        <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <div className={styles.extractActions}>
+                        <span className={`${styles.extractAmount} ${tx.type === 'expense' ? styles.negativeValue : ''}`}>
+                            {formatCurrency(tx.amount)}
+                        </span>
+                        <button
+                            className={styles.deleteBtn}
+                            onClick={() => handleDeleteTransaction(tx.id)}
+                        >
+                            Excluir
+                        </button>
+                    </div>
+                </div>
+            ))}
+
+            {isEmpty && (
+                <p className={styles.emptyExtract}>Nenhum registro encontrado para este termo/período/categoria.</p>
+            )}
+        </>
+    )
+})()}
+
                         </div>
                     </div>
                 </div >
