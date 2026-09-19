@@ -335,7 +335,7 @@ export default function PetVaccinesControlPage() {
                                 return (
                                     <tr key={vac.id}>
                                         <td data-label="Pet">
-                                            <Link href={vac.pets?.id ? `/owner/pets?petId=${vac.pets.id}` : '#'} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                            <Link href={vac.pets?.id ? `/owner/pets?openPetId=${vac.pets.id}` : '#'} style={{ textDecoration: 'none', color: 'inherit' }}>
                                                 <div className={styles.petCell}>
                                                     <div className={styles.avatar}>
                                                         {vac.pets?.photo_url ? (

@@ -107,7 +107,7 @@ export default function FinanceiroPage() {
                     .from('appointments')
                     .select(`
                         id, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
-                        pets ( name ),
+                        pets ( name, customers ( name ) ),
                         services (
                             name,
                             service_categories ( name )
@@ -123,13 +123,13 @@ export default function FinanceiroPage() {
                     .gte('date', fetchStart),
                 supabase
                     .from('petshop_sales')
-                    .select('id, product_name, total_price, payment_status, created_at, pets ( name )')
+                    .select('id, product_name, total_price, payment_status, created_at, pets ( name, customers ( name ) )')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'pending')
                     .order('created_at', { ascending: true }),
                 supabase
                     .from('customer_packages')
-                    .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name ), service_packages ( name )')
+                    .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name, customers ( name ) ), service_packages ( name )')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'pending')
                     .order('purchased_at', { ascending: true })
@@ -740,7 +740,7 @@ export default function FinanceiroPage() {
                                 .map(appt => (
                                     <div key={appt.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
-                                            <strong>{appt.pets?.name || 'Pet'} • {appt.services?.name || 'Serviço'}</strong>
+                                            <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}</strong>
                                             <span>{new Date(appt.payment_status === 'paid' ? appt.paid_at! : appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
                                         </div>
                                         <div className={styles.extractActions}>
@@ -771,7 +771,7 @@ export default function FinanceiroPage() {
                                 .map(sale => (
                                     <div key={sale.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
-                                            <strong>{sale.pets?.name || 'Cliente Avulso'} • {sale.product_name}</strong>
+                                            <strong>{sale.pets?.name || 'Avulso'} ({sale.pets?.customers?.name || 'Sem tutor'}) • {sale.product_name}</strong>
                                             <span>{new Date(sale.created_at).toLocaleDateString('pt-BR')}</span>
                                         </div>
                                         <div className={styles.extractActions}>
@@ -800,7 +800,7 @@ export default function FinanceiroPage() {
                                 .map(pkg => (
                                     <div key={pkg.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
-                                            <strong>{pkg.pets?.name || 'Pet'} • Pacote: {pkg.service_packages?.name || 'Serviço'}</strong>
+                                            <strong>{pkg.pets?.name || 'Pet'} ({pkg.pets?.customers?.name || 'Sem tutor'}) • Pacote: {pkg.service_packages?.name || 'Serviço'}</strong>
                                             <span>{new Date(pkg.purchased_at).toLocaleDateString('pt-BR')}</span>
                                         </div>
                                         <div className={styles.extractActions}>

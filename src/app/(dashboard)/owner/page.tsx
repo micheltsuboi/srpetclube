@@ -133,7 +133,7 @@ export default function OwnerDashboard() {
                     .from('appointments')
                     .select(`
                         id, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
-                        pets ( name ),
+                        pets ( name, customers ( name ) ),
                         services ( name, service_categories ( name ) )
                     `)
                     .eq('org_id', profile.org_id)
@@ -144,7 +144,7 @@ export default function OwnerDashboard() {
                     .from('appointments')
                     .select(`
                         id, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
-                        pets ( name ),
+                        pets ( name, customers ( name ) ),
                         services ( name, service_categories ( name ) )
                     `)
                     .eq('org_id', profile.org_id)
@@ -772,7 +772,7 @@ export default function OwnerDashboard() {
                                 .map(appt => (
                                     <div key={appt.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
-                                            <strong>{appt.pets?.name || 'Pet'} • {appt.services?.name || 'Serviço'}</strong>
+                                            <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}</strong>
                                             <span>{new Date(appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
                                         </div>
                                         <div className={styles.extractActions}>
@@ -793,7 +793,7 @@ export default function OwnerDashboard() {
                                 .map((appt: any) => (
                                     <div key={appt.id} className={styles.extractItem}>
                                         <div className={styles.extractInfo}>
-                                            <strong>{appt.pets?.name || 'Pet'} • {appt.services?.name || 'Serviço'}</strong>
+                                            <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}</strong>
                                             <span>{new Date(appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
                                         </div>
                                         <div className={styles.extractActions}>
