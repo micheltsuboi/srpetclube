@@ -258,13 +258,13 @@ export default function FinanceiroPage() {
 
     
     useEffect(() => {
-        if (isExtractModalOpen || isAddExpenseModalOpen || isNewTransactionModalOpen) {
+        if (isExtractModalOpen || isAddExpenseModalOpen) {
             document.body.style.overflow = 'hidden';
         } else {
             document.body.style.overflow = 'unset';
         }
         return () => { document.body.style.overflow = 'unset'; }
-    }, [isExtractModalOpen, isAddExpenseModalOpen, isNewTransactionModalOpen]);
+    }, [isExtractModalOpen, isAddExpenseModalOpen]);
 
     useEffect(() => {
         fetchFinancials()
@@ -273,6 +273,37 @@ export default function FinanceiroPage() {
     const handleOpenExtract = (type: 'revenue' | 'expenses' | 'pending') => {
         setExtractRecords(prev => ({ ...prev, type }))
         setIsExtractModalOpen(true)
+    }
+
+
+    const handlePayAllFiltered = async (appts: any[], sales: any[], pkgs: any[], total: number) => {
+        if (!confirm(`Deseja quitar todos os ${appts.length + sales.length + pkgs.length} itens filtrados no valor total de ${formatCurrency(total)}?`)) return;
+
+        const paymentMethod = prompt('Qual a forma de pagamento para TODOS os itens? (pix, cash, credit, debit)', 'pix');
+        if (!paymentMethod) return;
+
+        setLoading(true);
+        try {
+            for (const appt of appts) {
+                await supabase.from('appointments').update({
+                    payment_status: 'paid',
+                    paid_at: new Date().toISOString()
+                }).eq('id', appt.id);
+            }
+            for (const sale of sales) {
+                await payPetshopSale(sale.id, paymentMethod);
+            }
+            for (const pkg of pkgs) {
+                await updatePackagePaymentStatus(pkg.id, 'paid', paymentMethod);
+            }
+            alert('Todos os itens filtrados foram pagos com sucesso!');
+            fetchFinancials();
+        } catch (error) {
+            console.error('Erro ao pagar tudo:', error);
+            alert('Houve um erro ao tentar quitar os itens.');
+        } finally {
+            setLoading(false);
+        }
     }
 
     const handleConfirmPayment = async (appointmentId: string) => {
@@ -860,9 +891,22 @@ export default function FinanceiroPage() {
             {extractSearchTerm && !isEmpty && (
                 <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <strong>Total Filtrado:</strong>
-                    <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: extractRecords.type === 'expenses' ? '#ef4444' : '#10b981' }}>
-                        {formatCurrency(totalFiltered)}
-                    </span>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: extractRecords.type === 'expenses' ? '#ef4444' : '#10b981' }}>
+                            {formatCurrency(totalFiltered)}
+                        </span>
+                        {extractRecords.type === 'pending' && (
+                            <button
+                                className={styles.confirmPayBtn}
+                                style={{ backgroundColor: '#10b981', padding: '0.4rem 1rem', fontSize: '0.9rem' }}
+                                onClick={() => handlePayAllFiltered(filteredAppts, filteredSales, filteredPkgs, totalFiltered)}
+                            >
+                                Pagar Tudo
+                            </button>
+                        )}
+                    </div>
+    
                 </div>
             )}
 

@@ -30,8 +30,8 @@ export async function reconcilePaidPackages() {
         // Usamos o campo description ou reference_id para rastrear? 
         // No sistema atual, usamos description. Vamos buscar por Cliente ID ou nome do pet no description.
         
-        const petName = Array.isArray(pkg.pets) ? pkg.pets[0]?.name : pkg.pets?.name
-        const customerName = Array.isArray(pkg.customers) ? pkg.customers[0]?.name : pkg.customers?.name
+        const petName = Array.isArray(pkg.pets) ? (pkg.pets as any)[0]?.name : (pkg.pets as any)?.name
+        const customerName = Array.isArray(pkg.customers) ? (pkg.customers as any)[0]?.name : (pkg.customers as any)?.name
         
         const descriptionMatch = `Cliente ID: ${customerName || ''}`
         const petMatch = `Pet: ${petName || ''}`

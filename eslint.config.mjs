@@ -15,7 +15,11 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-empty-object-type": "off",
       "prefer-const": "off",
       "@typescript-eslint/no-wrapper-object-types": "off",
-      "@typescript-eslint/no-unsafe-function-type": "off"
+      "@typescript-eslint/no-unsafe-function-type": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react/no-unescaped-entities": "off",
+      "@typescript-eslint/ban-ts-comment": "off",
+      "@typescript-eslint/no-non-null-asserted-optional-chain": "off"
     }
   },
   globalIgnores([

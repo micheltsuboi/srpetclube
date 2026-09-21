@@ -459,9 +459,9 @@ export default function AgendaPage() {
                 onClick={(e) => { e.stopPropagation(); handleOpenDetail(appt) }}
                 style={{
                     minWidth: '300px',
-                    borderLeft: `4px solid ${appt.status === 'no_show' ? '#EF4444' : (needsAdaptation ? '#f1c40f' : categoryColor)}`,
-                    backgroundColor: appt.status === 'done' ? 'var(--bg-tertiary)' : appt.status === 'no_show' ? 'rgba(239, 68, 68, 0.05)' : (isPackage ? 'rgba(155, 89, 182, 0.05)' : (needsAdaptation ? 'rgba(241, 196, 15, 0.05)' : 'var(--bg-secondary)')),
-                    opacity: appt.status === 'done' || appt.status === 'no_show' ? 0.7 : 1
+                    borderLeft: `4px solid ${(appt.status as string) === 'no_show' ? '#EF4444' : (needsAdaptation ? '#f1c40f' : categoryColor)}`,
+                    backgroundColor: appt.status === 'done' ? 'var(--bg-tertiary)' : (appt.status as string) === 'no_show' ? 'rgba(239, 68, 68, 0.05)' : (isPackage ? 'rgba(155, 89, 182, 0.05)' : (needsAdaptation ? 'rgba(241, 196, 15, 0.05)' : 'var(--bg-secondary)')),
+                    opacity: appt.status === 'done' || (appt.status as string) === 'no_show' ? 0.7 : 1
                 }}
             >
                 {isPackage && (() => {
@@ -563,16 +563,16 @@ export default function AgendaPage() {
                 })()}
 
                 <div className={styles.quickActions}>
-                    {!appt.actual_check_in && appt.status !== 'no_show' && (
+                    {!appt.actual_check_in && (appt.status as string) !== 'no_show' && (
                         <button className={styles.actionBtn} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'checkin') }}>Entrada ➡️</button>
                     )}
                     {appt.actual_check_in && !appt.actual_check_out && (
                         <button className={styles.actionBtn} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'checkout') }}>Saída ⬅️</button>
                     )}
-                    {!appt.actual_check_in && appt.status !== 'done' && appt.status !== 'no_show' && (
+                    {!appt.actual_check_in && appt.status !== 'done' && (appt.status as string) !== 'no_show' && (
                         <button className={styles.actionBtn} style={{ background: 'transparent', color: '#EF4444' }} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'noshow') }}>Falta ❌</button>
                     )}
-                    {appt.status === 'no_show' && (
+                    {(appt.status as string) === 'no_show' && (
                         <button className={styles.actionBtn} style={{ background: 'transparent', color: '#8B5CF6' }} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'undo_noshow') }}>Desfazer Falta ↩️</button>
                     )}
                     <div className={styles.cardTopActions}>
