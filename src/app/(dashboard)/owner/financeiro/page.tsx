@@ -256,6 +256,16 @@ export default function FinanceiroPage() {
         }
     }, [supabase, startDate, endDate])
 
+    
+    useEffect(() => {
+        if (isExtractModalOpen || isAddExpenseModalOpen || isNewTransactionModalOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => { document.body.style.overflow = 'unset'; }
+    }, [isExtractModalOpen, isAddExpenseModalOpen, isNewTransactionModalOpen]);
+
     useEffect(() => {
         fetchFinancials()
     }, [fetchFinancials])

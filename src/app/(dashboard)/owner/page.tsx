@@ -102,6 +102,16 @@ export default function OwnerDashboard() {
     const [isExtractModalOpen, setIsExtractModalOpen] = useState(false)
     const [extractSearchTerm, setExtractSearchTerm] = useState('')
 
+    
+    useEffect(() => {
+        if (isExtractModalOpen) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = 'unset';
+        }
+        return () => { document.body.style.overflow = 'unset'; }
+    }, [isExtractModalOpen]);
+
     useEffect(() => {
         const fetchDashboardData = async () => {
             try {

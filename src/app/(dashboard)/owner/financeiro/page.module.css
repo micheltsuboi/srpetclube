@@ -405,6 +405,8 @@
     max-width: 600px;
     max-height: 80vh;
     overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
     position: relative;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
 }
