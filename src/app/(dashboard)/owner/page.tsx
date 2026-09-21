@@ -88,11 +88,15 @@ export default function OwnerDashboard() {
         appointments: any[];
         transactions: any[];
         allPending: any[];
+        pendingSales: any[];
+        pendingPackages: any[];
     }>({
         type: null,
         appointments: [],
         transactions: [],
-        allPending: []
+        allPending: [],
+        pendingSales: [],
+        pendingPackages: []
     })
 
     const [isExtractModalOpen, setIsExtractModalOpen] = useState(false)
@@ -159,6 +163,21 @@ export default function OwnerDashboard() {
                     .gte('scheduled_at', startOfPreviousMonth)
                     .lte('scheduled_at', endOfPreviousMonth)
 
+                
+                const { data: pendingSalesData } = await supabase
+                    .from('petshop_sales')
+                    .select('id, total_price, payment_status, created_at, description, pets ( name, customers ( name ) )')
+                    .eq('org_id', profile.org_id)
+                    .eq('payment_status', 'pending')
+                    .order('created_at', { ascending: true })
+
+                const { data: pendingPackagesData } = await supabase
+                    .from('customer_packages')
+                    .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name, customers ( name ) ), service_packages ( name )')
+                    .eq('org_id', profile.org_id)
+                    .eq('payment_status', 'pending')
+                    .order('purchased_at', { ascending: true })
+
                 const paidAppts = (currentMonthAppts || []).filter(a => a.payment_status === 'paid' && !(a as any).package_credit_id)
                 const pendingAppts = (allPendingAppts || []).filter(a => !(a as any).package_credit_id)
                 
@@ -166,8 +185,7 @@ export default function OwnerDashboard() {
                 const currentRevenue = paidAppts
                     .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
 
-                const pendingPayments = pendingAppts
-                    .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
+                const pendingPayments = pendingAppts.reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0) + (pendingSalesData || []).reduce((sum, s) => sum + Number(s.total_price), 0) + (pendingPackagesData || []).reduce((sum, p) => sum + Number(p.total_paid || p.calculated_price || 0), 0)
 
                 const prevRevenue = (prevMonthAppts || [])
                     .filter(a => a.payment_status === 'paid' && !(a as any).package_credit_id)
@@ -239,7 +257,9 @@ export default function OwnerDashboard() {
                     type: null, // Keep null until a card is clicked
                     appointments: (currentMonthAppts || []).filter(a => !(a as any).package_credit_id),
                     transactions: transactions || [],
-                    allPending: (allPendingAppts || []).filter(a => !(a as any).package_credit_id)
+                    allPending: (allPendingAppts || []).filter(a => !(a as any).package_credit_id),
+                    pendingSales: pendingSalesData || [],
+                    pendingPackages: pendingPackagesData || []
                 })
 
                 // 2. Fetch Operational Stats
@@ -790,11 +810,32 @@ export default function OwnerDashboard() {
                    (t.description || '').toLowerCase().includes(search)
         }) : []
 
+    
+    const filteredSales = extractRecords.type === 'pending' ? extractRecords.pendingSales
+        .filter(s => {
+            if (!extractSearchTerm) return true
+            const search = extractSearchTerm.toLowerCase()
+            return s.description?.toLowerCase().includes(search) || 
+                   s.pets?.name?.toLowerCase().includes(search) ||
+                   s.pets?.customers?.name?.toLowerCase().includes(search)
+        }) : []
+
+    const filteredPackages = extractRecords.type === 'pending' ? extractRecords.pendingPackages
+        .filter(p => {
+            if (!extractSearchTerm) return true
+            const search = extractSearchTerm.toLowerCase()
+            return p.service_packages?.name?.toLowerCase().includes(search) || 
+                   p.pets?.name?.toLowerCase().includes(search) ||
+                   p.pets?.customers?.name?.toLowerCase().includes(search)
+        }) : []
+
     const totalFiltered = filteredAppts.reduce((acc, a) => acc + (a.final_price ?? a.calculated_price ?? 0), 0) +
                           filteredPendingAppts.reduce((acc, a) => acc + (a.final_price ?? a.calculated_price ?? 0), 0) +
+                          filteredSales.reduce((acc, s) => acc + s.total_price, 0) +
+                          filteredPackages.reduce((acc, p) => acc + (p.total_paid || p.calculated_price || 0), 0) +
                           filteredTxs.reduce((acc, t) => acc + t.amount, 0)
 
-    const isEmpty = filteredAppts.length === 0 && filteredPendingAppts.length === 0 && filteredTxs.length === 0
+    const isEmpty = filteredAppts.length === 0 && filteredPendingAppts.length === 0 && filteredSales.length === 0 && filteredPackages.length === 0 && filteredTxs.length === 0
 
     return (
         <>
@@ -837,6 +878,34 @@ export default function OwnerDashboard() {
                         >
                             Confirmar Pago
                         </button>
+                    </div>
+                </div>
+            ))}
+
+            
+            {extractRecords.type === 'pending' && filteredSales.map(sale => (
+                <div key={sale.id} className={styles.extractItem}>
+                    <div className={styles.extractInfo}>
+                        <strong>🛍️ {sale.description || 'Venda'} ({sale.pets?.customers?.name || 'Sem tutor'})</strong>
+                        <span>{new Date(sale.created_at).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <div className={styles.extractActions}>
+                        <span className={styles.extractAmount}>
+                            {formatCurrency(sale.total_price)}
+                        </span>
+                    </div>
+                </div>
+            ))}
+            {extractRecords.type === 'pending' && filteredPackages.map(pkg => (
+                <div key={pkg.id} className={styles.extractItem}>
+                    <div className={styles.extractInfo}>
+                        <strong>📦 Pacote: {pkg.service_packages?.name} ({pkg.pets?.customers?.name || 'Sem tutor'})</strong>
+                        <span>{new Date(pkg.purchased_at).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                    <div className={styles.extractActions}>
+                        <span className={styles.extractAmount}>
+                            {formatCurrency(pkg.total_paid || pkg.calculated_price || 0)}
+                        </span>
                     </div>
                 </div>
             ))}

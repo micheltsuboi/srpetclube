@@ -46,12 +46,14 @@ export default function FinanceiroPage() {
         transactions: any[];
         pendingSales: any[];
         pendingPackages: any[];
+        allPendingAppts: any[];
     }>({
         type: null,
         appointments: [],
         transactions: [],
         pendingSales: [],
-        pendingPackages: []
+        pendingPackages: [],
+        allPendingAppts: []
     })
     const [isExtractModalOpen, setIsExtractModalOpen] = useState(false)
     const [isAddExpenseModalOpen, setIsAddExpenseModalOpen] = useState(false)
@@ -102,7 +104,7 @@ export default function FinanceiroPage() {
             prevMonthDate.setMonth(prevMonthDate.getMonth() - 1)
             const fetchStart = prevMonthDate < sixMonthsAgo ? prevMonthDate.toISOString() : chartStart
 
-            const [apptsResponse, txsResponse, pendingSalesResponse, pendingPackagesResponse] = await Promise.all([
+            const [apptsResponse, txsResponse, pendingSalesResponse, pendingPackagesResponse, allPendingApptsResponse] = await Promise.all([
                 supabase
                     .from('appointments')
                     .select(`
@@ -132,7 +134,17 @@ export default function FinanceiroPage() {
                     .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name, customers ( name ) ), service_packages ( name )')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'pending')
-                    .order('purchased_at', { ascending: true })
+                    .order('purchased_at', { ascending: true }),
+                supabase
+                    .from('appointments')
+                    .select(`
+                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
+                        pets ( name, customers ( name ) ),
+                        services ( name, service_categories ( name ) )
+                    `)
+                    .eq('org_id', profile.org_id)
+                    .neq('payment_status', 'paid')
+                    .order('scheduled_at', { ascending: true })
             ])
 
             if (apptsResponse.error) throw apptsResponse.error
@@ -144,6 +156,7 @@ export default function FinanceiroPage() {
             const transactions = txsResponse.data || []
             const pendingSales = (pendingSalesResponse.data || [])
             const pendingPackages = (pendingPackagesResponse.data || [])
+            const allPendingAppts = (allPendingApptsResponse.data || []).filter((a: any) => !a.package_credit_id)
 
 
             // --- Process Monthly Chart Data (Last 6 Months) ---
@@ -227,13 +240,14 @@ export default function FinanceiroPage() {
                     .sort((a, b) => b.revenue - a.revenue)
             )
 
-            setExtractRecords({
-                type: null,
+            setExtractRecords(prev => ({
+                ...prev,
                 appointments: activeAppts,
                 transactions: activeTxs,
                 pendingSales,
-                pendingPackages
-            })
+                pendingPackages,
+                allPendingAppts
+            }))
 
         } catch (error) {
             console.error('Erro ao buscar financeiro:', error)
@@ -458,8 +472,8 @@ export default function FinanceiroPage() {
 
     const activeProfit = activeRevenue - activeExpenses
 
-    const pendingTotal = extractRecords.appointments
-        .filter(a => a.payment_status !== 'paid' && (selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory))
+    const pendingTotal = extractRecords.allPendingAppts
+        .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
         .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
         + extractRecords.pendingSales
             .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
@@ -491,7 +505,8 @@ export default function FinanceiroPage() {
         const rows: any[][] = [];
 
         if (extractRecords.type !== 'expenses') {
-            extractRecords.appointments
+            const apptsToExport = extractRecords.type === 'revenue' ? extractRecords.appointments : extractRecords.allPendingAppts;
+            apptsToExport
                 .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
                 .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
                 .forEach(appt => {
@@ -562,7 +577,8 @@ export default function FinanceiroPage() {
         const rows: any[][] = [];
 
         if (extractRecords.type !== 'expenses') {
-            extractRecords.appointments
+            const apptsToExport = extractRecords.type === 'revenue' ? extractRecords.appointments : extractRecords.allPendingAppts;
+            apptsToExport
                 .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
                 .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
                 .forEach(appt => {
@@ -781,8 +797,7 @@ export default function FinanceiroPage() {
 
                         <div className={styles.extractList}>
 {(() => {
-    const filteredAppts = extractRecords.type !== 'expenses' ? extractRecords.appointments
-        .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
+    const filteredAppts = (extractRecords.type === 'revenue' ? extractRecords.appointments.filter(a => a.payment_status === 'paid') : (extractRecords.type === 'pending' ? extractRecords.allPendingAppts : []))
         .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
         .filter(a => {
             if (!extractSearchTerm) return true
@@ -790,7 +805,7 @@ export default function FinanceiroPage() {
             return a.pets?.name?.toLowerCase().includes(search) || 
                    a.services?.name?.toLowerCase().includes(search) ||
                    a.pets?.customers?.name?.toLowerCase().includes(search)
-        }) : []
+        })
 
     const filteredSales = extractRecords.type === 'pending' ? extractRecords.pendingSales
         .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
