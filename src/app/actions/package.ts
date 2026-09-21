@@ -372,6 +372,7 @@ export async function deleteCustomerPackage(customerPackageId: string): Promise<
 }
 
 export async function updatePackagePaymentStatus(id: string, status: string, method?: string) {
+    try {
     const supabase = await createClient()
     
     // Se estiver marcando como pago, precisamos registrar no financeiro
@@ -405,7 +406,7 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
                     category: 'Pacotes',
                     name: `Venda de Pacote: ${packageName}`,
                     amount: amount,
-                    date: pkg.purchased_at, // DATA ORIGINAL DA COMPRA
+                    date: new Date().toISOString(), // HOJE (data do pagamento real)
                     payment_method: method || pkg.payment_method || 'other',
                     description: `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`
                 })
@@ -423,6 +424,12 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
     revalidatePath('/owner/creche')
     revalidatePath('/owner/banho-tosa')
     revalidatePath('/owner/hospedagem')
+
+    return { success: true, message: 'Status de pagamento atualizado com sucesso!' }
+    } catch (e: any) {
+        console.error(e);
+        return { success: false, message: 'Erro ao atualizar pagamento do pacote.' }
+    }
 }
 
 export async function applyPackageDiscount(id: string, value: number, type: 'percent' | 'fixed', basePrice: number) {

@@ -116,7 +116,7 @@ export default function FinanceiroPage() {
                         )
                     `)
                     .eq('org_id', profile.org_id)
-                    .gte('scheduled_at', fetchStart)
+                    .or(`scheduled_at.gte.${fetchStart},paid_at.gte.${fetchStart}`)
                     .order('scheduled_at', { ascending: true }),
                 supabase
                     .from('financial_transactions')

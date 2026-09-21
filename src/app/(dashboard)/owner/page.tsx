@@ -6,6 +6,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
 import { processRecurringExpenses, deleteFinancialTransaction } from '@/app/actions/finance'
+import { payPetshopSale } from '@/app/actions/petshop'
+import { updatePackagePaymentStatus } from '@/app/actions/package'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 
 type ServiceArea = 'all' | 'banho_tosa' | 'creche' | 'hotel'
@@ -385,6 +387,37 @@ export default function OwnerDashboard() {
     const handleOpenExtract = (type: 'revenue' | 'expenses' | 'pending') => {
         setExtractRecords(prev => ({ ...prev, type }))
         setIsExtractModalOpen(true)
+    }
+
+
+    const handleConfirmPetshopPayment = async (saleId: string, productName: string, price: number) => {
+        if (confirm(`Confirmar pagamento de R$ ${price.toFixed(2).replace('.', ',')} para ${productName}?`)) {
+            const paymentMethod = prompt('Qual a forma de pagamento? (pix, cash, credit, debit)', 'pix')
+            if (paymentMethod) {
+                const res = await payPetshopSale(saleId, paymentMethod)
+                if (res.success) {
+                    alert(res.message)
+                    window.location.reload()
+                } else {
+                    alert(res.message)
+                }
+            }
+        }
+    }
+
+    const handleConfirmPackagePayment = async (packageId: string, packageName: string, price: number) => {
+        if (confirm(`Confirmar pagamento de R$ ${price.toFixed(2).replace('.', ',')} para o pacote ${packageName}?`)) {
+            const paymentMethod = prompt('Qual a forma de pagamento? (pix, cash, credit, debit)', 'pix')
+            if (paymentMethod) {
+                const res = await updatePackagePaymentStatus(packageId, 'paid', paymentMethod)
+                if (res.success) {
+                    alert(res.message)
+                    window.location.reload()
+                } else {
+                    alert(res.message)
+                }
+            }
+        }
     }
 
     const handleConfirmPayment = async (appointmentId: string) => {
@@ -903,6 +936,12 @@ export default function OwnerDashboard() {
                         <span className={styles.extractAmount}>
                             {formatCurrency(sale.total_price)}
                         </span>
+                        <button
+                            className={styles.confirmPayBtn}
+                            onClick={() => handleConfirmPetshopPayment(sale.id, sale.description || 'Venda', sale.total_price)}
+                        >
+                            Confirmar Pago
+                        </button>
                     </div>
                 </div>
             ))}
@@ -916,6 +955,12 @@ export default function OwnerDashboard() {
                         <span className={styles.extractAmount}>
                             {formatCurrency(pkg.total_paid || pkg.calculated_price || 0)}
                         </span>
+                        <button
+                            className={styles.confirmPayBtn}
+                            onClick={() => handleConfirmPackagePayment(pkg.id, pkg.service_packages?.name || 'Pacote', pkg.total_paid || pkg.calculated_price || 0)}
+                        >
+                            Confirmar Pago
+                        </button>
                     </div>
                 </div>
             ))}
