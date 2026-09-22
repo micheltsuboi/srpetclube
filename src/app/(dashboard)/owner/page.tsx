@@ -725,7 +725,7 @@ export default function OwnerDashboard() {
             </div>
 
             {/* New Stats Charts Section */}
-            <h2 className={styles.sectionTitle}>📊 Perfil dos Alunos & Contratos</h2>
+            <h2 className={styles.sectionTitle}>📊 Perfil dos Pets & Contratos</h2>
             <div className={styles.statsGrid}>
                 <div className={styles.chartCard}>
                     <h3 className={styles.chartTitle}>Gênero dos Pets</h3>
@@ -798,7 +798,7 @@ export default function OwnerDashboard() {
                 </div>
 
                 <div className={styles.chartCard}>
-                    <h3 className={styles.chartTitle}>Alunos por Modalidade</h3>
+                    <h3 className={styles.chartTitle}>Pets por Modalidade</h3>
                     <div className={styles.chartWrapper}>
                         <ResponsiveContainer width="100%" height={250}>
                             <PieChart>
