@@ -79,10 +79,12 @@ export default function OwnerDashboard() {
     // Novas estatísticas para gráficos
     const [petDistribution, setPetDistribution] = useState<{
         gender: { name: string, value: number, color: string }[],
-        species: { name: string, value: number, color: string }[]
+        species: { name: string, value: number, color: string }[],
+        services: { name: string, value: number, color: string }[]
     }>({
         gender: [],
-        species: []
+        species: [],
+        services: []
     })
     const [activePackagesCount, setActivePackagesCount] = useState(0)
 
@@ -201,7 +203,7 @@ export default function OwnerDashboard() {
 
                 const { data: pendingPackagesData } = await supabase
                     .from('customer_packages')
-                    .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name, customers ( name ) ), service_packages ( name )')
+                    .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name )')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'pending')
                     .order('purchased_at', { ascending: true })
@@ -356,11 +358,61 @@ export default function OwnerDashboard() {
                     appointmentsToday: mappedPets.length
                 })
 
-                // 3. Fetch Pet Distribution Data (Gender and Species)
+                // 3. Fetch Pet Distribution Data (Gender, Species and Modalities)
                 const { data: petData } = await supabase
                     .from('pets')
                     .select('gender, species')
                 
+                // Modalidades: Buscamos agendamentos recentes (últimos 90 dias / futuros) e pacotes ativos para mapear pets por serviço
+                const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
+                const { data: recentModalitiesAppts } = await supabase
+                    .from('appointments')
+                    .select(`
+                        pet_id,
+                        services (
+                            name,
+                            service_categories ( name )
+                        )
+                    `)
+                    .eq('org_id', profile.org_id)
+                    .gte('scheduled_at', ninetyDaysAgo)
+                    .neq('status', 'cancelled')
+
+                const { data: activePkgModalities } = await supabase
+                    .from('customer_packages')
+                    .select(`
+                        pet_id,
+                        service_packages ( name )
+                    `)
+                    .eq('org_id', profile.org_id)
+                    .eq('is_active', true)
+
+                const crechePets = new Set<string>()
+                const hotelPets = new Set<string>()
+                const banhoPets = new Set<string>()
+
+                ;(recentModalitiesAppts || []).forEach((a: any) => {
+                    if (!a.pet_id) return
+                    const cat = (a.services as any)?.service_categories?.name || a.services?.name || ''
+                    if (cat.includes('Creche')) crechePets.add(a.pet_id)
+                    else if (cat.includes('Hospedagem') || cat.includes('Hotel')) hotelPets.add(a.pet_id)
+                    else if (cat.includes('Banho') || cat.includes('Tosa')) banhoPets.add(a.pet_id)
+                })
+
+                ;(activePkgModalities || []).forEach((p: any) => {
+                    if (!p.pet_id) return
+                    const name = p.service_packages?.name?.toUpperCase() || ''
+                    if (name.includes('CRECHE')) crechePets.add(p.pet_id)
+                    else if (name.includes('HOTEL') || name.includes('HOSPEDAGEM')) hotelPets.add(p.pet_id)
+                    else if (name.includes('BANHO') || name.includes('TOSA') || name.includes('ESSENCIAL') || name.includes('PREMIUM')) banhoPets.add(p.pet_id)
+                })
+
+                const serviceModalityData = [
+                    { name: 'Banho e Tosa', value: banhoPets.size, color: '#2563EB' },
+                    { name: 'Creche', value: crechePets.size, color: '#10B981' },
+                    { name: 'Hotel / Hosp.', value: hotelPets.size, color: '#F97316' }
+                ]
+
                 if (petData) {
                     const genderCounts = petData.reduce((acc: any, pet) => {
                         const g = pet.gender === 'female' ? 'Fêmeas' : pet.gender === 'male' ? 'Machos' : 'Não Inf.'
@@ -384,7 +436,8 @@ export default function OwnerDashboard() {
                             name,
                             value: value as number,
                             color: name === 'Cachorros' ? '#f59e0b' : name === 'Gatos' ? '#06b6d4' : '#8b5cf6'
-                        }))
+                        })),
+                        services: serviceModalityData
                     })
                 }
 
@@ -744,6 +797,41 @@ export default function OwnerDashboard() {
                     </div>
                 </div>
 
+                <div className={styles.chartCard}>
+                    <h3 className={styles.chartTitle}>Alunos por Modalidade</h3>
+                    <div className={styles.chartWrapper}>
+                        <ResponsiveContainer width="100%" height={250}>
+                            <PieChart>
+                                <Pie
+                                    data={petDistribution.services}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={60}
+                                    outerRadius={80}
+                                    paddingAngle={5}
+                                    dataKey="value"
+                                    label={false}
+                                    labelLine={false}
+                                >
+                                    {petDistribution.services.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip 
+                                    contentStyle={{ background: 'rgba(0,0,0,0.8)', border: 'none', borderRadius: '8px', color: '#fff' }}
+                                    itemStyle={{ color: '#fff' }}
+                                />
+                                <Legend 
+                                    verticalAlign="bottom" 
+                                    height={36} 
+                                    wrapperStyle={{ paddingTop: '20px', fontSize: '11px' }}
+                                    formatter={(value, entry: any) => `${value} (${entry.payload.value})`}
+                                />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
                 <div className={styles.counterCard}>
                     <div className={styles.counterIcon}>📦</div>
                     <div className={styles.counterContent}>
@@ -1038,7 +1126,8 @@ export default function OwnerDashboard() {
             const search = extractSearchTerm.toLowerCase()
             return p.service_packages?.name?.toLowerCase().includes(search) || 
                    p.pets?.name?.toLowerCase().includes(search) ||
-                   p.pets?.customers?.name?.toLowerCase().includes(search)
+                   p.pets?.customers?.name?.toLowerCase().includes(search) ||
+                   p.customers?.name?.toLowerCase().includes(search)
         })
 
     // 4. Filtragem de Transações de Receitas/Despesas
@@ -1076,17 +1165,21 @@ export default function OwnerDashboard() {
             isRealized: true,
             raw: sale
         })),
-        ...filteredPackages.map(pkg => ({
-            id: pkg.id,
-            type: 'package' as const,
-            petName: pkg.pets?.name || 'Pet',
-            customerName: pkg.pets?.customers?.name || 'Sem tutor',
-            title: `📦 Pacote: ${pkg.service_packages?.name || 'Serviço'} (${pkg.pets?.customers?.name || 'Sem tutor'})`,
-            date: pkg.purchased_at,
-            amount: pkg.total_paid || pkg.calculated_price || 0,
-            isRealized: true,
-            raw: pkg
-        }))
+        ...filteredPackages.map(pkg => {
+            const petName = pkg.pets?.name || 'Pet'
+            const tutorName = pkg.pets?.customers?.name || pkg.customers?.name || 'Sem tutor'
+            return {
+                id: pkg.id,
+                type: 'package' as const,
+                petName,
+                customerName: tutorName,
+                title: `${petName} (${tutorName}) • Pacote: ${pkg.service_packages?.name || 'Serviço'}`,
+                date: pkg.purchased_at,
+                amount: pkg.total_paid || pkg.calculated_price || 0,
+                isRealized: true,
+                raw: pkg
+            }
+        })
     ].sort((a, b) => {
         if (pendingSortField === 'date') {
             const timeA = new Date(a.date).getTime()

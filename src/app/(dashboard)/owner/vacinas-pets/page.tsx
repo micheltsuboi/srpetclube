@@ -39,6 +39,17 @@ export default function PetVaccinesControlPage() {
     const [endDate, setEndDate] = useState('')
     const [searchTerm, setSearchTerm] = useState('')
     
+    // Modalidades State
+    type Modality = 'creche' | 'hotel' | 'banho_tosa'
+    const [selectedModalities, setSelectedModalities] = useState<Modality[]>([])
+    const [petModalitiesMap, setPetModalitiesMap] = useState<Record<string, Modality[]>>({})
+
+    const toggleModality = (mod: Modality) => {
+        setSelectedModalities(prev => 
+            prev.includes(mod) ? prev.filter(m => m !== mod) : [...prev, mod]
+        )
+    }
+
     // Modal states
     const [updateModalOpen, setUpdateModalOpen] = useState(false)
     const [selectedVac, setSelectedVac] = useState<PetVaccine | null>(null)
@@ -140,8 +151,51 @@ export default function PetVaccinesControlPage() {
             // Ordena por data de vencimento mais próxima
             query = query.order('expiry_date', { ascending: true })
 
-            const { data, error } = await query
+            // Buscar vacinas, agendamentos recentes e pacotes ativos em paralelo para mapear modalidades
+            const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+            const [{ data, error }, apptsRes, pkgsRes] = await Promise.all([
+                query,
+                supabase
+                    .from('appointments')
+                    .select('pet_id, services(name, service_categories(name))')
+                    .gte('scheduled_at', ninetyDaysAgo)
+                    .neq('status', 'cancelled'),
+                supabase
+                    .from('customer_packages')
+                    .select('pet_id, service_packages(name)')
+                    .eq('is_active', true)
+            ])
+
             if (error) throw error
+
+            // Mapear modalidades de cada pet
+            const map: Record<string, Set<Modality>> = {}
+            const addMod = (petId: string, mod: Modality) => {
+                if (!map[petId]) map[petId] = new Set()
+                map[petId].add(mod)
+            }
+
+            ;(apptsRes.data || []).forEach((a: any) => {
+                if (!a.pet_id) return
+                const cat = (a.services as any)?.service_categories?.name || a.services?.name || ''
+                if (cat.includes('Creche')) addMod(a.pet_id, 'creche')
+                else if (cat.includes('Hospedagem') || cat.includes('Hotel')) addMod(a.pet_id, 'hotel')
+                else if (cat.includes('Banho') || cat.includes('Tosa')) addMod(a.pet_id, 'banho_tosa')
+            })
+
+            ;(pkgsRes.data || []).forEach((p: any) => {
+                if (!p.pet_id) return
+                const name = p.service_packages?.name?.toUpperCase() || ''
+                if (name.includes('CRECHE')) addMod(p.pet_id, 'creche')
+                else if (name.includes('HOTEL') || name.includes('HOSPEDAGEM')) addMod(p.pet_id, 'hotel')
+                else if (name.includes('BANHO') || name.includes('TOSA') || name.includes('ESSENCIAL') || name.includes('PREMIUM')) addMod(p.pet_id, 'banho_tosa')
+            })
+
+            const finalMap: Record<string, Modality[]> = {}
+            Object.entries(map).forEach(([petId, set]) => {
+                finalMap[petId] = Array.from(set)
+            })
+            setPetModalitiesMap(finalMap)
 
             const rawVaccines = (data as unknown as PetVaccine[]) || []
             const latestVaccinesMap = new Map<string, PetVaccine>()
@@ -172,8 +226,16 @@ export default function PetVaccinesControlPage() {
         fetchData()
     }, [fetchData])
 
-    // Filtro textual local para busca em tempo real sem sobrecarregar o banco
+    // Filtro textual e por modalidade
     const filteredVaccines = vaccines.filter(vac => {
+        // Filtro por modalidade selecionada (se houver alguma selecionada)
+        if (selectedModalities.length > 0) {
+            if (!vac.pets?.id) return false
+            const petMods = petModalitiesMap[vac.pets.id] || []
+            const matchesModality = selectedModalities.some(m => petMods.includes(m))
+            if (!matchesModality) return false
+        }
+
         if (!searchTerm) return true
         const term = searchTerm.toLowerCase()
         const petName = vac.pets?.name?.toLowerCase() || ''
@@ -304,6 +366,43 @@ export default function PetVaccinesControlPage() {
                         </div>
                     )}
                 </div>
+
+                <div className={styles.filterRow} style={{ marginTop: '0.5rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                    <span className={styles.filterLabel}>Filtrar por Modalidade:</span>
+                    <div className={styles.buttonGroup}>
+                        <button
+                            type="button"
+                            className={`${styles.filterBtn} ${selectedModalities.length === 0 ? styles.filterBtnActive : ''}`}
+                            onClick={() => setSelectedModalities([])}
+                        >
+                            Todas as Modalidades
+                        </button>
+                        <button
+                            type="button"
+                            className={`${styles.filterBtn} ${selectedModalities.includes('creche') ? styles.filterBtnActive : ''}`}
+                            onClick={() => toggleModality('creche')}
+                            style={selectedModalities.includes('creche') ? { background: '#10b981', borderColor: '#10b981', color: 'white' } : {}}
+                        >
+                            🎾 Creche
+                        </button>
+                        <button
+                            type="button"
+                            className={`${styles.filterBtn} ${selectedModalities.includes('hotel') ? styles.filterBtnActive : ''}`}
+                            onClick={() => toggleModality('hotel')}
+                            style={selectedModalities.includes('hotel') ? { background: '#f97316', borderColor: '#f97316', color: 'white' } : {}}
+                        >
+                            🏨 Hotel / Hospedagem
+                        </button>
+                        <button
+                            type="button"
+                            className={`${styles.filterBtn} ${selectedModalities.includes('banho_tosa') ? styles.filterBtnActive : ''}`}
+                            onClick={() => toggleModality('banho_tosa')}
+                            style={selectedModalities.includes('banho_tosa') ? { background: '#2563eb', borderColor: '#2563eb', color: 'white' } : {}}
+                        >
+                            🛁 Banho e Tosa
+                        </button>
+                    </div>
+                </div>
             </div>
 
             {isLoading ? (
@@ -351,6 +450,25 @@ export default function PetVaccinesControlPage() {
                                                     <div className={styles.petInfo}>
                                                         <span className={styles.petName} style={{ color: 'var(--primary)', cursor: 'pointer' }}>{vac.pets?.name || 'Pet desconhecido'}</span>
                                                         <span className={styles.petBreed}>{vac.pets?.breed || 'Sem raça'}</span>
+                                                        {vac.pets?.id && (petModalitiesMap[vac.pets.id] || []).length > 0 && (
+                                                            <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
+                                                                {petModalitiesMap[vac.pets.id].includes('creche') && (
+                                                                    <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', fontWeight: 600 }}>
+                                                                        🎾 Creche
+                                                                    </span>
+                                                                )}
+                                                                {petModalitiesMap[vac.pets.id].includes('hotel') && (
+                                                                    <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(249, 115, 22, 0.15)', color: '#f97316', border: '1px solid rgba(249, 115, 22, 0.3)', fontWeight: 600 }}>
+                                                                        🏨 Hotel
+                                                                    </span>
+                                                                )}
+                                                                {petModalitiesMap[vac.pets.id].includes('banho_tosa') && (
+                                                                    <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(37, 99, 235, 0.15)', color: '#60a5fa', border: '1px solid rgba(37, 99, 235, 0.3)', fontWeight: 600 }}>
+                                                                        🛁 Banho
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </Link>

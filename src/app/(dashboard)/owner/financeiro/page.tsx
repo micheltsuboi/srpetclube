@@ -135,7 +135,7 @@ export default function FinanceiroPage() {
                     .order('created_at', { ascending: true }),
                 supabase
                     .from('customer_packages')
-                    .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name, customers ( name ) ), service_packages ( name )')
+                    .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name )')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'pending')
                     .order('purchased_at', { ascending: true }),
@@ -1062,7 +1062,8 @@ export default function FinanceiroPage() {
             const search = extractSearchTerm.toLowerCase()
             return p.pets?.name?.toLowerCase().includes(search) || 
                    p.service_packages?.name?.toLowerCase().includes(search) ||
-                   p.pets?.customers?.name?.toLowerCase().includes(search)
+                   p.pets?.customers?.name?.toLowerCase().includes(search) ||
+                   p.customers?.name?.toLowerCase().includes(search)
         })
 
     // 4. Filtragem de Transações de Receitas/Despesas
@@ -1101,17 +1102,21 @@ export default function FinanceiroPage() {
             isRealized: true,
             raw: sale
         })),
-        ...filteredPkgs.map(pkg => ({
-            id: pkg.id,
-            type: 'package' as const,
-            petName: pkg.pets?.name || 'Pet',
-            customerName: pkg.pets?.customers?.name || 'Sem tutor',
-            title: `${pkg.pets?.name || 'Pet'} (${pkg.pets?.customers?.name || 'Sem tutor'}) • Pacote: ${pkg.service_packages?.name || 'Serviço'}`,
-            date: pkg.purchased_at,
-            amount: pkg.total_paid || pkg.calculated_price || 0,
-            isRealized: true,
-            raw: pkg
-        }))
+        ...filteredPkgs.map(pkg => {
+            const petName = pkg.pets?.name || 'Pet'
+            const tutorName = pkg.pets?.customers?.name || pkg.customers?.name || 'Sem tutor'
+            return {
+                id: pkg.id,
+                type: 'package' as const,
+                petName,
+                customerName: tutorName,
+                title: `${petName} (${tutorName}) • Pacote: ${pkg.service_packages?.name || 'Serviço'}`,
+                date: pkg.purchased_at,
+                amount: pkg.total_paid || pkg.calculated_price || 0,
+                isRealized: true,
+                raw: pkg
+            }
+        })
     ].sort((a, b) => {
         if (pendingSortField === 'date') {
             const timeA = new Date(a.date).getTime()
