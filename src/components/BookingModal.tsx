@@ -44,7 +44,7 @@ interface BookingModalProps {
     initialCategory?: string // New: to filter services initially
 }
 
-function SubmitButton({ disabled }: { disabled: boolean }) {
+function SubmitButton({ disabled, petCount }: { disabled: boolean, petCount: number }) {
     const { pending } = useFormStatus()
     return (
         <button 
@@ -52,7 +52,11 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
             className={styles.submitBtn} 
             disabled={pending || disabled}
         >
-            {pending ? 'Agendando...' : 'Agendar'}
+            {pending 
+                ? 'Agendando...' 
+                : petCount > 1 
+                    ? `Agendar (${petCount} Pets)` 
+                    : 'Agendar'}
         </button>
     )
 }
@@ -72,8 +76,7 @@ export default function BookingModal({
     const [petSearchTerm, setPetSearchTerm] = useState('')
     const [searchResults, setSearchResults] = useState<Pet[]>([])
     const [showPetResults, setShowPetResults] = useState(false)
-    const [selectedPetId, setSelectedPetId] = useState(initialPetId)
-    const [selectedPet, setSelectedPet] = useState<Pet | null>(null)
+    const [selectedPets, setSelectedPets] = useState<Pet[]>([])
     const [hasTaxi, setHasTaxi] = useState(false)
     const [taxiFee, setTaxiFee] = useState<string>('0')
     const [selectedServiceId, setSelectedServiceId] = useState(initialServiceId)
@@ -127,7 +130,6 @@ export default function BookingModal({
     // Reset when modal opens with new initials
     useEffect(() => {
         if (isOpen) {
-            setSelectedPetId(initialPetId)
             setSelectedServiceId(initialServiceId)
             setSelectedDate(initialDate)
             setSelectedTime(initialHour)
@@ -138,10 +140,14 @@ export default function BookingModal({
             setExtraPrice('')
             setSelectedExtraServiceId('')
             
-            // If petId is provided, we might want to fetch its details
             if (initialPetId) {
-                // We'll need a way to get pet info or just trust the parent
-                // For now, let's assume we search it if needed
+                // If initialPetId provided, try to search it
+                searchPets(initialPetId).then(results => {
+                    const found = (results as any[]).find(p => p.id === initialPetId)
+                    if (found) setSelectedPets([found])
+                }).catch(() => {})
+            } else {
+                setSelectedPets([])
             }
         }
     }, [isOpen, initialPetId, initialServiceId, initialDate, initialHour])
@@ -158,29 +164,27 @@ export default function BookingModal({
             try {
                 const results = await searchPets(petSearchTerm)
                 setSearchResults(results as any[])
-                // Only show results if the user is actually typing a search, not just after auto-filling the input
-                if (selectedPet?.name !== petSearchTerm) {
-                    setShowPetResults(true)
-                }
+                setShowPetResults(true)
             } catch (err) {
                 console.error('Error searching pets:', err)
             } finally {
                 setIsSearching(false)
             }
-        }, 400)
+        }, 350)
 
         return () => clearTimeout(timer)
     }, [petSearchTerm])
 
-    // Fetch Dynamic Prices when Pet or Date changes
+    // Fetch Dynamic Prices when Pets or Date changes
     useEffect(() => {
         const fetchPrices = async () => {
-            if (selectedPetId && selectedDate) {
+            const firstPet = selectedPets[0]
+            if (firstPet && selectedDate) {
                 setLoadingPrices(true)
                 try {
                     const { calculateManyDynamicPrices } = await import('@/app/actions/pricing')
                     const serviceIds = services.map((s: Service) => s.id)
-                    const results = await calculateManyDynamicPrices(selectedPetId, serviceIds, selectedDate)
+                    const results = await calculateManyDynamicPrices(firstPet.id, serviceIds, selectedDate)
                     
                     const typedResults: Record<string, number> = {}
                     Object.entries(results).forEach(([id, price]) => {
@@ -195,35 +199,48 @@ export default function BookingModal({
             }
         }
         fetchPrices()
-    }, [selectedPetId, selectedDate, services])
+    }, [selectedPets, selectedDate, services])
+
+    const handleAddPet = (pet: Pet) => {
+        if (!selectedPets.some(p => p.id === pet.id)) {
+            setSelectedPets(prev => [...prev, pet])
+        }
+        setPetSearchTerm('')
+        setShowPetResults(false)
+    }
+
+    const handleRemovePet = (petId: string) => {
+        setSelectedPets(prev => prev.filter(p => p.id !== petId))
+    }
 
     const validate = useCallback(() => {
-        if (!selectedPetId || !selectedServiceId) return true
+        if (selectedPets.length === 0 || !selectedServiceId) return true
 
         const svc = services.find((s: Service) => s.id === selectedServiceId)
-        const pet = searchResults.find((p: Pet) => p.id === selectedPetId) || selectedPet
-        
-        if (!svc || !pet) return true
+        if (!svc) return true
 
-        const petSpecies = pet.species.toLowerCase() === 'cão' || pet.species.toLowerCase() === 'dog' ? 'dog' : 'cat'
+        // Validate each pet for species compatibility
+        for (const pet of selectedPets) {
+            const petSpecies = pet.species.toLowerCase() === 'cão' || pet.species.toLowerCase() === 'dog' ? 'dog' : 'cat'
 
-        // 1. Target Species
-        if (svc.target_species && svc.target_species !== 'both' && svc.target_species !== petSpecies) {
-            setBookingError(`Este serviço é exclusivo para ${svc.target_species === 'dog' ? 'Cães' : 'Gatos'}.`)
-            return false
-        }
-
-        // 2. Scheduling Rules (Day of week)
-        if (svc.scheduling_rules && svc.scheduling_rules.length > 0) {
-            const [y, m, d] = selectedDate.split('-').map(Number)
-            const dayOfWeek = new Date(y, m - 1, d).getDay()
-            const rule = svc.scheduling_rules.find((r: any) => r.day === dayOfWeek)
-
-            if (rule && !rule.species.includes(petSpecies)) {
-                const allowed = rule.species.map((s: string) => s === 'dog' ? 'Cães' : 'Gatos').join(' ou ')
-                const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
-                setBookingError(`Este serviço só é permitido para ${allowed} às ${days[dayOfWeek]}s.`)
+            // 1. Target Species
+            if (svc.target_species && svc.target_species !== 'both' && svc.target_species !== petSpecies) {
+                setBookingError(`O pet "${pet.name}" não é compatível: este serviço é exclusivo para ${svc.target_species === 'dog' ? 'Cães' : 'Gatos'}.`)
                 return false
+            }
+
+            // 2. Scheduling Rules (Day of week)
+            if (svc.scheduling_rules && svc.scheduling_rules.length > 0) {
+                const [y, m, d] = selectedDate.split('-').map(Number)
+                const dayOfWeek = new Date(y, m - 1, d).getDay()
+                const rule = svc.scheduling_rules.find((r: any) => r.day === dayOfWeek)
+
+                if (rule && !rule.species.includes(petSpecies)) {
+                    const allowed = rule.species.map((s: string) => s === 'dog' ? 'Cães' : 'Gatos').join(' ou ')
+                    const days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
+                    setBookingError(`Este serviço só é permitido para ${allowed} às ${days[dayOfWeek]}s (Pet: ${pet.name}).`)
+                    return false
+                }
             }
         }
 
@@ -253,11 +270,15 @@ export default function BookingModal({
                 }
 
                 if (blockApplies) {
-                    if (allowedSpec.length > 0 && !allowedSpec.includes(petSpecies)) {
-                        const allowed = allowedSpec.map(s => s === 'dog' ? 'Cães' : 'Gatos').join(' e ')
-                        setBookingError(`Horário reservado exclusivamente para ${allowed}.`)
-                        return false
-                    } else if (allowedSpec.length === 0) {
+                    for (const pet of selectedPets) {
+                        const petSpecies = pet.species.toLowerCase() === 'cão' || pet.species.toLowerCase() === 'dog' ? 'dog' : 'cat'
+                        if (allowedSpec.length > 0 && !allowedSpec.includes(petSpecies)) {
+                            const allowed = allowedSpec.map(s => s === 'dog' ? 'Cães' : 'Gatos').join(' e ')
+                            setBookingError(`Horário reservado exclusivamente para ${allowed} (${pet.name}).`)
+                            return false
+                        }
+                    }
+                    if (allowedSpec.length === 0) {
                         setBookingError(`Horário bloqueado: ${conflictingBlock.reason}`)
                         return false
                     }
@@ -267,7 +288,7 @@ export default function BookingModal({
 
         setBookingError(null)
         return true
-    }, [selectedPetId, selectedServiceId, selectedDate, selectedTime, services, searchResults, selectedPet, blocks])
+    }, [selectedPets, selectedServiceId, selectedDate, selectedTime, services, blocks])
 
     useEffect(() => {
         validate()
@@ -289,6 +310,41 @@ export default function BookingModal({
     const catName = selectedService?.service_categories?.name || ''
     const isHospedagem = catName.toLowerCase().includes('hospedagem') || catName.toLowerCase().includes('hotel')
 
+    // Categorias ordenadas
+    const categoryOrder = ['Banho e Tosa', 'Creche', 'Hospedagem', 'Outros']
+    const groupedServices = services
+        .filter((s: Service) => {
+            if (initialCategory && s.service_categories?.name !== initialCategory) return false
+            if (selectedPets.length === 0) return true
+            // If all selected pets are cats, hide dog-only services
+            const allCats = selectedPets.every(p => p.species.toLowerCase() === 'gato' || p.species.toLowerCase() === 'cat')
+            const allDogs = selectedPets.every(p => p.species.toLowerCase() === 'cão' || p.species.toLowerCase() === 'dog')
+            if (allCats && s.target_species === 'dog') return false
+            if (allDogs && s.target_species === 'cat') return false
+            return true
+        })
+        .reduce((acc, s: Service) => {
+            const cat = s.service_categories?.name || 'Outros'
+            if (!acc[cat]) acc[cat] = []
+            acc[cat].push(s)
+            return acc
+        }, {} as Record<string, Service[]>)
+
+    const sortedCategories = Object.keys(groupedServices).sort((a, b) => {
+        const idxA = categoryOrder.indexOf(a)
+        const idxB = categoryOrder.indexOf(b)
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB
+        if (idxA !== -1) return -1
+        if (idxB !== -1) return 1
+        return a.localeCompare(b)
+    })
+
+    // Coleta outros pets dos mesmos tutores que já estão na busca
+    const sameTutorSiblings = searchResults.filter(
+        sr => selectedPets.some(sp => sp.customers?.name && sp.customers.name === sr.customers?.name) &&
+              !selectedPets.some(sp => sp.id === sr.id)
+    )
+
     return (
         <div className={styles.modalOverlay} onClick={onClose}>
             <div className={styles.modal} onClick={e => e.stopPropagation()}>
@@ -296,23 +352,75 @@ export default function BookingModal({
                 
                 <form action={handleFormAction}>
                     <div className={styles.formGroup}>
-                        <label className={styles.label}>Pet *</label>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <label className={styles.label}>
+                                Pets Selecionados * {selectedPets.length > 1 && `(${selectedPets.length})`}
+                            </label>
+                            <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                                (Você pode adicionar múltiplos pets de qualquer tutor)
+                            </span>
+                        </div>
+
+                        {/* Chips dos pets já selecionados */}
+                        {selectedPets.length > 0 && (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '0.6rem' }}>
+                                {selectedPets.map(p => (
+                                    <span key={p.id} style={{
+                                        background: 'rgba(59, 130, 246, 0.15)',
+                                        border: '1px solid rgba(59, 130, 246, 0.5)',
+                                        borderRadius: '20px',
+                                        padding: '0.35rem 0.75rem',
+                                        fontSize: '0.85rem',
+                                        color: '#bfdbfe',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        gap: '0.4rem',
+                                        fontWeight: 500
+                                    }}>
+                                        <span>{p.species?.toLowerCase() === 'gato' || p.species?.toLowerCase() === 'cat' ? '🐱' : '🐶'}</span>
+                                        <strong>{p.name}</strong>
+                                        <span style={{ opacity: 0.8, fontSize: '0.75rem' }}>
+                                            ({p.customers?.name || 'Sem tutor'})
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemovePet(p.id)}
+                                            style={{
+                                                background: 'rgba(239, 68, 68, 0.2)',
+                                                border: 'none',
+                                                borderRadius: '50%',
+                                                width: '18px',
+                                                height: '18px',
+                                                color: '#f87171',
+                                                cursor: 'pointer',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 'bold',
+                                                marginLeft: '0.2rem'
+                                            }}
+                                            title="Remover este pet"
+                                        >
+                                            ✕
+                                        </button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
                         <div style={{ position: 'relative' }}>
                             <input
                                 type="text"
-                                placeholder="🔍 Pesquisar pet ou tutor..."
+                                placeholder={selectedPets.length === 0 ? "🔍 Pesquisar pet ou tutor..." : "+ Adicionar outro pet..."}
                                 className={styles.input}
                                 value={petSearchTerm}
                                 onChange={(e) => {
                                     setPetSearchTerm(e.target.value)
-                                    // Always show results when user is actively typing
                                     setShowPetResults(true)
                                 }}
                                 onFocus={() => {
-                                    // Only show results on focus if we haven't exactly matched the selected pet yet
-                                    if (selectedPet?.name !== petSearchTerm) {
-                                        setShowPetResults(true)
-                                    }
+                                    if (petSearchTerm.length >= 2) setShowPetResults(true)
                                 }}
                             />
                             
@@ -321,36 +429,61 @@ export default function BookingModal({
                                     {isSearching ? (
                                         <div className={styles.searchResultItem}>Buscando...</div>
                                     ) : searchResults.length > 0 ? (
-                                        searchResults.map((p: Pet) => (
-                                            <div
-                                                key={p.id}
-                                                className={styles.searchResultItem}
-                                                onClick={() => {
-                                                    setSelectedPetId(p.id)
-                                                    setSelectedPet(p)
-                                                    setPetSearchTerm(p.name)
-                                                    setShowPetResults(false)
-                                                }}
-                                            >
-                                                <span className={styles.resultPetName}>{p.name}</span>
-                                                <span className={styles.resultTutorName}>
-                                                    👤 {p.customers?.name || 'Sem tutor'} • {p.breed || 'SRD'}
-                                                </span>
-                                            </div>
-                                        ))
+                                        searchResults.map((p: Pet) => {
+                                            const isSelected = selectedPets.some(sp => sp.id === p.id)
+                                            return (
+                                                <div
+                                                    key={p.id}
+                                                    className={styles.searchResultItem}
+                                                    style={{ opacity: isSelected ? 0.5 : 1, cursor: isSelected ? 'default' : 'pointer' }}
+                                                    onClick={() => {
+                                                        if (!isSelected) handleAddPet(p)
+                                                    }}
+                                                >
+                                                    <span className={styles.resultPetName}>
+                                                        {p.species?.toLowerCase() === 'gato' || p.species?.toLowerCase() === 'cat' ? '🐱' : '🐶'} {p.name} {isSelected && '✓ (Adicionado)'}
+                                                    </span>
+                                                    <span className={styles.resultTutorName}>
+                                                        👤 {p.customers?.name || 'Sem tutor'} • {p.breed || 'SRD'}
+                                                    </span>
+                                                </div>
+                                            )
+                                        })
                                     ) : (
                                         <div className={styles.searchResultItem}>Nenhum pet encontrado</div>
                                     )}
                                 </div>
                             )}
 
-                            {selectedPetId && !showPetResults && (
-                                <div className={styles.loadingPrice} style={{ color: 'var(--success)' }}>
-                                    ✓ Selecionado: {selectedPet?.name || 'Pet ID: ' + selectedPetId}
+                            {/* Sugestões de outros pets do mesmo tutor */}
+                            {sameTutorSiblings.length > 0 && (
+                                <div style={{ marginTop: '0.4rem', fontSize: '0.8rem', color: '#94a3b8' }}>
+                                    Sugestão do mesmo tutor:{' '}
+                                    {sameTutorSiblings.slice(0, 3).map(sibling => (
+                                        <button
+                                            key={sibling.id}
+                                            type="button"
+                                            onClick={() => handleAddPet(sibling)}
+                                            style={{
+                                                background: 'rgba(255,255,255,0.08)',
+                                                border: '1px dashed #60a5fa',
+                                                color: '#93c5fd',
+                                                borderRadius: '12px',
+                                                padding: '0.2rem 0.5rem',
+                                                fontSize: '0.75rem',
+                                                cursor: 'pointer',
+                                                marginRight: '0.4rem'
+                                            }}
+                                        >
+                                            + Adicionar {sibling.name}
+                                        </button>
+                                    ))}
                                 </div>
                             )}
-                            
-                            <input type="hidden" name="petId" value={selectedPetId} required />
+
+                            {/* Inputs hidden para envio ao backend */}
+                            <input type="hidden" name="petIds" value={JSON.stringify(selectedPets.map(p => p.id))} />
+                            <input type="hidden" name="petId" value={selectedPets[0]?.id || ''} required={selectedPets.length === 0} />
                         </div>
                     </div>
 
@@ -364,39 +497,24 @@ export default function BookingModal({
                             onChange={(e) => setSelectedServiceId(e.target.value)}
                         >
                             <option value="">Selecione um serviço...</option>
-                            {Object.entries(services
-                                .filter((s: Service) => {
-                                    // If initialCategory is provided (e.g. from Pets Page), filter by it
-                                    if (initialCategory && s.service_categories?.name !== initialCategory) return false;
-                                    
-                                    if (!selectedPetId) return true;
-                                    const pet = selectedPet;
-                                    if (!pet) return true;
-                                    const petSpecies = pet.species.toLowerCase() === 'cão' || pet.species.toLowerCase() === 'dog' ? 'dog' : 'cat';
-                                    return !s.target_species || s.target_species === 'both' || s.target_species === petSpecies;
-                                })
-                                .reduce((acc, s: Service) => {
-                                    const cat = s.service_categories?.name || 'Outros'
-                                    if (!acc[cat]) acc[cat] = []
-                                    acc[cat].push(s)
-                                    return acc
-                                }, {} as Record<string, Service[]>)).map(([category, catServices]) => (
-                                    <optgroup key={category} label={category}>
-                                        {catServices.map(s => (
-                                            <option key={s.id} value={s.id}>
-                                                {s.name} (R$ {(dynamicPrices[s.id] ?? s.base_price).toFixed(2)})
-                                                {dynamicPrices[s.id] !== undefined && dynamicPrices[s.id] !== s.base_price && ' ✨'}
-                                            </option>
-                                        ))}
-                                    </optgroup>
-                                ))}
+                            {sortedCategories.map(category => (
+                                <optgroup key={category} label={`📁 ${category}`}>
+                                    {groupedServices[category].map(s => (
+                                        <option key={s.id} value={s.id}>
+                                            {s.name} (R$ {(dynamicPrices[s.id] ?? s.base_price).toFixed(2)})
+                                            {dynamicPrices[s.id] !== undefined && dynamicPrices[s.id] !== s.base_price && ' ✨'}
+                                        </option>
+                                    ))}
+                                </optgroup>
+                            ))}
                         </select>
                         {selectedServiceId && (
                             <div className={styles.loadingPrice}>
                                 {loadingPrices ? 'Atualizando preços...' : (
                                     dynamicPrices[selectedServiceId] !== undefined && (
                                         <span className={styles.priceOverride}>
-                                            Preço para este pet: R$ {dynamicPrices[selectedServiceId].toFixed(2)}
+                                            Preço base: R$ {dynamicPrices[selectedServiceId].toFixed(2)}
+                                            {selectedPets.length > 1 && ` (calculado individualmente para cada um dos ${selectedPets.length} pets)`}
                                         </span>
                                     )
                                 )}
@@ -614,7 +732,7 @@ export default function BookingModal({
 
                     <div className={styles.modalActions}>
                         <button type="button" className={styles.cancelBtn} onClick={onClose}>Cancelar</button>
-                        <SubmitButton disabled={!!bookingError || !selectedPetId || !selectedServiceId} />
+                        <SubmitButton disabled={!!bookingError || selectedPets.length === 0 || !selectedServiceId} petCount={selectedPets.length} />
                     </div>
                 </form>
             </div>

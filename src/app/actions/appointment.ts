@@ -28,7 +28,31 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     const isCustomer = profile.role === 'customer'
 
     // 2. Extract Data
-    const petId = formData.get('petId') as string
+    let petIds: string[] = []
+    const petIdsJson = formData.get('petIds') as string
+    if (petIdsJson) {
+        try {
+            const parsed = JSON.parse(petIdsJson)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+                petIds = parsed.filter(id => typeof id === 'string' && id.trim().length > 0)
+            }
+        } catch (e) {
+            console.error('Error parsing petIds JSON:', e)
+        }
+    }
+    if (petIds.length === 0) {
+        const petIdsAll = formData.getAll('petId') as string[]
+        if (petIdsAll && petIdsAll.length > 0) {
+            petIds = petIdsAll.filter(id => id && id.trim().length > 0)
+        }
+    }
+    if (petIds.length === 0) {
+        const single = formData.get('petId') as string
+        if (single && single.trim()) {
+            petIds = [single.trim()]
+        }
+    }
+
     const serviceId = formData.get('serviceId') as string
     const date = formData.get('date') as string
     const time = formData.get('time') as string
@@ -54,8 +78,8 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     const hasExtras = extrasList.length > 0
     const extrasFee = extrasList.reduce((sum, item) => sum + (item.price || 0), 0)
 
-    if (!petId || !serviceId) {
-        return { message: 'Preencha todos os campos obrigatórios.', success: false }
+    if (petIds.length === 0 || !serviceId) {
+        return { message: 'Preencha todos os campos obrigatórios (selecione ao menos um pet e um serviço).', success: false }
     }
 
     // validate date/time only if NOT Hospedagem or if single day
@@ -68,6 +92,7 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
         .from('services')
         .select(`
             id, 
+            name,
             duration_minutes, 
             base_price,
             category_id,
@@ -81,35 +106,10 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
 
     if (!serviceData) return { message: 'Serviço não encontrado.', success: false }
 
-    // Force cast to any to avoid complex typing for joined relation for now
     const serviceAny = serviceData as any
     const categoryName = serviceAny.service_categories?.name
     const isCreche = categoryName === 'Creche'
     const isHospedagem = categoryName === 'Hospedagem'
-
-    // Validate Assessment for Creche/Hospedagem (Only for CUSTOMERS)
-    if ((isCreche || isHospedagem) && isCustomer) {
-        const { data: assessment } = await supabase
-            .from('pet_assessments')
-            .select('status')
-            .eq('pet_id', petId)
-            .single()
-
-        if (!assessment || assessment.status !== 'approved') {
-            return { message: `Este pet precisa de uma avaliação aprovada para ${categoryName}.`, success: false }
-        }
-    }
-
-    // 3. Get customer & pet data FIRST (needed for species check)
-    const { data: petData, error: petError } = await supabase
-        .from('pets')
-        .select('id, name, customer_id, weight_kg, species') // Ensure species is selected
-        .eq('id', petId)
-        .single()
-
-    if (petError || !petData) {
-        return { message: 'Pet não encontrado ou erro ao buscar dados do tutor.', success: false }
-    }
 
     // Prepare Date Range / Scheduled At
     let scheduledAt: string
@@ -117,17 +117,49 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     let checkOut: string | null = null
 
     if (isHospedagem && checkInDate && checkOutDate) {
-        // Hospedagem Logic
         checkIn = checkInDate
         checkOut = checkOutDate
-        // Scheduled at mostly for sorting, set to Check-in at 17:00
         scheduledAt = new Date(`${checkInDate}T17:00:00-03:00`).toISOString()
     } else {
-        // Standard / Creche Logic
         try {
             scheduledAt = new Date(`${date}T${time}:00-03:00`).toISOString()
+        } catch (e) {
+            return { message: 'Data ou hora inválida.', success: false }
+        }
+    }
 
-            // 4. Check for Schedule Blocks (Conflict Check)
+    const successfulPetNames: string[] = []
+    const errors: string[] = []
+
+    for (const petId of petIds) {
+        // Validate Assessment for Creche/Hospedagem (Only for CUSTOMERS)
+        if ((isCreche || isHospedagem) && isCustomer) {
+            const { data: assessment } = await supabase
+                .from('pet_assessments')
+                .select('status')
+                .eq('pet_id', petId)
+                .single()
+
+            if (!assessment || assessment.status !== 'approved') {
+                errors.push(`Pet precisa de avaliação aprovada para ${categoryName}.`)
+                continue
+            }
+        }
+
+        // Get pet data
+        const { data: petData, error: petError } = await supabase
+            .from('pets')
+            .select('id, name, customer_id, weight_kg, species')
+            .eq('id', petId)
+            .single()
+
+        if (petError || !petData) {
+            errors.push(`Pet não encontrado (ID: ${petId}).`)
+            continue
+        }
+
+        // Check for Schedule Blocks (Conflict Check)
+        if (!isHospedagem) {
             const { data: blocks } = await supabase
                 .from('schedule_blocks')
                 .select('id, reason, allowed_species')
@@ -135,261 +167,193 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
                 .lte('start_at', scheduledAt)
                 .gte('end_at', scheduledAt)
 
-            // Filter blocks based on species and category restrictions
             const blockingBlocks = blocks?.filter(block => {
-                const blockTags: string[] = block.allowed_species || [];
-                const allowedSpecies = blockTags.filter(t => !t.startsWith('blocked_cat_'));
-                const blockedCategories = blockTags.filter(t => t.startsWith('blocked_cat_')).map(t => t.replace('blocked_cat_', ''));
+                const blockTags: string[] = block.allowed_species || []
+                const allowedSpecies = blockTags.filter(t => !t.startsWith('blocked_cat_'))
+                const blockedCategories = blockTags.filter(t => t.startsWith('blocked_cat_')).map(t => t.replace('blocked_cat_', ''))
 
-                let blockApplies = false;
-
+                let blockApplies = false
                 if (blockedCategories.length > 0) {
-                    if (blockedCategories.includes(categoryName || '')) {
-                        blockApplies = true;
-                    }
+                    if (blockedCategories.includes(categoryName || '')) blockApplies = true
                 } else {
-                    blockApplies = true;
+                    blockApplies = true
                 }
 
                 if (blockApplies) {
                     if (allowedSpecies.length > 0) {
-                        const species = (petData as any).species || 'dog';
-                        return !allowedSpecies.includes(species);
+                        const species = (petData as any).species || 'dog'
+                        return !allowedSpecies.includes(species)
                     } else {
-                        return true; // Block applies to everyone
+                        return true
                     }
                 }
-
-                return false; // Block doesn't apply to this category
+                return false
             })
 
             if (blockingBlocks && blockingBlocks.length > 0 && !isCreche && !isHospedagem) {
                 if (isCustomer) {
-                    return { message: `Este horário está bloqueado: ${blockingBlocks[0].reason}`, success: false }
-                } else {
-                    console.log('[CreateAppointment] Bypassing schedule block for non-customer user.')
+                    errors.push(`${petData.name}: conflito com bloqueio (${blockingBlocks[0].reason}).`)
+                    continue
                 }
             }
-        } catch (_) { // unused e
-            return { message: 'Data ou hora inválida.', success: false }
         }
-    }
 
-    // Check Conflicts (Skip for Hospedagem for now, or implement room logic later)
-    if (!isHospedagem) {
-        const duration = serviceData.duration_minutes || 60
-        const startDt = new Date(scheduledAt)
-        const endDt = new Date(startDt.getTime() + duration * 60000)
-        const endAt = endDt.toISOString()
+        // Verify Credits
+        let packageCreditId: string | null = null
+        const ignorePackage = formData.get('ignorePackage') === 'true'
 
-        const { data: conflictBlocks } = await supabase
-            .from('schedule_blocks')
-            .select('id, reason, allowed_species')
-            .eq('org_id', profile.org_id)
-            .lt('start_at', endAt)
-            .gt('end_at', scheduledAt)
-
-        // Same filtering logic for duration blocks
-        const blockingConflicts = conflictBlocks?.filter(block => {
-            const blockTags: string[] = block.allowed_species || [];
-            const allowedSpecies = blockTags.filter(t => !t.startsWith('blocked_cat_'));
-            const blockedCategories = blockTags.filter(t => t.startsWith('blocked_cat_')).map(t => t.replace('blocked_cat_', ''));
-
-            let blockApplies = false;
-
-            if (blockedCategories.length > 0) {
-                if (blockedCategories.includes(categoryName || '')) {
-                    blockApplies = true;
-                }
-            } else {
-                blockApplies = true;
-            }
-
-            if (blockApplies) {
-                if (allowedSpecies.length > 0) {
-                    const species = (petData as any).species || 'dog';
-                    return !allowedSpecies.includes(species);
-                } else {
-                    return true;
-                }
-            }
-
-            return false;
-        })
-
-        if (blockingConflicts && blockingConflicts.length > 0 && !isCreche && !isHospedagem) {
-            if (isCustomer) {
-                return { message: `Conflito com bloqueio: ${blockingConflicts[0].reason}`, success: false }
-            } else {
-                console.log('[CreateAppointment] Bypassing duration conflict block for non-customer user.')
-            }
-        }
-    }
-
-    // Verify Credits
-    let packageCreditId: string | null = null
-    const ignorePackage = formData.get('ignorePackage') === 'true'
-
-    if (!ignorePackage) {
-        const { data: creditData } = await supabase.rpc('use_package_credit_for_pet', {
-            p_pet_id: petId,
-            p_service_id: serviceId
-        })
-
-        if (creditData) {
-            packageCreditId = creditData
-        }
-    }
-
-    // Pricing Calculation Logic
-    let calculatedPrice = (serviceData as any).base_price
-
-    // Use weight_kg from petData
-    const weight = (petData as any).weight_kg ?? (petData as any).weight
-
-    if (weight !== null && weight !== undefined) {
-        const { data: rules } = await supabase
-            .from('pricing_matrix')
-            .select('fixed_price')
-            .eq('service_id', serviceId)
-            .eq('is_active', true)
-            .lte('weight_min', weight)
-            .gte('weight_max', weight)
-
-        if (rules && rules.length > 0) {
-            calculatedPrice = rules[0].fixed_price
-        } else {
-            // SECOND TRY: Use get_price RPC to ensure we follow the same logic as the frontend
-            const { data: rpcPrice } = await supabase.rpc('get_price', {
+        if (!ignorePackage) {
+            const { data: creditData } = await supabase.rpc('use_package_credit_for_pet', {
                 p_pet_id: petId,
-                p_service_id: serviceId,
-                p_date: date || checkInDate || new Date().toISOString().split('T')[0]
+                p_service_id: serviceId
             })
-            if (rpcPrice) calculatedPrice = rpcPrice
-        }
-    }
 
-    // Hospedagem Daily Rate Calculation
-    let days = 1
-    if (isHospedagem && checkIn && checkOut) {
-        const start = new Date(checkIn)
-        const end = new Date(checkOut)
-        // Set to noon to avoid timezone issues
-        start.setHours(12, 0, 0, 0)
-        end.setHours(12, 0, 0, 0)
-
-        const diffTime = Math.abs(end.getTime() - start.getTime())
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-        days = diffDays > 0 ? diffDays : 1
-
-        console.log('[CreateAppointment] Hospedagem Pricing:', {
-            initialPrice: calculatedPrice,
-            days: days,
-            totalBefore: calculatedPrice * days
-        })
-
-        calculatedPrice = calculatedPrice * days
-    }
-
-    const finalChecklist = (serviceAny.checklist_template || []).map((item: string) => ({
-        text: item,
-        completed: false,
-        completed_at: null
-    }))
-
-    let packageUsageIndex: number | null = null
-    let inheritedHasTaxi = hasTaxi
-    let inheritedTaxiFee = taxiFee
-
-    if (packageCreditId) {
-        try {
-            // 1. Get the customer package ID and its taxi status
-            const { data: creditInfo } = await supabase
-                .from('package_credits')
-                .select(`
-                    customer_package_id,
-                    customer_packages (
-                        has_taxi,
-                        taxi_fee
-                    )
-                `)
-                .eq('id', packageCreditId)
-                .single()
-
-            if (creditInfo?.customer_package_id) {
-                const pkg = (creditInfo.customer_packages as any)
-                if (pkg?.has_taxi) {
-                    inheritedHasTaxi = true
-                    inheritedTaxiFee = 0 // Inluso no pacote (pré-pago)
-                }
-
-                // 2. Count existing non-cancelled sessions for this package
-                const { count } = await supabase
-                    .from('appointments')
-                    .select('id', { count: 'exact', head: true })
-                    .eq('package_credit_id', packageCreditId) // Direct check or via relation
-                    .neq('status', 'cancelled')
-
-                // Count sessions for the whole customer package
-                // 1. Encontrar todos os créditos que pertencem a este pacote
-                const { data: siblingCredits } = await supabase
-                    .from('package_credits')
-                    .select('id')
-                    .eq('customer_package_id', creditInfo.customer_package_id)
-                
-                if (siblingCredits && siblingCredits.length > 0) {
-                    const creditIds = siblingCredits.map(c => c.id)
-                    const { count: totalInPkg } = await supabase
-                        .from('appointments')
-                        .select('id', { count: 'exact', head: true })
-                        .in('package_credit_id', creditIds)
-                        .neq('status', 'cancelled')
-                        
-                    packageUsageIndex = (totalInPkg || 0) + 1
-                } else {
-                    packageUsageIndex = 1
-                }
+            if (creditData) {
+                packageCreditId = creditData
             }
-        } catch (e) {
-            console.error('Error calculating session index:', e)
         }
-    }
 
-    console.log('[CreateAppointment] Final Checklist:', finalChecklist)
+        // Pricing Calculation Logic
+        let calculatedPrice = (serviceData as any).base_price
+        const weight = (petData as any).weight_kg ?? (petData as any).weight
 
-    // 3. Create Appointment
-    const { error } = await supabase
-        .from('appointments')
-        .insert({
-            org_id: profile.org_id,
-            pet_id: petId,
-            service_id: serviceId,
-            service_category_id: serviceAny.category_id,
-            customer_id: petData.customer_id,
-            staff_id: staffId || null,
-            scheduled_at: scheduledAt,
-            notes: notes || null,
-            status: 'pending',
-            package_credit_id: packageCreditId,
-            package_usage_index: packageUsageIndex,
-            checklist: finalChecklist,
-            check_in_date: checkIn,
-            check_out_date: checkOut,
-            calculated_price: calculatedPrice,
-            final_price: calculatedPrice + (inheritedHasTaxi ? inheritedTaxiFee : 0) + extrasFee,
-            has_taxi: inheritedHasTaxi,
-            taxi_fee: inheritedTaxiFee,
-            has_extras: hasExtras,
-            extras_fee: extrasFee,
-            extras: extrasList,
-            payment_status: 'pending',
-            discount_percent: 0
-        })
+        if (weight !== null && weight !== undefined) {
+            const { data: rules } = await supabase
+                .from('pricing_matrix')
+                .select('fixed_price')
+                .eq('service_id', serviceId)
+                .eq('is_active', true)
+                .lte('weight_min', weight)
+                .gte('weight_max', weight)
 
-    if (!error) {
-        // Generate Notification for new appointment
+            if (rules && rules.length > 0) {
+                calculatedPrice = rules[0].fixed_price
+            } else {
+                const { data: rpcPrice } = await supabase.rpc('get_price', {
+                    p_pet_id: petId,
+                    p_service_id: serviceId,
+                    p_date: date || checkInDate || new Date().toISOString().split('T')[0]
+                })
+                if (rpcPrice) calculatedPrice = rpcPrice
+            }
+        }
+
+        // Hospedagem Daily Rate Calculation
+        let days = 1
+        if (isHospedagem && checkIn && checkOut) {
+            const start = new Date(checkIn)
+            const end = new Date(checkOut)
+            start.setHours(12, 0, 0, 0)
+            end.setHours(12, 0, 0, 0)
+
+            const diffTime = Math.abs(end.getTime() - start.getTime())
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+            days = diffDays > 0 ? diffDays : 1
+            calculatedPrice = calculatedPrice * days
+        }
+
+        const finalChecklist = (serviceAny.checklist_template || []).map((item: string) => ({
+            text: item,
+            completed: false,
+            completed_at: null
+        }))
+
+        let packageUsageIndex: number | null = null
+        let inheritedHasTaxi = hasTaxi
+        let inheritedTaxiFee = taxiFee
+
+        if (packageCreditId) {
+            try {
+                const { data: creditInfo } = await supabase
+                    .from('package_credits')
+                    .select(`
+                        customer_package_id,
+                        customer_packages (
+                            has_taxi,
+                            taxi_fee
+                        )
+                    `)
+                    .eq('id', packageCreditId)
+                    .single()
+
+                if (creditInfo?.customer_package_id) {
+                    const pkg = (creditInfo.customer_packages as any)
+                    if (pkg?.has_taxi) {
+                        inheritedHasTaxi = true
+                        inheritedTaxiFee = 0
+                    }
+
+                    const { data: siblingCredits } = await supabase
+                        .from('package_credits')
+                        .select('id')
+                        .eq('customer_package_id', creditInfo.customer_package_id)
+                    
+                    if (siblingCredits && siblingCredits.length > 0) {
+                        const creditIds = siblingCredits.map(c => c.id)
+                        const { count: totalInPkg } = await supabase
+                            .from('appointments')
+                            .select('id', { count: 'exact', head: true })
+                            .in('package_credit_id', creditIds)
+                            .neq('status', 'cancelled')
+                            
+                        packageUsageIndex = (totalInPkg || 0) + 1
+                    } else {
+                        packageUsageIndex = 1
+                    }
+                }
+            } catch (e) {
+                console.error('Error calculating session index:', e)
+            }
+        }
+
+        // Se consumiu crédito de pacote: o preço do serviço é coberto pelo pacote (0,00)
+        // Se houver extras ou táxi avulso, cobra apenas os extras/táxi
+        const finalCalculatedPrice = packageCreditId ? 0 : calculatedPrice
+        const finalPriceToCharge = packageCreditId 
+            ? ((inheritedHasTaxi ? inheritedTaxiFee : 0) + extrasFee)
+            : (calculatedPrice + (inheritedHasTaxi ? inheritedTaxiFee : 0) + extrasFee)
+        const paymentStatus = packageCreditId && finalPriceToCharge === 0 ? 'paid' : 'pending'
+
+        // Create Appointment
+        const { error } = await supabase
+            .from('appointments')
+            .insert({
+                org_id: profile.org_id,
+                pet_id: petId,
+                service_id: serviceId,
+                service_category_id: serviceAny.category_id,
+                customer_id: petData.customer_id,
+                staff_id: staffId || null,
+                scheduled_at: scheduledAt,
+                notes: notes || null,
+                status: 'pending',
+                package_credit_id: packageCreditId,
+                package_usage_index: packageUsageIndex,
+                checklist: finalChecklist,
+                check_in_date: checkIn,
+                check_out_date: checkOut,
+                calculated_price: finalCalculatedPrice,
+                final_price: finalPriceToCharge,
+                has_taxi: inheritedHasTaxi,
+                taxi_fee: inheritedTaxiFee,
+                has_extras: hasExtras,
+                extras_fee: extrasFee,
+                extras: extrasList,
+                payment_status: paymentStatus,
+                paid_at: paymentStatus === 'paid' ? new Date().toISOString() : null,
+                discount_percent: 0
+            })
+
+        if (error) {
+            errors.push(`${petData.name}: erro ao salvar (${error.message})`)
+            continue
+        }
+
+        successfulPetNames.push(petData.name)
+
+        // Generate Notification
         const formattedDate = date ? new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR') :
-            (checkInDate ? new Date(`${checkInDate}T12:00:00`).toLocaleDateString('pt-BR') : '');
+            (checkInDate ? new Date(`${checkInDate}T12:00:00`).toLocaleDateString('pt-BR') : '')
 
         await createNotification({
             org_id: profile.org_id,
@@ -397,22 +361,36 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
             title: 'Novo Agendamento 📅',
             message: `Novo agendamento de ${serviceAny.name} para o pet ${petData.name} em ${formattedDate}.`,
             link: isHospedagem ? '/owner/hospedagem' : (isCreche ? '/owner/creche' : '/owner/agenda')
-        });
-    }
+        })
 
-    if (error) {
-        return { message: `Erro ao agendar: ${error.message}`, success: false }
+        await fixPackageUsageIndices(petId)
     }
-
-    // Sincronizar índices do pacote para este pet
-    await fixPackageUsageIndices(petId)
 
     revalidatePath('/owner/agenda')
     revalidatePath('/owner/pets')
-    revalidatePath('/owner/creche') // Revalidate new dashboards
+    revalidatePath('/owner/creche')
+    revalidatePath('/owner/banho-tosa')
     revalidatePath('/owner/hospedagem')
-    revalidatePath('/owner/hospedagem')
-    return { message: 'Agendamento criado com sucesso!', success: true }
+    revalidatePath('/owner/financeiro')
+    revalidatePath('/owner')
+
+    if (successfulPetNames.length === 0) {
+        return { message: errors.join(' | ') || 'Não foi possível criar os agendamentos.', success: false }
+    }
+
+    if (successfulPetNames.length === 1) {
+        return { 
+            message: errors.length > 0 
+                ? `Agendamento criado para ${successfulPetNames[0]}, mas ocorreram erros: ${errors.join('; ')}`
+                : 'Agendamento criado com sucesso!', 
+            success: true 
+        }
+    }
+
+    return {
+        message: `${successfulPetNames.length} agendamentos criados com sucesso para: ${successfulPetNames.join(', ')}!${errors.length > 0 ? ` (Avisos: ${errors.join('; ')})` : ''}`,
+        success: true
+    }
 }
 
 export async function updateAppointmentStatus(id: string, status: string) {

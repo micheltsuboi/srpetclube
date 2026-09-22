@@ -10,6 +10,9 @@ interface Service {
     name: string
     duration_minutes?: number
     base_price: number
+    service_categories?: {
+        name: string
+    }
 }
 
 interface Product {
@@ -155,11 +158,11 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
 
             const { data } = await supabase
                 .from('services')
-                .select('id, name, base_price, duration_minutes')
+                .select('id, name, base_price, duration_minutes, is_active, service_categories(name)')
                 .eq('org_id', profile.org_id)
                 .order('name')
 
-            if (data) setServices(data)
+            if (data) setServices(data as any)
 
             const { data: prodData } = await supabase
                 .from('products')
@@ -275,9 +278,32 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
                                 onChange={e => setServiceId(e.target.value)}
                                 style={{ width: '100%', padding: '0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white' }}
                             >
-                                {services.map(s => (
-                                    <option key={s.id} value={s.id}>{s.name}</option>
-                                ))}
+                                {(() => {
+                                    const categoryOrder = ['Banho e Tosa', 'Creche', 'Hospedagem', 'Outros']
+                                    const grouped = services.reduce((acc, s) => {
+                                        const cat = s.service_categories?.name || 'Outros'
+                                        if (!acc[cat]) acc[cat] = []
+                                        acc[cat].push(s)
+                                        return acc
+                                    }, {} as Record<string, Service[]>)
+
+                                    const sortedCats = Object.keys(grouped).sort((a, b) => {
+                                        const idxA = categoryOrder.indexOf(a)
+                                        const idxB = categoryOrder.indexOf(b)
+                                        if (idxA !== -1 && idxB !== -1) return idxA - idxB
+                                        if (idxA !== -1) return -1
+                                        if (idxB !== -1) return 1
+                                        return a.localeCompare(b)
+                                    })
+
+                                    return sortedCats.map(category => (
+                                        <optgroup key={category} label={`📁 ${category}`}>
+                                            {grouped[category].map(s => (
+                                                <option key={s.id} value={s.id}>{s.name}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))
+                                })()}
                             </select>
                         </div>
 

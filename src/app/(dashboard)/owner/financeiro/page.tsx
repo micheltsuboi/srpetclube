@@ -68,6 +68,10 @@ export default function FinanceiroPage() {
     })
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [extractSearchTerm, setExtractSearchTerm] = useState('')
+    const [pendingTab, setPendingTab] = useState<'realized' | 'forecast' | 'all'>('realized')
+    const [pendingSortField, setPendingSortField] = useState<'date' | 'name' | 'amount'>('date')
+    const [pendingSortDirection, setPendingSortDirection] = useState<'asc' | 'desc'>('asc')
+    const [applyPeriodFilterToPending, setApplyPeriodFilterToPending] = useState(false)
 
     const fetchFinancials = useCallback(async () => {
         try {
@@ -138,12 +142,13 @@ export default function FinanceiroPage() {
                 supabase
                     .from('appointments')
                     .select(`
-                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
+                        id, status, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
                         pets ( name, customers ( name ) ),
                         services ( name, service_categories ( name ) )
                     `)
                     .eq('org_id', profile.org_id)
                     .neq('payment_status', 'paid')
+                    .neq('status', 'cancelled')
                     .order('scheduled_at', { ascending: true })
             ])
 
@@ -513,7 +518,19 @@ export default function FinanceiroPage() {
 
     const activeProfit = activeRevenue - activeExpenses
 
-    const pendingTotal = extractRecords.allPendingAppts
+    const isApptRealized = (a: any) => {
+        if (a.status === 'done' || a.status === 'completed') return true
+        if (a.scheduled_at) {
+            const sched = new Date(a.scheduled_at)
+            const todayEnd = new Date()
+            todayEnd.setHours(23, 59, 59, 999)
+            return sched <= todayEnd
+        }
+        return false
+    }
+
+    const realizedPendingTotal = extractRecords.allPendingAppts
+        .filter(a => isApptRealized(a))
         .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
         .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
         + extractRecords.pendingSales
@@ -522,6 +539,13 @@ export default function FinanceiroPage() {
         + extractRecords.pendingPackages
             .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
             .reduce((sum, p) => sum + (p.total_paid || p.calculated_price || 0), 0)
+
+    const forecastPendingTotal = extractRecords.allPendingAppts
+        .filter(a => !isApptRealized(a))
+        .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
+        .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
+
+    const pendingTotal = realizedPendingTotal + forecastPendingTotal
 
     const revenueGrowth = previousMonthData.revenue > 0
         ? ((currentMonthData.revenue - previousMonthData.revenue) / previousMonthData.revenue * 100).toFixed(1)
@@ -786,8 +810,11 @@ export default function FinanceiroPage() {
                     <div className={styles.cardHeader}>
                         <span className={styles.cardIcon}>⏳</span>
                     </div>
-                    <span className={styles.cardValue} style={{ color: '#f39c12' }}>{formatCurrency(pendingTotal)}</span>
-                    <span className={styles.cardLabel}>A Receber</span>
+                    <span className={styles.cardValue} style={{ color: '#f39c12' }}>{formatCurrency(realizedPendingTotal)}</span>
+                    <span className={styles.cardLabel}>A Receber (Realizados)</span>
+                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.35rem', display: 'block' }}>
+                        + {formatCurrency(forecastPendingTotal)} previstos futuros
+                    </span>
                 </div>
             </div>
 
@@ -797,11 +824,11 @@ export default function FinanceiroPage() {
                     <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
                         <button className={styles.closeButton} onClick={() => setIsExtractModalOpen(false)}>×</button>
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', paddingRight: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem', paddingRight: '2rem', gap: '1rem', flexWrap: 'wrap' }}>
                             <h2 style={{ margin: 0 }}>
                                 {extractRecords.type === 'revenue' && '📜 Extrato de Faturamento'}
                                 {extractRecords.type === 'expenses' && '📉 Extrato de Despesas'}
-                                {extractRecords.type === 'pending' && '⏳ Valores a Receber'}
+                                {extractRecords.type === 'pending' && '⏳ Contas a Receber & Previsões'}
                             </h2>
                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flex: 1, minWidth: '300px' }}>
                                 <input
@@ -836,9 +863,153 @@ export default function FinanceiroPage() {
                             </div>
                         </div>
 
+                        {extractRecords.type === 'pending' && (
+                            <div style={{
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.75rem',
+                                marginBottom: '1.25rem',
+                                background: 'rgba(255,255,255,0.03)',
+                                padding: '0.85rem 1rem',
+                                borderRadius: '10px',
+                                border: '1px solid rgba(255,255,255,0.08)'
+                            }}>
+                                {/* Abas de Visualização */}
+                                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPendingTab('realized')}
+                                        style={{
+                                            padding: '0.45rem 0.9rem',
+                                            borderRadius: '6px',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            background: pendingTab === 'realized' ? '#e67e22' : 'rgba(255,255,255,0.08)',
+                                            color: 'white',
+                                            boxShadow: pendingTab === 'realized' ? '0 2px 8px rgba(230, 126, 34, 0.4)' : 'none',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        🚨 Pendências Reais ({formatCurrency(realizedPendingTotal)})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPendingTab('forecast')}
+                                        style={{
+                                            padding: '0.45rem 0.9rem',
+                                            borderRadius: '6px',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            background: pendingTab === 'forecast' ? '#3498db' : 'rgba(255,255,255,0.08)',
+                                            color: 'white',
+                                            boxShadow: pendingTab === 'forecast' ? '0 2px 8px rgba(52, 152, 219, 0.4)' : 'none',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        📅 Previsão de Recebimentos ({formatCurrency(forecastPendingTotal)})
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setPendingTab('all')}
+                                        style={{
+                                            padding: '0.45rem 0.9rem',
+                                            borderRadius: '6px',
+                                            border: 'none',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            fontWeight: 600,
+                                            background: pendingTab === 'all' ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.08)',
+                                            color: 'white',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        📑 Todos ({formatCurrency(pendingTotal)})
+                                    </button>
+                                </div>
+
+                                {/* Ordenação e Filtro de Período */}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', fontSize: '0.85rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        <span style={{ color: 'rgba(255,255,255,0.7)' }}>Ordenar por:</span>
+                                        <select
+                                            value={pendingSortField}
+                                            onChange={(e) => setPendingSortField(e.target.value as any)}
+                                            style={{
+                                                background: 'rgba(0,0,0,0.4)',
+                                                border: '1px solid rgba(255,255,255,0.15)',
+                                                color: 'white',
+                                                padding: '0.35rem 0.6rem',
+                                                borderRadius: '6px',
+                                                fontSize: '0.85rem',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            <option value="date">📅 Data</option>
+                                            <option value="name">🔤 Nome do Pet</option>
+                                            <option value="amount">💰 Valor</option>
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={() => setPendingSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                                            style={{
+                                                background: 'rgba(255,255,255,0.1)',
+                                                border: '1px solid rgba(255,255,255,0.2)',
+                                                color: 'white',
+                                                padding: '0.35rem 0.7rem',
+                                                borderRadius: '6px',
+                                                cursor: 'pointer',
+                                                fontSize: '0.85rem',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '0.3rem'
+                                            }}
+                                            title="Alternar entre ordem crescente e decrescente"
+                                        >
+                                            {pendingSortDirection === 'asc' ? '⬆️ Ordem Crescente' : '⬇️ Ordem Decrescente'}
+                                        </button>
+                                    </div>
+
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', color: 'rgba(255,255,255,0.85)', userSelect: 'none' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={applyPeriodFilterToPending}
+                                            onChange={(e) => setApplyPeriodFilterToPending(e.target.checked)}
+                                            style={{ cursor: 'pointer' }}
+                                        />
+                                        <span>Filtrar pelo período selecionado</span>
+                                    </label>
+                                </div>
+                            </div>
+                        )}
+
                         <div className={styles.extractList}>
 {(() => {
-    const filteredAppts = (extractRecords.type === 'revenue' ? extractRecords.appointments.filter(a => a.payment_status === 'paid') : (extractRecords.type === 'pending' ? extractRecords.allPendingAppts : []))
+    // 1. Filtragem de Agendamentos
+    let apptsSource = extractRecords.type === 'revenue' 
+        ? extractRecords.appointments.filter(a => a.payment_status === 'paid')
+        : (extractRecords.type === 'pending' ? extractRecords.allPendingAppts : [])
+
+    if (extractRecords.type === 'pending') {
+        if (pendingTab === 'realized') {
+            apptsSource = apptsSource.filter(a => isApptRealized(a))
+        } else if (pendingTab === 'forecast') {
+            apptsSource = apptsSource.filter(a => !isApptRealized(a))
+        }
+
+        if (applyPeriodFilterToPending) {
+            apptsSource = apptsSource.filter(a => {
+                if (!a.scheduled_at) return false
+                const d = a.scheduled_at.split('T')[0]
+                return d >= startDate && d <= endDate
+            })
+        }
+    }
+
+    const filteredAppts = apptsSource
         .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
         .filter(a => {
             if (!extractSearchTerm) return true
@@ -848,7 +1019,20 @@ export default function FinanceiroPage() {
                    a.pets?.customers?.name?.toLowerCase().includes(search)
         })
 
-    const filteredSales = extractRecords.type === 'pending' ? extractRecords.pendingSales
+    // 2. Filtragem de Vendas (Petshop)
+    let salesSource = extractRecords.type === 'pending' && pendingTab !== 'forecast' 
+        ? extractRecords.pendingSales 
+        : []
+
+    if (extractRecords.type === 'pending' && applyPeriodFilterToPending) {
+        salesSource = salesSource.filter(s => {
+            if (!s.created_at) return false
+            const d = s.created_at.split('T')[0]
+            return d >= startDate && d <= endDate
+        })
+    }
+
+    const filteredSales = salesSource
         .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
         .filter(s => {
             if (!extractSearchTerm) return true
@@ -856,9 +1040,22 @@ export default function FinanceiroPage() {
             return s.pets?.name?.toLowerCase().includes(search) || 
                    s.product_name?.toLowerCase().includes(search) ||
                    s.pets?.customers?.name?.toLowerCase().includes(search)
-        }) : []
+        })
 
-    const filteredPkgs = extractRecords.type === 'pending' ? extractRecords.pendingPackages
+    // 3. Filtragem de Pacotes
+    let pkgsSource = extractRecords.type === 'pending' && pendingTab !== 'forecast'
+        ? extractRecords.pendingPackages
+        : []
+
+    if (extractRecords.type === 'pending' && applyPeriodFilterToPending) {
+        pkgsSource = pkgsSource.filter(p => {
+            if (!p.purchased_at) return false
+            const d = p.purchased_at.split('T')[0]
+            return d >= startDate && d <= endDate
+        })
+    }
+
+    const filteredPkgs = pkgsSource
         .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
         .filter(p => {
             if (!extractSearchTerm) return true
@@ -866,8 +1063,9 @@ export default function FinanceiroPage() {
             return p.pets?.name?.toLowerCase().includes(search) || 
                    p.service_packages?.name?.toLowerCase().includes(search) ||
                    p.pets?.customers?.name?.toLowerCase().includes(search)
-        }) : []
+        })
 
+    // 4. Filtragem de Transações de Receitas/Despesas
     const filteredTxs = extractRecords.type !== 'pending' ? extractRecords.transactions
         .filter(t => extractRecords.type === 'revenue' ? t.type === 'income' : t.type === 'expense')
         .filter(t => selectedCategory === 'all' || t.category === selectedCategory)
@@ -879,127 +1077,203 @@ export default function FinanceiroPage() {
                    (t.description || '').toLowerCase().includes(search)
         }) : []
 
-    const totalFiltered = filteredAppts.reduce((acc, a) => acc + (a.final_price || a.calculated_price || 0), 0) +
-                          filteredSales.reduce((acc, s) => acc + s.total_price, 0) +
-                          filteredPkgs.reduce((acc, p) => acc + (p.total_paid || p.calculated_price || 0), 0) +
-                          filteredTxs.reduce((acc, t) => acc + t.amount, 0)
+    // 5. Unificação e ordenação para Pendências
+    const pendingItems = extractRecords.type === 'pending' ? [
+        ...filteredAppts.map(appt => ({
+            id: appt.id,
+            type: 'appointment' as const,
+            petName: appt.pets?.name || 'Pet',
+            customerName: appt.pets?.customers?.name || 'Sem tutor',
+            title: `${appt.pets?.name || 'Pet'} (${appt.pets?.customers?.name || 'Sem tutor'}) • ${appt.services?.name || 'Serviço'}`,
+            date: appt.scheduled_at,
+            amount: appt.final_price || appt.calculated_price || 0,
+            isRealized: isApptRealized(appt),
+            raw: appt
+        })),
+        ...filteredSales.map(sale => ({
+            id: sale.id,
+            type: 'sale' as const,
+            petName: sale.pets?.name || 'Avulso',
+            customerName: sale.pets?.customers?.name || 'Sem tutor',
+            title: `${sale.pets?.name || 'Avulso'} (${sale.pets?.customers?.name || 'Sem tutor'}) • ${sale.product_name}`,
+            date: sale.created_at,
+            amount: sale.total_price,
+            isRealized: true,
+            raw: sale
+        })),
+        ...filteredPkgs.map(pkg => ({
+            id: pkg.id,
+            type: 'package' as const,
+            petName: pkg.pets?.name || 'Pet',
+            customerName: pkg.pets?.customers?.name || 'Sem tutor',
+            title: `${pkg.pets?.name || 'Pet'} (${pkg.pets?.customers?.name || 'Sem tutor'}) • Pacote: ${pkg.service_packages?.name || 'Serviço'}`,
+            date: pkg.purchased_at,
+            amount: pkg.total_paid || pkg.calculated_price || 0,
+            isRealized: true,
+            raw: pkg
+        }))
+    ].sort((a, b) => {
+        if (pendingSortField === 'date') {
+            const timeA = new Date(a.date).getTime()
+            const timeB = new Date(b.date).getTime()
+            return pendingSortDirection === 'asc' ? timeA - timeB : timeB - timeA
+        }
+        if (pendingSortField === 'amount') {
+            return pendingSortDirection === 'asc' ? a.amount - b.amount : b.amount - a.amount
+        }
+        // nome
+        const comp = a.petName.localeCompare(b.petName)
+        return pendingSortDirection === 'asc' ? comp : -comp
+    }) : []
 
-    const isEmpty = filteredAppts.length === 0 && filteredSales.length === 0 && filteredPkgs.length === 0 && filteredTxs.length === 0
+    const totalFiltered = extractRecords.type === 'pending'
+        ? pendingItems.reduce((acc, item) => acc + item.amount, 0)
+        : filteredAppts.reduce((acc, a) => acc + (a.final_price || a.calculated_price || 0), 0) +
+          filteredTxs.reduce((acc, t) => acc + t.amount, 0)
+
+    const isEmpty = extractRecords.type === 'pending'
+        ? pendingItems.length === 0
+        : (filteredAppts.length === 0 && filteredTxs.length === 0)
 
     return (
         <>
-            {extractSearchTerm && !isEmpty && (
-                <div style={{ padding: '1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <strong>Total Filtrado:</strong>
-                    
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <span style={{ fontSize: '1.2rem', fontWeight: 'bold', color: extractRecords.type === 'expenses' ? '#ef4444' : '#10b981' }}>
+            {!isEmpty && (
+                <div style={{ padding: '0.8rem 1rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <strong>{extractRecords.type === 'pending' ? 'Total em Exibição:' : 'Total Filtrado:'}</strong>
+                        <span style={{ fontSize: '1.15rem', fontWeight: 'bold', color: extractRecords.type === 'expenses' ? '#ef4444' : '#10b981' }}>
                             {formatCurrency(totalFiltered)}
                         </span>
                         {extractRecords.type === 'pending' && (
-                            <button
-                                className={styles.confirmPayBtn}
-                                style={{ backgroundColor: '#10b981', padding: '0.4rem 1rem', fontSize: '0.9rem' }}
-                                onClick={() => handlePayAllFiltered(filteredAppts, filteredSales, filteredPkgs, totalFiltered)}
-                            >
-                                Pagar Tudo
-                            </button>
+                            <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+                                ({pendingItems.length} {pendingItems.length === 1 ? 'item' : 'itens'})
+                            </span>
                         )}
                     </div>
-    
+                    
+                    {extractRecords.type === 'pending' && pendingItems.length > 0 && (
+                        <button
+                            className={styles.confirmPayBtn}
+                            style={{ backgroundColor: '#10b981', padding: '0.4rem 1rem', fontSize: '0.85rem' }}
+                            onClick={() => handlePayAllFiltered(filteredAppts, filteredSales, filteredPkgs, totalFiltered)}
+                        >
+                            Pagar Tudo Exibido ({formatCurrency(totalFiltered)})
+                        </button>
+                    )}
                 </div>
             )}
 
-            {filteredAppts.map(appt => (
+            {/* Renderização de itens pendentes unificados e ordenados */}
+            {extractRecords.type === 'pending' && pendingItems.map(item => (
+                <div key={`${item.type}-${item.id}`} className={styles.extractItem}>
+                    <div className={styles.extractInfo}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                            <strong>{item.title}</strong>
+                            {item.type === 'appointment' && (
+                                item.isRealized ? (
+                                    <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(230, 126, 34, 0.2)', color: '#e67e22', border: '1px solid rgba(230, 126, 34, 0.4)', fontWeight: 600 }}>
+                                        ⚠️ Realizado
+                                    </span>
+                                ) : (
+                                    <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(52, 152, 219, 0.2)', color: '#3498db', border: '1px solid rgba(52, 152, 219, 0.4)', fontWeight: 600 }}>
+                                        📅 Previsto
+                                    </span>
+                                )
+                            )}
+                            {item.type === 'sale' && (
+                                <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.4)', fontWeight: 600 }}>
+                                    🛍️ Venda Petshop
+                                </span>
+                            )}
+                            {item.type === 'package' && (
+                                <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(155, 89, 182, 0.2)', color: '#9b59b6', border: '1px solid rgba(155, 89, 182, 0.4)', fontWeight: 600 }}>
+                                    📦 Pacote
+                                </span>
+                            )}
+                        </div>
+                        <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
+                            {item.type === 'appointment' ? 'Agendado para: ' : 'Data: '}
+                            {new Date(item.date).toLocaleDateString('pt-BR')}
+                        </span>
+                    </div>
+                    <div className={styles.extractActions}>
+                        <span className={styles.extractAmount}>
+                            {formatCurrency(item.amount)}
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            {item.type === 'appointment' && (
+                                <>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        onClick={() => handleConfirmPayment(item.id)}
+                                    >
+                                        Confirmar Pago
+                                    </button>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        style={{ backgroundColor: '#f39c12' }}
+                                        onClick={() => handlePartialPayment('appointment', item.id, item.amount, item.title)}
+                                    >
+                                        Pagar Parcial
+                                    </button>
+                                </>
+                            )}
+                            {item.type === 'sale' && (
+                                <>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        onClick={() => handleConfirmPetshopPayment(item.id, item.raw.product_name, item.amount)}
+                                    >
+                                        Confirmar Pago
+                                    </button>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        style={{ backgroundColor: '#f39c12' }}
+                                        onClick={() => handlePartialPayment('sale', item.id, item.amount, `Venda: ${item.raw.product_name}`)}
+                                    >
+                                        Pagar Parcial
+                                    </button>
+                                </>
+                            )}
+                            {item.type === 'package' && (
+                                <>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        onClick={() => handleConfirmPackagePayment(item.id, item.raw.service_packages?.name || 'Pacote', item.amount)}
+                                    >
+                                        Confirmar Pago
+                                    </button>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        style={{ backgroundColor: '#f39c12' }}
+                                        onClick={() => handlePartialPayment('package', item.id, item.amount, `Pacote: ${item.raw.service_packages?.name || 'Pacote'}`)}
+                                    >
+                                        Pagar Parcial
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            ))}
+
+            {/* Renderização de itens de receita paga */}
+            {extractRecords.type === 'revenue' && filteredAppts.map(appt => (
                 <div key={appt.id} className={styles.extractItem}>
                     <div className={styles.extractInfo}>
                         <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}</strong>
-                        <span>{new Date(appt.payment_status === 'paid' ? appt.paid_at! : appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
+                        <span>{new Date(appt.paid_at || appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
                     </div>
                     <div className={styles.extractActions}>
                         <span className={styles.extractAmount}>
                             {formatCurrency(appt.final_price || appt.calculated_price || 0)}
                         </span>
-                        {extractRecords.type === 'pending' && (
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button
-                                    className={styles.confirmPayBtn}
-                                    onClick={() => handleConfirmPayment(appt.id)}
-                                >
-                                    Confirmar Pago
-                                </button>
-                                <button
-                                    className={styles.confirmPayBtn}
-                                    style={{ backgroundColor: '#f39c12' }}
-                                    onClick={() => handlePartialPayment('appointment', appt.id, appt.final_price || appt.calculated_price || 0, `${appt.pets?.name || 'Pet'} • ${appt.services?.name || 'Serviço'}`)}
-                                >
-                                    Pagar Parcial
-                                </button>
-                            </div>
-                        )}
                     </div>
                 </div>
             ))}
 
-            {filteredSales.map(sale => (
-                <div key={sale.id} className={styles.extractItem}>
-                    <div className={styles.extractInfo}>
-                        <strong>{sale.pets?.name || 'Avulso'} ({sale.pets?.customers?.name || 'Sem tutor'}) • {sale.product_name}</strong>
-                        <span>{new Date(sale.created_at).toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <div className={styles.extractActions}>
-                        <span className={styles.extractAmount}>
-                            {formatCurrency(sale.total_price)}
-                        </span>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button
-                                className={styles.confirmPayBtn}
-                                onClick={() => handleConfirmPetshopPayment(sale.id, sale.product_name, sale.total_price)}
-                            >
-                                Confirmar Pago
-                            </button>
-                            <button
-                                className={styles.confirmPayBtn}
-                                style={{ backgroundColor: '#f39c12' }}
-                                onClick={() => handlePartialPayment('sale', sale.id, sale.total_price, `Venda: ${sale.product_name}`)}
-                            >
-                                Pagar Parcial
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            ))}
-
-            {filteredPkgs.map(pkg => (
-                <div key={pkg.id} className={styles.extractItem}>
-                    <div className={styles.extractInfo}>
-                        <strong>{pkg.pets?.name || 'Pet'} ({pkg.pets?.customers?.name || 'Sem tutor'}) • Pacote: {pkg.service_packages?.name || 'Serviço'}</strong>
-                        <span>{new Date(pkg.purchased_at).toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <div className={styles.extractActions}>
-                        <span className={styles.extractAmount}>
-                            {formatCurrency(pkg.total_paid || pkg.calculated_price || 0)}
-                        </span>
-                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button
-                                className={styles.confirmPayBtn}
-                                onClick={() => handleConfirmPackagePayment(pkg.id, pkg.service_packages?.name || 'Pacote', pkg.total_paid || pkg.calculated_price || 0)}
-                            >
-                                Confirmar Pago
-                            </button>
-                            <button
-                                className={styles.confirmPayBtn}
-                                style={{ backgroundColor: '#f39c12' }}
-                                onClick={() => handlePartialPayment('package', pkg.id, pkg.total_paid || pkg.calculated_price || 0, `Pacote: ${pkg.service_packages?.name || 'Pacote'}`)}
-                            >
-                                Pagar Parcial
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            ))}
-
-            {filteredTxs.map(tx => (
+            {/* Renderização de despesas e receitas avulsas */}
+            {extractRecords.type !== 'pending' && filteredTxs.map(tx => (
                 <div key={tx.id} className={styles.extractItem}>
                     <div className={styles.extractInfo}>
                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
