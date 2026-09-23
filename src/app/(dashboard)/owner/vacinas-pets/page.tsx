@@ -534,9 +534,6 @@ export default function PetVaccinesControlPage() {
                                             </div>
                                         </td>
                                         <td data-label="Vacinas Cadastradas">
-                                            <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                                                {summary.vaccines.length} {summary.vaccines.length === 1 ? 'vacina cadastrada' : 'vacinas cadastradas'}
-                                            </div>
                                             <div className={styles.vaccinesList}>
                                                 {summary.vaccines.map((v) => {
                                                     const st = getVaccineStatusType(v.expiry_date)
@@ -547,8 +544,12 @@ export default function PetVaccinesControlPage() {
                                                         : styles.vacChipOk
 
                                                     return (
-                                                        <span key={v.id} className={`${styles.vacChip} ${chipClass}`}>
-                                                            {v.name} ({formatDate(v.expiry_date)})
+                                                        <span 
+                                                            key={v.id} 
+                                                            className={`${styles.vacChip} ${chipClass}`}
+                                                            title={`Vencimento: ${formatDate(v.expiry_date)}`}
+                                                        >
+                                                            {v.name}
                                                         </span>
                                                     )
                                                 })}
@@ -562,10 +563,10 @@ export default function PetVaccinesControlPage() {
                                         <td data-label="Ações">
                                             <Link 
                                                 href={petUrl}
-                                                className={styles.actionBtn}
-                                                title="Abrir ficha do pet na aba de vacinas"
+                                                className={styles.iconActionBtn}
+                                                title="Ver ficha do pet"
                                             >
-                                                🔍 Ficha do Pet
+                                                👁️
                                             </Link>
                                         </td>
                                     </tr>
