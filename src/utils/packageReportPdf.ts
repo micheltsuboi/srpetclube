@@ -165,13 +165,32 @@ export function exportPackageSessionsPDF({
 
     // 5. Tabela de Histórico de Sessões (Slots)
     const translateStatus = (st: string) => {
-        switch (st) {
-            case 'completed': return 'Concluída'
-            case 'scheduled': return 'Agendada'
-            case 'missed': return 'Falta'
-            case 'rescheduled': return 'Reagendada'
-            case 'cancelled': return 'Cancelada'
-            default: return st || 'Registrada'
+        if (!st) return 'Registrada'
+        const lower = st.trim().toLowerCase()
+        switch (lower) {
+            case 'done':
+            case 'completed':
+            case 'realizado':
+            case 'utilizado':
+                return 'Utilizado'
+            case 'scheduled':
+            case 'agendado':
+                return 'Agendado'
+            case 'pending':
+                return 'Pendente'
+            case 'in_progress':
+                return 'Em Andamento'
+            case 'missed':
+            case 'no_show':
+            case 'falta':
+                return 'Falta'
+            case 'rescheduled':
+                return 'Reagendado'
+            case 'cancelled':
+            case 'canceled':
+                return 'Cancelado'
+            default:
+                return st
         }
     }
 
@@ -219,13 +238,13 @@ export function exportPackageSessionsPDF({
         didParseCell: (data) => {
             if (data.section === 'body' && data.column.index === 3) {
                 const cellText = String(data.cell.raw)
-                if (cellText === 'Concluída') {
+                if (cellText === 'Utilizado') {
                     data.cell.styles.textColor = [16, 185, 129] // Verde
                     data.cell.styles.fontStyle = 'bold'
                 } else if (cellText === 'Falta') {
                     data.cell.styles.textColor = [239, 68, 68] // Vermelho
                     data.cell.styles.fontStyle = 'bold'
-                } else if (cellText === 'Agendada') {
+                } else if (cellText === 'Agendado' || cellText === 'Pendente') {
                     data.cell.styles.textColor = [37, 99, 235] // Azul
                 }
             }
