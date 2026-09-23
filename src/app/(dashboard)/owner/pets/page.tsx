@@ -632,6 +632,42 @@ function PetsContent() {
         }
     }
 
+    const handleExportPackagePdf = async (pkgGroup: any) => {
+        if (!selectedPet) return
+        try {
+            let slots = petSlots[pkgGroup.id]
+            if (!slots) {
+                const { getPackageSlotsHistory } = await import('@/app/actions/package')
+                slots = await getPackageSlotsHistory(pkgGroup.id)
+                setPetSlots(prev => ({ ...prev, [pkgGroup.id]: slots }))
+            }
+
+            const fallbackDate = pkgGroup.purchased_at || pkgGroup.expires_at || new Date().toISOString()
+            let referenceMonth = new Date(fallbackDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+            if (referenceMonth) {
+                referenceMonth = referenceMonth.charAt(0).toUpperCase() + referenceMonth.slice(1)
+            }
+
+            const { exportPackageSessionsPDF } = await import('@/utils/packageReportPdf')
+            exportPackageSessionsPDF({
+                pet: selectedPet,
+                packageData: {
+                    name: pkgGroup.name,
+                    referenceMonth,
+                    purchased_at: pkgGroup.purchased_at,
+                    expires_at: pkgGroup.expires_at,
+                    payment_status: pkgGroup.payment_status,
+                    calculated_price: pkgGroup.calculated_price,
+                    services: pkgGroup.services
+                },
+                slots: slots || []
+            })
+        } catch (error) {
+            console.error('Erro ao gerar PDF do pacote:', error)
+            alert('Erro ao gerar relatório em PDF.')
+        }
+    }
+
     if (loading && pets.length === 0) {
         return (
             <div className={styles.container} style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -1410,13 +1446,13 @@ function PetsContent() {
                                                                     </div>
 
                                                                     {/* Botões de Ação do Pacote */}
-                                                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem' }}>
+                                                                    <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', flexWrap: 'wrap' }}>
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => handleDeleteCustomerPackage(cpId)}
                                                                             style={{ 
-                                                                                flex: 1, 
-                                                                                padding: '0.6rem', 
+                                                                                flex: '1 1 110px', 
+                                                                                padding: '0.5rem 0.75rem', 
                                                                                 background: 'rgba(239,68,68,0.08)', 
                                                                                 border: '1px solid rgba(239,68,68,0.2)', 
                                                                                 borderRadius: '8px', 
@@ -1427,13 +1463,38 @@ function PetsContent() {
                                                                                 display: 'flex', 
                                                                                 alignItems: 'center', 
                                                                                 justifyContent: 'center',
-                                                                                gap: '0.5rem',
+                                                                                gap: '0.4rem',
                                                                                 transition: 'all 0.2s ease'
                                                                             }}
                                                                             onMouseOver={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.15)'}
                                                                             onMouseOut={(e) => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
                                                                         >
-                                                                            🗑️ Excluir Pacote do Pet
+                                                                            🗑️ Excluir
+                                                                        </button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleExportPackagePdf(pkgGroup)}
+                                                                            style={{
+                                                                                flex: '1 1 130px',
+                                                                                padding: '0.5rem 0.75rem',
+                                                                                background: 'rgba(43, 75, 111, 0.12)',
+                                                                                border: '1px solid rgba(43, 75, 111, 0.3)',
+                                                                                borderRadius: '8px',
+                                                                                color: 'var(--primary)',
+                                                                                cursor: 'pointer',
+                                                                                fontSize: '0.85rem',
+                                                                                fontWeight: 600,
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'center',
+                                                                                gap: '0.4rem',
+                                                                                transition: 'all 0.2s ease'
+                                                                            }}
+                                                                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(43, 75, 111, 0.25)'}
+                                                                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(43, 75, 111, 0.12)'}
+                                                                            title="Exportar relatório e extrato de sessões em PDF"
+                                                                        >
+                                                                            📄 Relatório PDF
                                                                         </button>
                                                                         <button
                                                                             type="button"
@@ -1445,7 +1506,7 @@ function PetsContent() {
                                                                                     setExpandedSlotPackage(null)
                                                                                 }
                                                                             }}
-                                                                            style={{ flex: '1', padding: '0.4rem 0.8rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '6px', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                                                            style={{ flex: '2 1 170px', padding: '0.5rem 0.75rem', background: 'rgba(255,255,255,0.05)', border: '1px solid var(--border)', borderRadius: '8px', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                                                                         >
                                                                             <span>📋 Ver sessões / histórico</span>
                                                                             <span>{isExpanded ? '−' : '+'}</span>
