@@ -389,41 +389,21 @@ function PetsContent() {
         }
     }, [createState]) // Removido fetchData das dependências para evitar múltiplos alertas ao buscar
 
-    // Handle return from Agenda (Re-open modal)
-    const searchParams = useSearchParams()
-    useEffect(() => {
-        const openPetId = searchParams.get('openPetId')
-        if (openPetId && pets.length > 0 && !selectedPet && !showModal) {
-            const pet = pets.find(p => p.id === openPetId)
-            if (pet) {
-                setSelectedPet(pet)
-                setAccordions({ details: true, bathGrooming: false, packages: true, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false }) // Open packages when returning from agenda
-                setShowModal(true)
-                setShowModal(true)
-                // Clean URL
-                const url = new URL(window.location.href)
-                url.searchParams.delete('openPetId')
-                window.history.replaceState({}, '', url)
-            }
-        }
-    }, [searchParams, pets, selectedPet, showModal])
-
-    useEffect(() => {
-        if (updateState.success) {
-            setShowModal(false)
-            setSelectedPet(null)
-            fetchData()
-            alert(updateState.message)
-        } else if (updateState.message) {
-            alert(updateState.message)
-        }
-    }, [updateState]) // Removido fetchData das dependências para evitar múltiplos alertas ao buscar
-
-    const handleRowClick = async (pet: Pet) => {
+    const handleRowClick = async (pet: Pet, initialAccordions?: Partial<{ details: boolean, bathGrooming: boolean, packages: boolean, creche: boolean, hotel: boolean, assessment: boolean, vaccines: boolean, petshop: boolean }>) => {
         setSelectedPet(pet)
         setIsViewingAssessment(false)
         setIsEditingAssessment(false)
-        setAccordions({ details: false, bathGrooming: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
+        setAccordions({
+            details: false,
+            bathGrooming: false,
+            packages: false,
+            creche: false,
+            hotel: false,
+            assessment: false,
+            vaccines: false,
+            petshop: false,
+            ...initialAccordions
+        })
 
         // Eagerly fetch assessment BEFORE showing modal
         try {
@@ -440,6 +420,62 @@ function PetsContent() {
         setResponsible2Phone(pet.responsible2_phone || '')
         setShowModal(true)
     }
+
+    // Handle return from Agenda or Vacinas (Re-open modal directly)
+    const searchParams = useSearchParams()
+    useEffect(() => {
+        const openPetId = searchParams.get('openPetId')
+        const section = searchParams.get('section')
+        if (openPetId && !showModal) {
+            const openPetModal = async () => {
+                let pet = pets.find(p => p.id === openPetId)
+                if (!pet) {
+                    const { data, error } = await supabase
+                        .from('pets')
+                        .select(`
+                            id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
+                            existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
+                            color, characteristics,
+                            customers ( id, name, phone_1 )
+                        `)
+                        .eq('id', openPetId)
+                        .maybeSingle()
+
+                    if (data && !error) {
+                        pet = data as unknown as Pet
+                    }
+                }
+
+                if (pet) {
+                    const targetAccordions = section === 'vaccines'
+                        ? { vaccines: true }
+                        : section === 'packages'
+                        ? { details: true, packages: true }
+                        : { details: true }
+
+                    await handleRowClick(pet, targetAccordions)
+
+                    // Clean URL
+                    const url = new URL(window.location.href)
+                    url.searchParams.delete('openPetId')
+                    url.searchParams.delete('section')
+                    window.history.replaceState({}, '', url)
+                }
+            }
+            openPetModal()
+        }
+    }, [searchParams, pets, showModal, supabase])
+
+    useEffect(() => {
+        if (updateState.success) {
+            setShowModal(false)
+            setSelectedPet(null)
+            fetchData()
+            alert(updateState.message)
+        } else if (updateState.message) {
+            alert(updateState.message)
+        }
+    }, [updateState]) // Removido fetchData das dependências para evitar múltiplos alertas ao buscar
 
     const handleOpenBooking = (category: string) => {
         setBookingCategory(category)

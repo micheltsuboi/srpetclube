@@ -296,7 +296,122 @@
     padding: 4rem 2rem;
     color: var(--text-secondary);
     font-size: 1.1rem;
-    gap: 0.5rem;
+.statsRow {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.statCard {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.statCard:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+
+.statCardActive {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(43, 75, 111, 0.2);
+}
+
+.statLabel {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.statValue {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.statValueRed {
+    color: #EF4444;
+}
+
+.statValueYellow {
+    color: #F59E0B;
+}
+
+.statValueGreen {
+    color: #10B981;
+}
+
+.actionBtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.85rem;
+    background: var(--primary);
+    color: white !important;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    transition: all 0.2s;
+    border: none;
+    cursor: pointer;
+    width: fit-content;
+}
+
+.actionBtn:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+}
+
+.vaccinesList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.35rem;
+}
+
+.vacChip {
+    font-size: 0.72rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.vacChipExpired {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+    font-weight: 600;
+}
+
+.vacChipWarning {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #fbbf24;
+    font-weight: 600;
+}
+
+.vacChipOk {
+    background: rgba(16, 185, 129, 0.1);
+    border-color: rgba(16, 185, 129, 0.25);
+    color: #34d399;
+}
 }
 
 @media (max-width: 1024px) {

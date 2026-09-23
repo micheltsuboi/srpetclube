@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import Link from 'next/link'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
@@ -30,17 +30,29 @@ interface PetVaccine {
     pets: Pet | null
 }
 
+interface PetVaccineSummary {
+    pet: Pet
+    vaccines: PetVaccine[]
+    status: 'expired' | 'warning' | 'ok'
+    statusLabel: string
+    statusClass: string
+    expiredCount: number
+    warningCount: number
+    okCount: number
+    earliestExpiry: string
+}
+
+type StatusFilterType = 'all' | 'expired' | 'warning' | 'ok'
+type Modality = 'creche' | 'hotel' | 'banho_tosa'
+
 export default function PetVaccinesControlPage() {
     const supabase = createClient()
-    const [vaccines, setVaccines] = useState<PetVaccine[]>([])
+    const [rawVaccines, setRawVaccines] = useState<PetVaccine[]>([])
     const [isLoading, setIsLoading] = useState(true)
-    const [filterType, setFilterType] = useState<'all' | 'today' | 'last_week' | 'next_week' | 'custom'>('all')
-    const [startDate, setStartDate] = useState('')
-    const [endDate, setEndDate] = useState('')
+    const [statusFilter, setStatusFilter] = useState<StatusFilterType>('all')
     const [searchTerm, setSearchTerm] = useState('')
     
     // Modalidades State
-    type Modality = 'creche' | 'hotel' | 'banho_tosa'
     const [selectedModalities, setSelectedModalities] = useState<Modality[]>([])
     const [petModalitiesMap, setPetModalitiesMap] = useState<Record<string, Modality[]>>({})
 
@@ -50,59 +62,38 @@ export default function PetVaccinesControlPage() {
         )
     }
 
-    // Modal states
-    const [updateModalOpen, setUpdateModalOpen] = useState(false)
-    const [selectedVac, setSelectedVac] = useState<PetVaccine | null>(null)
-    const [newAppDate, setNewAppDate] = useState('')
-    const [newExpDate, setNewExpDate] = useState('')
-    const [newBatch, setNewBatch] = useState('')
-    const [isSaving, setIsSaving] = useState(false)
+    const getVaccineStatusType = (expiryDateStr: string): 'expired' | 'warning' | 'ok' => {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        
+        const expiryDate = new Date(expiryDateStr)
+        expiryDate.setHours(0, 0, 0, 0)
 
-    const handleOpenUpdateModal = (vac: PetVaccine) => {
-        setSelectedVac(vac)
-        setNewAppDate(new Date().toISOString().split('T')[0])
-        setNewExpDate('')
-        setNewBatch('')
-        setUpdateModalOpen(true)
+        // Limiar de 7 dias para aviso (vencendo em breve)
+        const warningDate = new Date()
+        warningDate.setDate(today.getDate() + 7)
+        warningDate.setHours(0, 0, 0, 0)
+
+        if (expiryDate < today) {
+            return 'expired'
+        } else if (expiryDate <= warningDate) {
+            return 'warning'
+        } else {
+            return 'ok'
+        }
     }
 
-    const handleSaveUpdate = async () => {
-        if (!selectedVac || !newAppDate || !newExpDate) {
-            alert('Preencha as datas de aplicação e vencimento.')
-            return
-        }
-        setIsSaving(true)
-        const { data: { user } } = await supabase.auth.getUser()
-        const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user?.id).single()
-
-        if (!profile) {
-            setIsSaving(false)
-            return
-        }
-
-        const { error } = await supabase.from('pet_vaccines').insert({
-            pet_id: selectedVac.pets?.id,
-            name: selectedVac.name,
-            batch_number: newBatch || null,
-            application_date: newAppDate,
-            expiry_date: newExpDate
-        })
-
-        setIsSaving(false)
-        if (error) {
-            console.error('Erro ao atualizar vacina', error)
-            alert('Erro ao atualizar a vacina.')
-        } else {
-            alert('Vacina atualizada com sucesso! O histórico foi mantido.')
-            setUpdateModalOpen(false)
-            fetchData()
-        }
+    const formatDate = (dateStr: string | null) => {
+        if (!dateStr) return '-'
+        const [year, month, day] = dateStr.split('-')
+        return `${day}/${month}/${year}`
     }
 
     const fetchData = useCallback(async () => {
         setIsLoading(true)
         try {
-            let query = supabase
+            // Buscar todas as vacinas
+            const query = supabase
                 .from('pet_vaccines')
                 .select(`
                     id,
@@ -123,35 +114,9 @@ export default function PetVaccinesControlPage() {
                         )
                     )
                 `)
+                .order('expiry_date', { ascending: true })
 
-            const today = new Date()
-            const todayStr = today.toISOString().split('T')[0]
-
-            if (filterType === 'today') {
-                query = query.eq('expiry_date', todayStr)
-            } else if (filterType === 'last_week') {
-                const lastWeek = new Date()
-                lastWeek.setDate(today.getDate() - 7)
-                const lastWeekStr = lastWeek.toISOString().split('T')[0]
-                query = query.gte('expiry_date', lastWeekStr).lte('expiry_date', todayStr)
-            } else if (filterType === 'next_week') {
-                const nextWeek = new Date()
-                nextWeek.setDate(today.getDate() + 7)
-                const nextWeekStr = nextWeek.toISOString().split('T')[0]
-                query = query.gte('expiry_date', todayStr).lte('expiry_date', nextWeekStr)
-            } else if (filterType === 'custom') {
-                if (startDate) {
-                    query = query.gte('expiry_date', startDate)
-                }
-                if (endDate) {
-                    query = query.lte('expiry_date', endDate)
-                }
-            }
-
-            // Ordena por data de vencimento mais próxima
-            query = query.order('expiry_date', { ascending: true })
-
-            // Buscar vacinas, agendamentos recentes e pacotes ativos em paralelo para mapear modalidades
+            // Buscar agendamentos recentes e pacotes ativos em paralelo para mapear modalidades
             const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
             const [{ data, error }, apptsRes, pkgsRes] = await Promise.all([
                 query,
@@ -197,98 +162,159 @@ export default function PetVaccinesControlPage() {
             })
             setPetModalitiesMap(finalMap)
 
-            const rawVaccines = (data as unknown as PetVaccine[]) || []
-            const latestVaccinesMap = new Map<string, PetVaccine>()
-            
-            rawVaccines.forEach(vac => {
-                const key = `${vac.pets?.id}_${vac.name}`
-                const existing = latestVaccinesMap.get(key)
-                if (!existing) {
-                    latestVaccinesMap.set(key, vac)
-                } else {
-                    const currentExp = new Date(vac.expiry_date).getTime()
-                    const existingExp = new Date(existing.expiry_date).getTime()
-                    if (currentExp > existingExp) {
-                        latestVaccinesMap.set(key, vac)
-                    }
-                }
-            })
-            
-            setVaccines(Array.from(latestVaccinesMap.values()))
+            setRawVaccines((data as unknown as PetVaccine[]) || [])
         } catch (error) {
             console.error('Erro ao buscar vacinas dos pets:', error)
         } finally {
             setIsLoading(false)
         }
-    }, [supabase, filterType, startDate, endDate])
+    }, [supabase])
 
     useEffect(() => {
         fetchData()
     }, [fetchData])
 
-    // Filtro textual e por modalidade
-    const filteredVaccines = vaccines.filter(vac => {
-        // Filtro por modalidade selecionada (se houver alguma selecionada)
-        if (selectedModalities.length > 0) {
-            if (!vac.pets?.id) return false
-            const petMods = petModalitiesMap[vac.pets.id] || []
-            const matchesModality = selectedModalities.some(m => petMods.includes(m))
-            if (!matchesModality) return false
-        }
-
-        if (!searchTerm) return true
-        const term = searchTerm.toLowerCase()
-        const petName = vac.pets?.name?.toLowerCase() || ''
-        const breed = vac.pets?.breed?.toLowerCase() || ''
-        const tutorName = vac.pets?.customers?.name?.toLowerCase() || ''
-        const vaccineName = vac.name?.toLowerCase() || ''
-        const batch = vac.batch_number?.toLowerCase() || ''
-
-        return (
-            petName.includes(term) ||
-            breed.includes(term) ||
-            tutorName.includes(term) ||
-            vaccineName.includes(term) ||
-            batch.includes(term)
-        )
-    })
-
-    const getVaccineStatus = (expiryDateStr: string) => {
-        const today = new Date()
-        today.setHours(0, 0, 0, 0)
-        
-        const expiryDate = new Date(expiryDateStr)
-        expiryDate.setHours(0, 0, 0, 0)
-
-        // Limiar de 7 dias para aviso (vencendo em breve)
-        const warningDate = new Date()
-        warningDate.setDate(today.getDate() + 7)
-        warningDate.setHours(0, 0, 0, 0)
-
-        if (expiryDate < today) {
-            return {
-                label: 'Vencida',
-                class: styles.statusRed
+    // Agrupamento por Pet com consolidação do status de vacinação
+    const petSummaries = useMemo(() => {
+        // 1. Manter a dose mais recente de cada vacina por pet
+        const latestVaccinesMap = new Map<string, PetVaccine>()
+        rawVaccines.forEach(vac => {
+            if (!vac.pets?.id) return
+            const key = `${vac.pets.id}_${vac.name.trim().toLowerCase()}`
+            const existing = latestVaccinesMap.get(key)
+            if (!existing) {
+                latestVaccinesMap.set(key, vac)
+            } else {
+                const currentExp = new Date(vac.expiry_date).getTime()
+                const existingExp = new Date(existing.expiry_date).getTime()
+                if (currentExp > existingExp) {
+                    latestVaccinesMap.set(key, vac)
+                }
             }
-        } else if (expiryDate <= warningDate) {
-            return {
-                label: 'Vencendo',
-                class: styles.statusYellow
-            }
-        } else {
-            return {
-                label: 'Em Dia',
-                class: styles.statusGreen
-            }
-        }
-    }
+        })
 
-    const formatDate = (dateStr: string | null) => {
-        if (!dateStr) return '-'
-        // Previne problemas de timezone convertendo a data string pura (AAAA-MM-DD)
-        const [year, month, day] = dateStr.split('-')
-        return `${day}/${month}/${year}`
-    }
+        // 2. Agrupar vacinas por pet
+        const petGroupsMap = new Map<string, { pet: Pet, vaccines: PetVaccine[] }>()
+        Array.from(latestVaccinesMap.values()).forEach(vac => {
+            if (!vac.pets?.id) return
+            const existing = petGroupsMap.get(vac.pets.id)
+            if (!existing) {
+                petGroupsMap.set(vac.pets.id, {
+                    pet: vac.pets,
+                    vaccines: [vac]
+                })
+            } else {
+                existing.vaccines.push(vac)
+            }
+        })
+
+        // 3. Gerar sumário de cada pet com regras de status
+        const list: PetVaccineSummary[] = Array.from(petGroupsMap.values()).map(group => {
+            let expiredCount = 0
+            let warningCount = 0
+            let okCount = 0
+            let earliestExpiry = group.vaccines[0]?.expiry_date || ''
+
+            group.vaccines.forEach(v => {
+                const st = getVaccineStatusType(v.expiry_date)
+                if (st === 'expired') expiredCount++
+                else if (st === 'warning') warningCount++
+                else okCount++
+
+                if (v.expiry_date && (!earliestExpiry || v.expiry_date < earliestExpiry)) {
+                    earliestExpiry = v.expiry_date
+                }
+            })
+
+            let status: 'expired' | 'warning' | 'ok' = 'ok'
+            let statusLabel = 'Em Dia'
+            let statusClass = styles.statusGreen
+
+            if (expiredCount > 0) {
+                status = 'expired'
+                statusLabel = expiredCount === 1 ? 'Vencida' : `${expiredCount} Vencidas`
+                statusClass = styles.statusRed
+            } else if (warningCount > 0) {
+                status = 'warning'
+                statusLabel = warningCount === 1 ? 'Vencendo' : `${warningCount} Vencendo`
+                statusClass = styles.statusYellow
+            }
+
+            // Ordenar vacinas do pet pela data de vencimento mais próxima
+            group.vaccines.sort((a, b) => new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime())
+
+            return {
+                pet: group.pet,
+                vaccines: group.vaccines,
+                status,
+                statusLabel,
+                statusClass,
+                expiredCount,
+                warningCount,
+                okCount,
+                earliestExpiry
+            }
+        })
+
+        // 4. Ordenar pets: primeiro os com vacinas vencidas, depois vencendo, depois em dia
+        list.sort((a, b) => {
+            const priority = { expired: 0, warning: 1, ok: 2 }
+            if (priority[a.status] !== priority[b.status]) {
+                return priority[a.status] - priority[b.status]
+            }
+            return new Date(a.earliestExpiry).getTime() - new Date(b.earliestExpiry).getTime()
+        })
+
+        return list
+    }, [rawVaccines])
+
+    // Métricas dos contadores
+    const stats = useMemo(() => {
+        let totalPets = petSummaries.length
+        let expiredPets = 0
+        let warningPets = 0
+        let okPets = 0
+
+        petSummaries.forEach(s => {
+            if (s.status === 'expired') expiredPets++
+            else if (s.status === 'warning') warningPets++
+            else okPets++
+        })
+
+        return { totalPets, expiredPets, warningPets, okPets }
+    }, [petSummaries])
+
+    // Filtros aplicados
+    const filteredPets = useMemo(() => {
+        return petSummaries.filter(summary => {
+            // Filtro por status
+            if (statusFilter === 'expired' && summary.status !== 'expired') return false
+            if (statusFilter === 'warning' && summary.status !== 'warning') return false
+            if (statusFilter === 'ok' && summary.status !== 'ok') return false
+
+            // Filtro por modalidade selecionada
+            if (selectedModalities.length > 0) {
+                const petMods = petModalitiesMap[summary.pet.id] || []
+                const matchesModality = selectedModalities.some(m => petMods.includes(m))
+                if (!matchesModality) return false
+            }
+
+            // Filtro textual
+            if (!searchTerm) return true
+            const term = searchTerm.toLowerCase()
+            const petName = summary.pet.name?.toLowerCase() || ''
+            const breed = summary.pet.breed?.toLowerCase() || ''
+            const tutorName = summary.pet.customers?.name?.toLowerCase() || ''
+            const vacNames = summary.vaccines.map(v => v.name.toLowerCase()).join(' ')
+
+            return (
+                petName.includes(term) ||
+                breed.includes(term) ||
+                tutorName.includes(term) ||
+                vacNames.includes(term)
+            )
+        })
+    }, [petSummaries, statusFilter, selectedModalities, petModalitiesMap, searchTerm])
 
     return (
         <div className={styles.container}>
@@ -298,10 +324,43 @@ export default function PetVaccinesControlPage() {
                         ← Voltar para o Dashboard
                     </Link>
                     <h1 className={styles.title}>💉 Vacinas dos Pets</h1>
-                    <p className={styles.subtitle}>Gerencie e acompanhe o vencimento das vacinas aplicadas nos animais</p>
+                    <p className={styles.subtitle}>Visão consolidada por pet com acompanhamento e alerta de vencimento</p>
                 </div>
             </div>
 
+            {/* Cards de Resumo Rápido */}
+            <div className={styles.statsRow}>
+                <div 
+                    className={`${styles.statCard} ${statusFilter === 'all' ? styles.statCardActive : ''}`}
+                    onClick={() => setStatusFilter('all')}
+                >
+                    <span className={styles.statLabel}>Total de Pets</span>
+                    <span className={styles.statValue}>{stats.totalPets}</span>
+                </div>
+                <div 
+                    className={`${styles.statCard} ${statusFilter === 'expired' ? styles.statCardActive : ''}`}
+                    onClick={() => setStatusFilter('expired')}
+                >
+                    <span className={styles.statLabel}>⚠️ Vacina Vencida</span>
+                    <span className={`${styles.statValue} ${styles.statValueRed}`}>{stats.expiredPets}</span>
+                </div>
+                <div 
+                    className={`${styles.statCard} ${statusFilter === 'warning' ? styles.statCardActive : ''}`}
+                    onClick={() => setStatusFilter('warning')}
+                >
+                    <span className={styles.statLabel}>⏳ Vencendo (7 dias)</span>
+                    <span className={`${styles.statValue} ${styles.statValueYellow}`}>{stats.warningPets}</span>
+                </div>
+                <div 
+                    className={`${styles.statCard} ${statusFilter === 'ok' ? styles.statCardActive : ''}`}
+                    onClick={() => setStatusFilter('ok')}
+                >
+                    <span className={styles.statLabel}>✅ Todas em Dia</span>
+                    <span className={`${styles.statValue} ${styles.statValueGreen}`}>{stats.okPets}</span>
+                </div>
+            </div>
+
+            {/* Controles de Filtro */}
             <div className={styles.filterControls}>
                 <div className={styles.searchRow}>
                     <input
@@ -314,57 +373,37 @@ export default function PetVaccinesControlPage() {
                 </div>
 
                 <div className={styles.filterRow}>
-                    <span className={styles.filterLabel}>Filtrar Vencimento:</span>
+                    <span className={styles.filterLabel}>Filtrar Status:</span>
                     <div className={styles.buttonGroup}>
                         <button
-                            className={`${styles.filterBtn} ${filterType === 'all' ? styles.filterBtnActive : ''}`}
-                            onClick={() => setFilterType('all')}
+                            type="button"
+                            className={`${styles.filterBtn} ${statusFilter === 'all' ? styles.filterBtnActive : ''}`}
+                            onClick={() => setStatusFilter('all')}
                         >
-                            Todas
+                            Todos ({stats.totalPets})
                         </button>
                         <button
-                            className={`${styles.filterBtn} ${filterType === 'today' ? styles.filterBtnActive : ''}`}
-                            onClick={() => setFilterType('today')}
+                            type="button"
+                            className={`${styles.filterBtn} ${statusFilter === 'expired' ? styles.filterBtnActive : ''}`}
+                            onClick={() => setStatusFilter('expired')}
                         >
-                            Hoje
+                            ⚠️ Vencidas ({stats.expiredPets})
                         </button>
                         <button
-                            className={`${styles.filterBtn} ${filterType === 'last_week' ? styles.filterBtnActive : ''}`}
-                            onClick={() => setFilterType('last_week')}
+                            type="button"
+                            className={`${styles.filterBtn} ${statusFilter === 'warning' ? styles.filterBtnActive : ''}`}
+                            onClick={() => setStatusFilter('warning')}
                         >
-                            Últimos 7 dias
+                            ⏳ Vencendo ({stats.warningPets})
                         </button>
                         <button
-                            className={`${styles.filterBtn} ${filterType === 'next_week' ? styles.filterBtnActive : ''}`}
-                            onClick={() => setFilterType('next_week')}
+                            type="button"
+                            className={`${styles.filterBtn} ${statusFilter === 'ok' ? styles.filterBtnActive : ''}`}
+                            onClick={() => setStatusFilter('ok')}
                         >
-                            Próximos 7 dias
-                        </button>
-                        <button
-                            className={`${styles.filterBtn} ${filterType === 'custom' ? styles.filterBtnActive : ''}`}
-                            onClick={() => setFilterType('custom')}
-                        >
-                            Personalizado
+                            ✅ Em Dia ({stats.okPets})
                         </button>
                     </div>
-
-                    {filterType === 'custom' && (
-                        <div className={styles.customDateRange}>
-                            <input
-                                type="date"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className={styles.dateInput}
-                            />
-                            <span className={styles.dateSeparator}>até</span>
-                            <input
-                                type="date"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className={styles.dateInput}
-                            />
-                        </div>
-                    )}
                 </div>
 
                 <div className={styles.filterRow} style={{ marginTop: '0.5rem', paddingTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
@@ -405,14 +444,15 @@ export default function PetVaccinesControlPage() {
                 </div>
             </div>
 
+            {/* Listagem de Pets */}
             {isLoading ? (
                 <div className={styles.loadingWrapper}>
-                    <span>Carregando vacinas...</span>
+                    <span>Carregando vacinas dos pets...</span>
                 </div>
-            ) : filteredVaccines.length === 0 ? (
+            ) : filteredPets.length === 0 ? (
                 <div className={styles.tableContainer}>
                     <div className={styles.noData}>
-                        Nenhuma vacina encontrada para os filtros selecionados.
+                        Nenhum pet encontrado para os filtros selecionados.
                     </div>
                 </div>
             ) : (
@@ -422,47 +462,49 @@ export default function PetVaccinesControlPage() {
                             <tr>
                                 <th>Pet</th>
                                 <th>Tutor / Contato</th>
-                                <th>Vacina</th>
-                                <th>Aplicação</th>
-                                <th>Vencimento</th>
-                                <th>Status</th>
+                                <th>Vacinas Cadastradas</th>
+                                <th>Status Geral</th>
+                                <th>Ações</th>
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredVaccines.map((vac) => {
-                                const status = getVaccineStatus(vac.expiry_date)
+                            {filteredPets.map((summary) => {
+                                const petUrl = `/owner/pets?openPetId=${summary.pet.id}&section=vaccines`
+
                                 return (
-                                    <tr key={vac.id}>
+                                    <tr key={summary.pet.id}>
                                         <td data-label="Pet">
-                                            <Link href={vac.pets?.id ? `/owner/pets?openPetId=${vac.pets.id}` : '#'} style={{ textDecoration: 'none', color: 'inherit' }}>
+                                            <Link href={petUrl} style={{ textDecoration: 'none', color: 'inherit' }}>
                                                 <div className={styles.petCell}>
                                                     <div className={styles.avatar}>
-                                                        {vac.pets?.photo_url ? (
+                                                        {summary.pet.photo_url ? (
                                                             <img
-                                                                src={vac.pets.photo_url}
-                                                                alt={vac.pets.name}
+                                                                src={summary.pet.photo_url}
+                                                                alt={summary.pet.name}
                                                                 className={styles.avatarImg}
                                                             />
                                                         ) : (
-                                                            vac.pets?.species === 'cat' ? '🐱' : '🐶'
+                                                            summary.pet.species === 'cat' ? '🐱' : '🐶'
                                                         )}
                                                     </div>
                                                     <div className={styles.petInfo}>
-                                                        <span className={styles.petName} style={{ color: 'var(--primary)', cursor: 'pointer' }}>{vac.pets?.name || 'Pet desconhecido'}</span>
-                                                        <span className={styles.petBreed}>{vac.pets?.breed || 'Sem raça'}</span>
-                                                        {vac.pets?.id && (petModalitiesMap[vac.pets.id] || []).length > 0 && (
+                                                        <span className={styles.petName} style={{ color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline' }}>
+                                                            {summary.pet.name}
+                                                        </span>
+                                                        <span className={styles.petBreed}>{summary.pet.breed || 'Sem raça'}</span>
+                                                        {(petModalitiesMap[summary.pet.id] || []).length > 0 && (
                                                             <div style={{ display: 'flex', gap: '4px', marginTop: '4px', flexWrap: 'wrap' }}>
-                                                                {petModalitiesMap[vac.pets.id].includes('creche') && (
+                                                                {petModalitiesMap[summary.pet.id].includes('creche') && (
                                                                     <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', fontWeight: 600 }}>
                                                                         🎾 Creche
                                                                     </span>
                                                                 )}
-                                                                {petModalitiesMap[vac.pets.id].includes('hotel') && (
+                                                                {petModalitiesMap[summary.pet.id].includes('hotel') && (
                                                                     <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(249, 115, 22, 0.15)', color: '#f97316', border: '1px solid rgba(249, 115, 22, 0.3)', fontWeight: 600 }}>
                                                                         🏨 Hotel
                                                                     </span>
                                                                 )}
-                                                                {petModalitiesMap[vac.pets.id].includes('banho_tosa') && (
+                                                                {petModalitiesMap[summary.pet.id].includes('banho_tosa') && (
                                                                     <span style={{ fontSize: '0.65rem', padding: '1px 5px', borderRadius: '4px', background: 'rgba(37, 99, 235, 0.15)', color: '#60a5fa', border: '1px solid rgba(37, 99, 235, 0.3)', fontWeight: 600 }}>
                                                                         🛁 Banho
                                                                     </span>
@@ -475,10 +517,10 @@ export default function PetVaccinesControlPage() {
                                         </td>
                                         <td data-label="Tutor / Contato">
                                             <div className={styles.tutorCell}>
-                                                <span className={styles.tutorName}>{vac.pets?.customers?.name || 'Sem tutor'}</span>
-                                                {vac.pets?.customers?.phone_1 && (
+                                                <span className={styles.tutorName}>{summary.pet.customers?.name || 'Sem tutor'}</span>
+                                                {summary.pet.customers?.phone_1 && (
                                                     <a
-                                                        href={getWhatsAppLink(vac.pets.customers.phone_1) || undefined}
+                                                        href={getWhatsAppLink(summary.pet.customers.phone_1) || undefined}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
                                                         className={styles.whatsAppBtn}
@@ -491,71 +533,46 @@ export default function PetVaccinesControlPage() {
                                                 )}
                                             </div>
                                         </td>
-                                        <td data-label="Vacina">
-                                            <span className={styles.vaccineName}>{vac.name}</span>
-                                            {vac.batch_number && (
-                                                <div className={styles.batchText}>Lote: {vac.batch_number}</div>
-                                            )}
-                                        </td>
-                                        <td data-label="Aplicação">
-                                            {formatDate(vac.application_date)}
-                                        </td>
-                                        <td data-label="Vencimento">
-                                            {formatDate(vac.expiry_date)}
-                                        </td>
-                                        <td data-label="Status">
-                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                <span className={`${styles.statusBadge} ${status.class}`}>
-                                                    {status.label}
-                                                </span>
-                                                <button 
-                                                    onClick={() => handleOpenUpdateModal(vac)}
-                                                    style={{ padding: '6px 12px', fontSize: '0.75rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-                                                    title="Atualizar Vacina (Nova Aplicação)"
-                                                >
-                                                    Atualizar
-                                                </button>
+                                        <td data-label="Vacinas Cadastradas">
+                                            <div style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--text-primary)' }}>
+                                                {summary.vaccines.length} {summary.vaccines.length === 1 ? 'vacina cadastrada' : 'vacinas cadastradas'}
                                             </div>
+                                            <div className={styles.vaccinesList}>
+                                                {summary.vaccines.map((v) => {
+                                                    const st = getVaccineStatusType(v.expiry_date)
+                                                    const chipClass = st === 'expired' 
+                                                        ? styles.vacChipExpired 
+                                                        : st === 'warning' 
+                                                        ? styles.vacChipWarning 
+                                                        : styles.vacChipOk
+
+                                                    return (
+                                                        <span key={v.id} className={`${styles.vacChip} ${chipClass}`}>
+                                                            {v.name} ({formatDate(v.expiry_date)})
+                                                        </span>
+                                                    )
+                                                })}
+                                            </div>
+                                        </td>
+                                        <td data-label="Status Geral">
+                                            <span className={`${styles.statusBadge} ${summary.statusClass}`}>
+                                                {summary.statusLabel}
+                                            </span>
+                                        </td>
+                                        <td data-label="Ações">
+                                            <Link 
+                                                href={petUrl}
+                                                className={styles.actionBtn}
+                                                title="Abrir ficha do pet na aba de vacinas"
+                                            >
+                                                🔍 Ficha do Pet
+                                            </Link>
                                         </td>
                                     </tr>
                                 )
                             })}
                         </tbody>
                     </table>
-                </div>
-            )}
-            {updateModalOpen && selectedVac && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-                    <div style={{ background: 'var(--bg-secondary)', padding: '2rem', borderRadius: '12px', width: '90%', maxWidth: '400px', border: '1px solid var(--border-color)' }}>
-                        <h2 style={{ margin: '0 0 1rem 0', fontSize: '1.2rem' }}>Atualizar Vacina</h2>
-                        <p style={{ margin: '0 0 1.5rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                            Você está registrando uma nova aplicação de <strong>{selectedVac.name}</strong> para o pet <strong>{selectedVac.pets?.name}</strong>. O registro anterior será mantido no histórico.
-                        </p>
-                        
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Data da Aplicação *</label>
-                                <input type="date" value={newAppDate} onChange={e => setNewAppDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }} />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Data de Vencimento *</label>
-                                <input type="date" value={newExpDate} onChange={e => setNewExpDate(e.target.value)} style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }} />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.85rem' }}>Lote (Opcional)</label>
-                                <input type="text" value={newBatch} onChange={e => setNewBatch(e.target.value)} placeholder="Ex: L12345" style={{ width: '100%', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }} />
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem' }}>
-                            <button onClick={() => setUpdateModalOpen(false)} style={{ padding: '0.5rem 1rem', background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }}>
-                                Cancelar
-                            </button>
-                            <button onClick={handleSaveUpdate} disabled={isSaving} style={{ padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: isSaving ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
-                                {isSaving ? 'Salvando...' : 'Salvar Nova Aplicação'}
-                            </button>
-                        </div>
-                    </div>
                 </div>
             )}
         </div>
