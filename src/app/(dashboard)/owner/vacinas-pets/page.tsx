@@ -535,24 +535,29 @@ export default function PetVaccinesControlPage() {
                                         </td>
                                         <td data-label="Vacinas Cadastradas">
                                             <div className={styles.vaccinesList}>
-                                                {summary.vaccines.map((v) => {
-                                                    const st = getVaccineStatusType(v.expiry_date)
-                                                    const chipClass = st === 'expired' 
-                                                        ? styles.vacChipExpired 
-                                                        : st === 'warning' 
-                                                        ? styles.vacChipWarning 
-                                                        : styles.vacChipOk
+                                                {summary.vaccines.length === 0 ? (
+                                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>Nenhuma vacina registrada</span>
+                                                ) : (
+                                                    summary.vaccines.map((v) => {
+                                                        const st = getVaccineStatusType(v.expiry_date)
+                                                        const chipClass = st === 'expired' 
+                                                            ? styles.vacChipExpired 
+                                                            : st === 'warning' 
+                                                            ? styles.vacChipWarning 
+                                                            : styles.vacChipOk
 
-                                                    return (
-                                                        <span 
-                                                            key={v.id} 
-                                                            className={`${styles.vacChip} ${chipClass}`}
-                                                            title={`Vencimento: ${formatDate(v.expiry_date)}`}
-                                                        >
-                                                            {v.name}
-                                                        </span>
-                                                    )
-                                                })}
+                                                        return (
+                                                            <span 
+                                                                key={v.id} 
+                                                                className={`${styles.vacChip} ${chipClass}`}
+                                                                title={`Vencimento: ${formatDate(v.expiry_date)}`}
+                                                            >
+                                                                <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'currentColor', marginRight: '6px', flexShrink: 0 }} />
+                                                                {v.name}
+                                                            </span>
+                                                        )
+                                                    })
+                                                )}
                                             </div>
                                         </td>
                                         <td data-label="Status Geral">

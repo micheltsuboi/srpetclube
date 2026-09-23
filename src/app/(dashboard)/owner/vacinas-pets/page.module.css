@@ -296,6 +296,9 @@
     padding: 4rem 2rem;
     color: var(--text-secondary);
     font-size: 1.1rem;
+    gap: 0.5rem;
+}
+
 .statsRow {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -399,41 +402,43 @@
 .vaccinesList {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.35rem;
-    margin-top: 0.35rem;
+    gap: 0.5rem;
+    align-items: center;
 }
 
 .vacChip {
-    font-size: 0.72rem;
-    padding: 2px 8px;
-    border-radius: 12px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid var(--border);
-    color: var(--text-secondary);
     display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
+    padding: 0.25rem 0.65rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1.2;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    white-space: nowrap;
+    transition: all 0.15s ease;
 }
 
 .vacChipExpired {
     background: rgba(239, 68, 68, 0.15);
-    border-color: rgba(239, 68, 68, 0.3);
+    border-color: rgba(239, 68, 68, 0.4);
     color: #f87171;
     font-weight: 600;
 }
 
 .vacChipWarning {
     background: rgba(245, 158, 11, 0.15);
-    border-color: rgba(245, 158, 11, 0.3);
+    border-color: rgba(245, 158, 11, 0.4);
     color: #fbbf24;
     font-weight: 600;
 }
 
 .vacChipOk {
-    background: rgba(16, 185, 129, 0.1);
-    border-color: rgba(16, 185, 129, 0.25);
+    background: rgba(16, 185, 129, 0.12);
+    border-color: rgba(16, 185, 129, 0.3);
     color: #34d399;
-}
 }
 
 @media (max-width: 1024px) {
