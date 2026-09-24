@@ -34,6 +34,9 @@ export interface PackageReportSlot {
     services?: {
         name?: string
     } | null
+    has_extras?: boolean
+    extras_fee?: number | null
+    extras?: Array<{ name: string, price: number }>
 }
 
 export function exportPackageSessionsPDF({
@@ -204,10 +207,18 @@ export function exportPackageSessionsPDF({
         const formattedDate = dateObj.toLocaleDateString('pt-BR')
         const weekday = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase()
 
+        let serviceDesc = slot.services?.name || 'Sessão do Pacote'
+        if (slot.extras && Array.isArray(slot.extras) && slot.extras.length > 0) {
+            const extrasText = slot.extras.map((e: any) => `+ Extra: ${e.name} (R$ ${Number(e.price || 0).toFixed(2)})`).join('\n')
+            serviceDesc += `\n${extrasText}`
+        } else if (slot.has_extras && slot.extras_fee) {
+            serviceDesc += `\n+ Extra (R$ ${Number(slot.extras_fee).toFixed(2)})`
+        }
+
         return [
             `${formattedDate} (${weekday})`,
             slot.slot_time || '08:30',
-            slot.services?.name || 'Sessão do Pacote',
+            serviceDesc,
             translateStatus(slot.status)
         ]
     })
@@ -218,7 +229,7 @@ export function exportPackageSessionsPDF({
 
     autoTable(doc, {
         startY: currentY,
-        head: [['Data / Dia', 'Horário', 'Serviço', 'Status']],
+        head: [['Data / Dia', 'Horário', 'Serviço / Extras', 'Status']],
         body: tableRows,
         theme: 'striped',
         headStyles: {

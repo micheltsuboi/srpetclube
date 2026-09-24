@@ -724,7 +724,8 @@ export async function skipPackageSlot(slotId: string): Promise<ActionState> {
 export async function getPackageSlotsHistory(customerPackageId: string) {
     const supabase = await createClient()
 
-    const { data, error } = await supabase
+    // 1. Buscar slots do pacote
+    const { data: slots, error: slotsError } = await supabase
         .from('package_schedule_slots')
         .select(`
             id, slot_date, slot_time, status, period_label,
@@ -734,12 +735,117 @@ export async function getPackageSlotsHistory(customerPackageId: string) {
         .eq('customer_package_id', customerPackageId)
         .order('slot_date', { ascending: false })
 
-    if (error) {
-        console.error('Erro ao buscar histórico de slots:', error)
+    if (slotsError) {
+        console.error('Erro ao buscar histórico de slots:', slotsError)
         return []
     }
 
-    return data || []
+    // 2. Buscar créditos do pacote para localizar agendamentos
+    const { data: credits } = await supabase
+        .from('package_credits')
+        .select('id, service_id, services(id, name, category)')
+        .eq('customer_package_id', customerPackageId)
+
+    const creditIds = (credits || []).map(c => c.id)
+    const slotIds = (slots || []).map(s => s.id)
+    const appointmentIds = (slots || []).map(s => s.appointment_id).filter(Boolean)
+
+    const conditions: string[] = []
+    if (appointmentIds.length > 0) conditions.push(`id.in.(${appointmentIds.join(',')})`)
+    if (slotIds.length > 0) conditions.push(`package_slot_id.in.(${slotIds.join(',')})`)
+    if (creditIds.length > 0) conditions.push(`package_credit_id.in.(${creditIds.join(',')})`)
+
+    const apptMap = new Map<string, any>()
+    let extraAppts: any[] = []
+
+    if (conditions.length > 0) {
+        const { data: apptsData } = await supabase
+            .from('appointments')
+            .select(`
+                id, scheduled_at, status, notes,
+                has_extras, extras_fee, extras,
+                has_taxi, taxi_fee,
+                payment_status, payment_method, paid_at,
+                final_price, calculated_price,
+                package_slot_id, package_credit_id,
+                package_usage_index,
+                services (id, name, category)
+            `)
+            .or(conditions.join(','))
+            .order('scheduled_at', { ascending: false })
+
+        if (apptsData) {
+            apptsData.forEach(appt => {
+                apptMap.set(appt.id, appt)
+                if (appt.package_slot_id) {
+                    apptMap.set(`slot_${appt.package_slot_id}`, appt)
+                }
+            })
+
+            // Identificar agendamentos que consom crédito deste pacote mas não possuem slot correspondente
+            extraAppts = apptsData.filter(a =>
+                !slots?.some(s => s.id === a.package_slot_id || s.appointment_id === a.id)
+            )
+        }
+    }
+
+    // 3. Mesclar cada slot com o respectivo appointment e seus extras
+    const enrichedSlots = (slots || []).map(slot => {
+        const appt = (slot.appointment_id ? apptMap.get(slot.appointment_id) : null) || apptMap.get(`slot_${slot.id}`) || null
+        
+        let parsedExtras: any[] = []
+        if (appt?.extras) {
+            if (Array.isArray(appt.extras)) parsedExtras = appt.extras
+            else if (typeof appt.extras === 'string') {
+                try { parsedExtras = JSON.parse(appt.extras) } catch { parsedExtras = [] }
+            }
+        }
+
+        const hasExtras = !!(appt?.has_extras || parsedExtras.length > 0 || (appt?.extras_fee && appt.extras_fee > 0))
+
+        return {
+            ...slot,
+            appointment_id: slot.appointment_id || appt?.id || null,
+            appointment: appt,
+            has_extras: hasExtras,
+            extras_fee: Number(appt?.extras_fee || 0),
+            extras: parsedExtras,
+            appt_payment_status: appt?.payment_status || null,
+            appt_payment_method: appt?.payment_method || null,
+            appt_paid_at: appt?.paid_at || null
+        }
+    })
+
+    // Adicionar sessões que não tinham slot registrado (ex: agendamentos avulsos na agenda que consumiram créditos do pacote)
+    extraAppts.forEach(a => {
+        let parsedExtras: any[] = []
+        if (a.extras) {
+            if (Array.isArray(a.extras)) parsedExtras = a.extras
+            else if (typeof a.extras === 'string') {
+                try { parsedExtras = JSON.parse(a.extras) } catch { parsedExtras = [] }
+            }
+        }
+        const hasExtras = !!(a.has_extras || parsedExtras.length > 0 || (a.extras_fee && a.extras_fee > 0))
+
+        enrichedSlots.push({
+            id: `appt_${a.id}`,
+            slot_date: a.scheduled_at ? a.scheduled_at.split('T')[0] : '',
+            slot_time: a.scheduled_at ? new Date(a.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null,
+            status: a.status === 'done' || a.status === 'completed' ? 'done' : (a.status === 'no_show' ? 'no_show' : 'scheduled'),
+            period_label: null,
+            appointment_id: a.id,
+            services: a.services,
+            appointment: a,
+            has_extras: hasExtras,
+            extras_fee: Number(a.extras_fee || 0),
+            extras: parsedExtras,
+            appt_payment_status: a.payment_status || null,
+            appt_payment_method: a.payment_method || null,
+            appt_paid_at: a.paid_at || null
+        })
+    })
+
+    return enrichedSlots
 }
 
 export async function schedulePackageSlot(
@@ -951,32 +1057,104 @@ export async function getPetPackagesWithUsage(petId: string) {
 
     if (!summary || summary.length === 0) return []
 
-    // 2. Buscar detalhes de uso (agendamentos) para cada item
+    // 2. Buscar detalhes de uso (agendamentos e extras) para cada item
     const packagesWithUsage = await Promise.all(summary.map(async (item: any) => {
-        // Primeiro, precisamos encontrar o crédito exato
-        // A RPC não retorna o ID do crédito, então precisamos buscar
         const { data: credit } = await supabase
             .from('package_credits')
             .select('id')
             .eq('customer_package_id', item.customer_package_id)
             .eq('service_id', item.service_id)
-            .single()
+            .maybeSingle()
+
+        // Buscar slots deste pacote
+        const { data: slots } = await supabase
+            .from('package_schedule_slots')
+            .select('id, appointment_id')
+            .eq('customer_package_id', item.customer_package_id)
+
+        const slotIds = (slots || []).map(s => s.id)
+        const apptIdsFromSlots = (slots || []).map(s => s.appointment_id).filter(Boolean)
+
+        const conditions: string[] = []
+        if (credit?.id) conditions.push(`package_credit_id.eq.${credit.id}`)
+        if (slotIds.length > 0) conditions.push(`package_slot_id.in.(${slotIds.join(',')})`)
+        if (apptIdsFromSlots.length > 0) conditions.push(`id.in.(${apptIdsFromSlots.join(',')})`)
 
         let appointments: any[] = []
-        if (credit) {
+        let packageExtras: any[] = []
+        let totalExtrasFee = 0
+        let hasPendingExtras = false
+
+        if (conditions.length > 0) {
             const { data: apps } = await supabase
                 .from('appointments')
-                .select('id, scheduled_at, status')
-                .eq('package_credit_id', credit.id)
+                .select(`
+                    id, scheduled_at, status,
+                    has_extras, extras_fee, extras,
+                    payment_status, payment_method, paid_at,
+                    package_usage_index
+                `)
+                .or(conditions.join(','))
                 .order('scheduled_at', { ascending: false })
 
-            if (apps) appointments = apps
+            if (apps) {
+                const uniqueAppsMap = new Map<string, any>()
+                apps.forEach(a => uniqueAppsMap.set(a.id, a))
+                appointments = Array.from(uniqueAppsMap.values())
+
+                appointments.forEach((appt: any) => {
+                    let parsedExtras: any[] = []
+                    if (appt.extras) {
+                        if (Array.isArray(appt.extras)) parsedExtras = appt.extras
+                        else if (typeof appt.extras === 'string') {
+                            try { parsedExtras = JSON.parse(appt.extras) } catch { parsedExtras = [] }
+                        }
+                    }
+
+                    const apptHasExtras = !!(appt.has_extras || parsedExtras.length > 0 || (appt.extras_fee && appt.extras_fee > 0))
+
+                    if (apptHasExtras) {
+                        const fee = Number(appt.extras_fee || 0)
+                        totalExtrasFee += fee
+                        if (appt.payment_status !== 'paid') {
+                            hasPendingExtras = true
+                        }
+
+                        if (parsedExtras.length > 0) {
+                            parsedExtras.forEach(ext => {
+                                packageExtras.push({
+                                    name: ext.name,
+                                    price: Number(ext.price || 0),
+                                    sessionDate: appt.scheduled_at ? appt.scheduled_at.split('T')[0] : null,
+                                    sessionIndex: appt.package_usage_index || null,
+                                    paymentStatus: appt.payment_status || 'pending',
+                                    paymentMethod: appt.payment_method || null,
+                                    appointmentId: appt.id
+                                })
+                            })
+                        } else if (fee > 0) {
+                            packageExtras.push({
+                                name: 'Serviço/Produto Extra',
+                                price: fee,
+                                sessionDate: appt.scheduled_at ? appt.scheduled_at.split('T')[0] : null,
+                                sessionIndex: appt.package_usage_index || null,
+                                paymentStatus: appt.payment_status || 'pending',
+                                paymentMethod: appt.payment_method || null,
+                                appointmentId: appt.id
+                            })
+                        }
+                    }
+                })
+            }
         }
 
         return {
             ...item,
             credit_id: credit?.id,
-            appointments
+            appointments,
+            package_extras: packageExtras,
+            total_extras_fee: totalExtrasFee,
+            has_pending_extras: hasPendingExtras
         }
     }))
 

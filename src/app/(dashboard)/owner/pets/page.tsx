@@ -1379,10 +1379,34 @@ function PetsContent() {
                                                                     auto_renew: curr.auto_renew,
                                                                     purchased_at: curr.purchased_at,
                                                                     paid_at: curr.paid_at,
-                                                                    services: []
+                                                                    services: [],
+                                                                    package_extras: [],
+                                                                    total_extras_fee: 0,
+                                                                    has_pending_extras: false
                                                                 };
                                                             }
                                                             acc[curr.customer_package_id].services.push(curr);
+
+                                                            // Agregar extras do pacote
+                                                            if (curr.package_extras && Array.isArray(curr.package_extras)) {
+                                                                curr.package_extras.forEach((ext: any) => {
+                                                                    const alreadyExists = acc[curr.customer_package_id].package_extras.some(
+                                                                        (e: any) => e.appointmentId === ext.appointmentId && e.name === ext.name
+                                                                    );
+                                                                    if (!alreadyExists) {
+                                                                        acc[curr.customer_package_id].package_extras.push(ext);
+                                                                    }
+                                                                });
+                                                            }
+                                                            if (curr.total_extras_fee) {
+                                                                acc[curr.customer_package_id].total_extras_fee = Math.max(
+                                                                    acc[curr.customer_package_id].total_extras_fee,
+                                                                    Number(curr.total_extras_fee || 0)
+                                                                );
+                                                            }
+                                                            if (curr.has_pending_extras) {
+                                                                acc[curr.customer_package_id].has_pending_extras = true;
+                                                            }
                                                             return acc;
                                                         }, {})).map((pkgGroup: any, index: number) => {
                                                             const cpId = pkgGroup.id
@@ -1473,6 +1497,66 @@ function PetsContent() {
                                                                             );
                                                                         })}
                                                                     </div>
+
+                                                                    {/* Bloco de Extras Adicionados nas Sessões deste Pacote */}
+                                                                    {pkgGroup.package_extras && pkgGroup.package_extras.length > 0 && (
+                                                                        <div style={{
+                                                                            padding: '0.75rem',
+                                                                            background: 'rgba(232, 130, 106, 0.08)',
+                                                                            borderRadius: '8px',
+                                                                            marginTop: '0.75rem',
+                                                                            border: '1px solid rgba(232, 130, 106, 0.3)'
+                                                                        }}>
+                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                                                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#E8826A', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                                                    ✨ Extras Adicionados nas Sessões (Total: R$ {pkgGroup.total_extras_fee.toFixed(2)})
+                                                                                </span>
+                                                                                {pkgGroup.has_pending_extras ? (
+                                                                                    <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.15)', color: '#EF4444', fontWeight: 600 }}>
+                                                                                        ⏳ Extras Pendentes
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span style={{ fontSize: '0.7rem', padding: '2px 8px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#10B981', fontWeight: 600 }}>
+                                                                                        ✅ Extras Pagos
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                                                                {pkgGroup.package_extras.map((ext: any, extIdx: number) => (
+                                                                                    <span
+                                                                                        key={extIdx}
+                                                                                        style={{
+                                                                                            fontSize: '0.75rem',
+                                                                                            padding: '3px 8px',
+                                                                                            borderRadius: '6px',
+                                                                                            background: 'var(--bg-primary)',
+                                                                                            border: '1px solid var(--border)',
+                                                                                            color: 'var(--text-primary)',
+                                                                                            display: 'inline-flex',
+                                                                                            alignItems: 'center',
+                                                                                            gap: '0.35rem'
+                                                                                        }}
+                                                                                    >
+                                                                                        <span style={{ color: '#E8826A' }}>➕</span>
+                                                                                        <strong>{ext.name}</strong>: R$ {ext.price.toFixed(2)}
+                                                                                        {ext.sessionDate && (
+                                                                                            <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>
+                                                                                                ({new Date(ext.sessionDate + 'T12:00:00').toLocaleDateString('pt-BR')})
+                                                                                            </span>
+                                                                                        )}
+                                                                                        <span style={{
+                                                                                            fontSize: '0.65rem',
+                                                                                            fontWeight: 600,
+                                                                                            color: ext.paymentStatus === 'paid' ? '#10B981' : '#EF4444',
+                                                                                            marginLeft: '2px'
+                                                                                        }}>
+                                                                                            {ext.paymentStatus === 'paid' ? '• Pago' : '• Pendente'}
+                                                                                        </span>
+                                                                                    </span>
+                                                                                ))}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
 
                                                                     {/* Botões de Ação do Pacote */}
                                                                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', flexWrap: 'wrap' }}>
@@ -1575,7 +1659,7 @@ function PetsContent() {
                                                                                             const s = statusMap[slot.status] || statusMap.pending
                                                                                             return (
                                                                                                 <div key={slot.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.75rem', background: slot.status === 'no_show' ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-primary)', borderRadius: '6px', borderLeft: `3px solid ${s.color}` }}>
-                                                                                                    <div>
+                                                                                                    <div style={{ flex: 1, marginRight: '0.5rem' }}>
                                                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                                                                             <span>{s.icon}</span>
                                                                                                             <span style={{ fontWeight: 600, fontSize: '0.85rem' }}>{slot.services?.name} <span style={{ fontWeight: 'normal', color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>({sessionIdx} de {totalInPkg})</span></span>
@@ -1586,29 +1670,110 @@ function PetsContent() {
                                                                                                             {slot.slot_time ? ` às ${slot.slot_time}` : ''}
                                                                                                             {slot.period_label ? ` · ${slot.period_label}` : ''}
                                                                                                         </div>
+
+                                                                                                        {/* Exibição dos Extras da Sessão (se houver) */}
+                                                                                                        {(slot.has_extras || (slot.extras && slot.extras.length > 0) || (slot.extras_fee && slot.extras_fee > 0)) && (
+                                                                                                            <div style={{ marginTop: '0.4rem', padding: '0.35rem 0.6rem', background: 'rgba(232, 130, 106, 0.08)', borderRadius: '6px', border: '1px dashed rgba(232, 130, 106, 0.3)' }}>
+                                                                                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                                                                                                                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#E8826A' }}>
+                                                                                                                        ✨ Extras da Sessão:
+                                                                                                                    </span>
+                                                                                                                    {slot.appt_payment_status === 'paid' ? (
+                                                                                                                        <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.15)', color: '#10B981', fontWeight: 600 }}>
+                                                                                                                            ✅ Pago {slot.appt_payment_method ? `via ${slot.appt_payment_method}` : ''}
+                                                                                                                        </span>
+                                                                                                                    ) : (
+                                                                                                                        <span style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(239, 68, 68, 0.15)', color: '#EF4444', fontWeight: 600 }}>
+                                                                                                                            ⏳ Pendente
+                                                                                                                        </span>
+                                                                                                                    )}
+                                                                                                                </div>
+                                                                                                                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                                                                                                                    {slot.extras && slot.extras.length > 0 ? (
+                                                                                                                        slot.extras.map((ext: any, eIdx: number) => (
+                                                                                                                            <span key={eIdx} style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>
+                                                                                                                                ➕ <strong>{ext.name}</strong> (R$ {Number(ext.price || 0).toFixed(2)})
+                                                                                                                            </span>
+                                                                                                                        ))
+                                                                                                                    ) : (
+                                                                                                                        <span style={{ fontSize: '0.75rem', color: 'var(--text-primary)' }}>
+                                                                                                                            ➕ Total: R$ {Number(slot.extras_fee || 0).toFixed(2)}
+                                                                                                                        </span>
+                                                                                                                    )}
+                                                                                                                </div>
+                                                                                                            </div>
+                                                                                                        )}
                                                                                                     </div>
-                                                                                                    {(slot.status === 'pending' || slot.status === 'skipped' || slot.status === 'scheduled') && (
-                                                                                                        <button
-                                                                                                            type="button"
-                                                                                                            onClick={() => {
-                                                                                                                setReschedulingSlot({ ...slot, customer_package_id: cpId })
-                                                                                                                setSlotNewDate(slot.slot_date || '')
-                                                                                                                setSlotNewTime(slot.slot_time || '09:00')
-                                                                                                            }}
-                                                                                                            style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: 'none', background: 'rgba(139,92,246,0.2)', color: '#8B5CF6', cursor: 'pointer' }}
-                                                                                                        >
-                                                                                                            Reagendar
-                                                                                                        </button>
-                                                                                                    )}
-                                                                                                    {slot.status === 'no_show' && slot.appointment_id && (
-                                                                                                        <button
-                                                                                                            type="button"
-                                                                                                            onClick={() => handleUndoNoShow(slot.appointment_id)}
-                                                                                                            style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid #8B5CF6', background: 'transparent', color: '#8B5CF6', cursor: 'pointer' }}
-                                                                                                        >
-                                                                                                            Desfazer Falta
-                                                                                                        </button>
-                                                                                                    )}
+
+                                                                                                    <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                                                                                        {/* Botão para pagar ou desfazer pagamento de extras */}
+                                                                                                        {slot.appointment_id && (slot.has_extras || slot.extras_fee > 0) && (
+                                                                                                            slot.appt_payment_status !== 'paid' ? (
+                                                                                                                <button
+                                                                                                                    type="button"
+                                                                                                                    onClick={async () => {
+                                                                                                                        const method = prompt('Informe a forma de pagamento dos extras (pix, credit, debit, cash):', 'pix')
+                                                                                                                        if (!method) return
+                                                                                                                        const { updatePaymentStatus } = await import('@/app/actions/appointment')
+                                                                                                                        const res = await updatePaymentStatus(slot.appointment_id, 'paid', method)
+                                                                                                                        if (res.success) {
+                                                                                                                            alert('Extras marcados como pagos!')
+                                                                                                                            fetchSlotsForPackage(cpId)
+                                                                                                                            fetchPetPackageSummary()
+                                                                                                                        } else {
+                                                                                                                            alert(res.message)
+                                                                                                                        }
+                                                                                                                    }}
+                                                                                                                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderRadius: '4px', border: 'none', background: 'rgba(16, 185, 129, 0.15)', color: '#10B981', cursor: 'pointer', fontWeight: 600 }}
+                                                                                                                    title="Registrar pagamento dos extras"
+                                                                                                                >
+                                                                                                                    💰 Pagar Extra
+                                                                                                                </button>
+                                                                                                            ) : (
+                                                                                                                <button
+                                                                                                                    type="button"
+                                                                                                                    onClick={async () => {
+                                                                                                                        if (!confirm('Deseja desfazer o pagamento dos extras desta sessão?')) return
+                                                                                                                        const { updatePaymentStatus } = await import('@/app/actions/appointment')
+                                                                                                                        const res = await updatePaymentStatus(slot.appointment_id, 'pending')
+                                                                                                                        if (res.success) {
+                                                                                                                            fetchSlotsForPackage(cpId)
+                                                                                                                            fetchPetPackageSummary()
+                                                                                                                        } else {
+                                                                                                                            alert(res.message)
+                                                                                                                        }
+                                                                                                                    }}
+                                                                                                                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderRadius: '4px', border: 'none', background: 'rgba(255, 255, 255, 0.05)', color: 'var(--text-secondary)', cursor: 'pointer' }}
+                                                                                                                    title="Desfazer pagamento dos extras"
+                                                                                                                >
+                                                                                                                    ↺ Desfazer Extra
+                                                                                                                </button>
+                                                                                                            )
+                                                                                                        )}
+
+                                                                                                        {(slot.status === 'pending' || slot.status === 'skipped' || slot.status === 'scheduled') && (
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                onClick={() => {
+                                                                                                                    setReschedulingSlot({ ...slot, customer_package_id: cpId })
+                                                                                                                    setSlotNewDate(slot.slot_date || '')
+                                                                                                                    setSlotNewTime(slot.slot_time || '09:00')
+                                                                                                                }}
+                                                                                                                style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: 'none', background: 'rgba(139,92,246,0.2)', color: '#8B5CF6', cursor: 'pointer' }}
+                                                                                                            >
+                                                                                                                Reagendar
+                                                                                                            </button>
+                                                                                                        )}
+                                                                                                        {slot.status === 'no_show' && slot.appointment_id && (
+                                                                                                            <button
+                                                                                                                type="button"
+                                                                                                                onClick={() => handleUndoNoShow(slot.appointment_id)}
+                                                                                                                style={{ padding: '0.25rem 0.6rem', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid #8B5CF6', background: 'transparent', color: '#8B5CF6', cursor: 'pointer' }}
+                                                                                                            >
+                                                                                                                Desfazer Falta
+                                                                                                            </button>
+                                                                                                        )}
+                                                                                                    </div>
                                                                                                 </div>
                                                                                             )
                                                                                         })
