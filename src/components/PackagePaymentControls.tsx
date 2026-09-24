@@ -15,6 +15,8 @@ interface PackagePaymentControlsProps {
     taxiFee?: number
     onUpdate?: () => void
     compact?: boolean
+    paidAt?: string | null
+    purchasedAt?: string | null
 }
 
 const paymentMethodLabels: Record<string, string> = {
@@ -34,10 +36,16 @@ export default function PackagePaymentControls({
     hasTaxi = false,
     taxiFee = 0,
     onUpdate,
-    compact = false
+    compact = false,
+    paidAt,
+    purchasedAt
 }: PackagePaymentControlsProps) {
     const [showModal, setShowModal] = useState(false)
     const [discountValue, setDiscountValue] = useState(discountPercent?.toString() || '0')
+    const [paymentDate, setPaymentDate] = useState(() => {
+        if (paidAt) return paidAt.split('T')[0]
+        return new Date().toISOString().split('T')[0]
+    })
     const [loading, setLoading] = useState(false)
 
     const isPaid = paymentStatus === 'paid'
@@ -53,10 +61,18 @@ export default function PackagePaymentControls({
         setDiscountValue(discountPercent?.toString() || '0')
     }, [discountPercent])
 
+    useEffect(() => {
+        if (paidAt) {
+            setPaymentDate(paidAt.split('T')[0])
+        } else {
+            setPaymentDate(new Date().toISOString().split('T')[0])
+        }
+    }, [paidAt])
+
     const handlePayment = async (method: string) => {
         setLoading(true)
         try {
-            await updatePackagePaymentStatus(customerPackageId, 'paid', method)
+            await updatePackagePaymentStatus(customerPackageId, 'paid', method, paymentDate)
             onUpdate?.()
             setShowModal(false)
         } finally {
@@ -190,8 +206,18 @@ export default function PackagePaymentControls({
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     {isPaid ? (
                         <div style={{ textAlign: 'center' }}>
-                            <div style={{ background: 'rgba(122, 201, 160, 0.1)', color: 'var(--status-done)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', fontWeight: 600, border: '1px solid rgba(122, 201, 160, 0.2)' }}>
-                                ✅ Pago via {paymentMethodLabels[paymentMethod || ''] || paymentMethod}
+                            <div style={{ background: 'rgba(122, 201, 160, 0.1)', color: 'var(--status-done)', padding: '0.85rem', borderRadius: '8px', marginBottom: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', fontWeight: 600, border: '1px solid rgba(122, 201, 160, 0.2)' }}>
+                                <span>✅ Pago via {paymentMethodLabels[paymentMethod || ''] || paymentMethod}</span>
+                                {paidAt && (
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-secondary)' }}>
+                                        Data do pagamento: <strong style={{ color: 'var(--text-primary)' }}>{new Date(paidAt).toLocaleDateString('pt-BR')}</strong>
+                                    </span>
+                                )}
+                                {purchasedAt && (
+                                    <span style={{ fontSize: '0.75rem', fontWeight: 400, color: 'var(--text-secondary)' }}>
+                                        Contratado em: {new Date(purchasedAt).toLocaleDateString('pt-BR')}
+                                    </span>
+                                )}
                             </div>
                             <button
                                 onClick={handleUnpay} disabled={loading}
@@ -200,6 +226,32 @@ export default function PackagePaymentControls({
                         </div>
                     ) : (
                         <div>
+                            {purchasedAt && (
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
+                                    📅 Contratado em: <strong style={{ color: 'var(--text-primary)' }}>{new Date(purchasedAt).toLocaleDateString('pt-BR')}</strong>
+                                </div>
+                            )}
+
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.35rem' }}>
+                                    Data do Pagamento:
+                                </label>
+                                <input
+                                    type="date"
+                                    value={paymentDate}
+                                    onChange={(e) => setPaymentDate(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '0.5rem 0.75rem',
+                                        borderRadius: '6px',
+                                        border: '1px solid var(--border)',
+                                        background: 'var(--bg-primary)',
+                                        color: 'var(--text-primary)',
+                                        fontSize: '0.9rem'
+                                    }}
+                                />
+                            </div>
+
                             <div style={{ fontSize: '0.9rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--text-secondary)' }}>Confirmar Pagamento:</div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
                                 {Object.entries(paymentMethodLabels).map(([key, label]) => (

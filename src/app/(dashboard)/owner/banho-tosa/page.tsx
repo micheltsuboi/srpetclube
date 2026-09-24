@@ -38,6 +38,7 @@ interface Appointment {
     discount_percent: number | null
     payment_status: string | null
     payment_method: string | null
+    paid_at?: string | null
     package_credit_id?: string | null
     package_usage_index?: number | null
     has_taxi?: boolean
@@ -54,6 +55,7 @@ interface Appointment {
             payment_status: string,
             payment_method: string,
             purchased_at: string,
+            paid_at?: string | null,
             has_taxi: boolean,
             taxi_fee: number
         }
@@ -109,7 +111,7 @@ export default function BanhoTosaPage() {
                 .select(`
                     id, pet_id, service_id, scheduled_at, status, notes,
                     calculated_price, checklist,
-                    final_price, discount_percent, payment_status, payment_method,
+                    final_price, discount_percent, payment_status, payment_method, paid_at,
                     actual_check_in, actual_check_out,
                     has_taxi, taxi_fee, has_extras, extras_fee, extras,
                     package_credit_id, package_usage_index,
@@ -123,6 +125,7 @@ export default function BanhoTosaPage() {
                             payment_status,
                             payment_method,
                             purchased_at,
+                            paid_at,
                             has_taxi,
                             taxi_fee,
                             package_credits (
@@ -418,6 +421,7 @@ export default function BanhoTosaPage() {
                                                     packageTotal={cp?.calculated_price ?? null}
                                                     packageMethod={cp?.payment_method ?? null}
                                                     packageDate={cp?.purchased_at ?? null}
+                                                    packagePaidAt={cp?.paid_at ?? null}
                                                     packageHasTaxi={cp?.has_taxi ?? false}
                                                     packageTaxiFee={cp?.taxi_fee ?? 0}
                                                     customerPackageId={cp?.id ?? null}
@@ -429,6 +433,7 @@ export default function BanhoTosaPage() {
                                                     extras={appt.extras}
                                                     apptPaymentStatus={appt.payment_status}
                                                     apptPaymentMethod={appt.payment_method}
+                                                    apptPaidAt={appt.paid_at ?? null}
                                                     packagePaymentStatus={cp?.payment_status ?? null}
                                                 />
                                             );

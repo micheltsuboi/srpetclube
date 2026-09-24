@@ -92,7 +92,7 @@ export default function CrechePage() {
                 .from('appointments')
                 .select(`
                     id, pet_id, service_id, scheduled_at, status, notes,
-                    calculated_price, final_price, discount_percent, payment_status, payment_method,
+                    calculated_price, final_price, discount_percent, payment_status, payment_method, paid_at,
                     actual_check_in, actual_check_out,
                     has_taxi, taxi_fee, has_extras, extras_fee, extras,
                     package_credit_id, package_usage_index,
@@ -106,6 +106,7 @@ export default function CrechePage() {
                             payment_status,
                             payment_method,
                             purchased_at,
+                            paid_at,
                             has_taxi,
                             taxi_fee,
                             package_credits (
@@ -121,6 +122,7 @@ export default function CrechePage() {
                             payment_status,
                             payment_method,
                             purchased_at,
+                            paid_at,
                             has_taxi,
                             taxi_fee,
                             package_credits (
@@ -427,6 +429,7 @@ export default function CrechePage() {
                                                     packageTotal={cp?.calculated_price ?? null}
                                                     packageMethod={cp?.payment_method ?? null}
                                                     packageDate={cp?.purchased_at ?? null}
+                                                    packagePaidAt={cp?.paid_at ?? null}
                                                     packageHasTaxi={cp?.has_taxi ?? false}
                                                     packageTaxiFee={cp?.taxi_fee ?? 0}
                                                     customerPackageId={cp?.id ?? null}
@@ -435,6 +438,7 @@ export default function CrechePage() {
                                                     extras={appt.extras}
                                                     apptPaymentStatus={appt.payment_status}
                                                     apptPaymentMethod={appt.payment_method}
+                                                    apptPaidAt={(appt as any).paid_at ?? null}
                                                     packagePaymentStatus={cp?.payment_status ?? null}
                                                 />
                                             );

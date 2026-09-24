@@ -674,7 +674,7 @@ export async function getPetAppointmentsByCategory(petId: string, category: stri
 }
 
 
-export async function updatePaymentStatus(id: string, paymentStatus: string, paymentMethod?: string) {
+export async function updatePaymentStatus(id: string, paymentStatus: string, paymentMethod?: string, paidAt?: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { message: 'Não autorizado.', success: false }
@@ -684,7 +684,11 @@ export async function updatePaymentStatus(id: string, paymentStatus: string, pay
     }
 
     if (paymentStatus === 'paid') {
-        updateData.paid_at = new Date().toISOString().split('T')[0] + 'T12:00:00'
+        const realPaidDate = paidAt 
+            ? (paidAt.includes('T') ? paidAt : `${paidAt}T12:00:00`)
+            : (new Date().toISOString().split('T')[0] + 'T12:00:00')
+
+        updateData.paid_at = realPaidDate
         if (paymentMethod) {
             updateData.payment_method = paymentMethod
         }

@@ -112,6 +112,7 @@ export default function OwnerDashboard() {
     const [pendingSortDirection, setPendingSortDirection] = useState<'asc' | 'desc'>('asc')
 
     const isApptRealized = (a: any) => {
+        if (a.status === 'no_show' || a.status === 'cancelled' || a.status === 'canceled') return false
         if (a.status === 'done' || a.status === 'completed') return true
         if (a.scheduled_at) {
             const sched = new Date(a.scheduled_at)
@@ -183,7 +184,7 @@ export default function OwnerDashboard() {
                     `)
                     .eq('org_id', profile.org_id)
                     .neq('payment_status', 'paid')
-                    .neq('status', 'cancelled')
+                    .not('status', 'in', '("cancelled","canceled","no_show")')
 
                 // Previous month paid appointments (for growth)
                 const { data: prevMonthAppts } = await supabase
@@ -209,7 +210,7 @@ export default function OwnerDashboard() {
                     .order('purchased_at', { ascending: true })
 
                 const paidAppts = (currentMonthAppts || []).filter(a => a.payment_status === 'paid' && !(a as any).package_credit_id)
-                const pendingAppts = (allPendingAppts || []).filter(a => !(a as any).package_credit_id)
+                const pendingAppts = (allPendingAppts || []).filter(a => !(a as any).package_credit_id && !['cancelled', 'canceled', 'no_show'].includes(a.status))
                 
                 const currentRevenue = paidAppts
                     .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)

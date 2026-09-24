@@ -148,7 +148,7 @@ export default function FinanceiroPage() {
                     `)
                     .eq('org_id', profile.org_id)
                     .neq('payment_status', 'paid')
-                    .neq('status', 'cancelled')
+                    .not('status', 'in', '("cancelled","canceled","no_show")')
                     .order('scheduled_at', { ascending: true })
             ])
 
@@ -161,7 +161,7 @@ export default function FinanceiroPage() {
             const transactions = txsResponse.data || []
             const pendingSales = (pendingSalesResponse.data || [])
             const pendingPackages = (pendingPackagesResponse.data || [])
-            const allPendingAppts = (allPendingApptsResponse.data || []).filter((a: any) => !a.package_credit_id)
+            const allPendingAppts = (allPendingApptsResponse.data || []).filter((a: any) => !a.package_credit_id && !['cancelled', 'canceled', 'no_show'].includes(a.status))
 
 
             // --- Process Monthly Chart Data (Last 6 Months) ---
@@ -519,6 +519,7 @@ export default function FinanceiroPage() {
     const activeProfit = activeRevenue - activeExpenses
 
     const isApptRealized = (a: any) => {
+        if (a.status === 'no_show' || a.status === 'cancelled' || a.status === 'canceled') return false
         if (a.status === 'done' || a.status === 'completed') return true
         if (a.scheduled_at) {
             const sched = new Date(a.scheduled_at)

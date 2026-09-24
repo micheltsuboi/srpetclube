@@ -469,7 +469,7 @@ export default function PetVaccinesControlPage() {
                         </thead>
                         <tbody>
                             {filteredPets.map((summary) => {
-                                const petUrl = `/owner/pets?openPetId=${summary.pet.id}&section=vaccines`
+                                const petUrl = `/owner/pets?openPetId=${summary.pet.id}&section=vaccines&returnTo=%2Fowner%2Fvacinas-pets`
 
                                 return (
                                     <tr key={summary.pet.id}>

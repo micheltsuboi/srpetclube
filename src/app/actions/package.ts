@@ -371,12 +371,18 @@ export async function deleteCustomerPackage(customerPackageId: string): Promise<
     return { message: 'Pacote e agendamentos futuros excluídos com sucesso.', success: true }
 }
 
-export async function updatePackagePaymentStatus(id: string, status: string, method?: string) {
+export async function updatePackagePaymentStatus(id: string, status: string, method?: string, paidAt?: string) {
     try {
     const supabase = await createClient()
     
+    let realPaidAt: string | null = null
+
     // Se estiver marcando como pago, precisamos registrar no financeiro
     if (status === 'paid') {
+        realPaidAt = paidAt 
+            ? (paidAt.includes('T') ? paidAt : `${paidAt}T12:00:00`)
+            : new Date().toISOString()
+
         const { data: pkg, error: pkgError } = await supabase
             .from('customer_packages')
             .select(`
@@ -406,7 +412,7 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
                     category: 'Pacotes',
                     name: `Venda de Pacote: ${packageName}`,
                     amount: amount,
-                    date: new Date().toISOString(), // HOJE (data do pagamento real)
+                    date: realPaidAt,
                     payment_method: method || pkg.payment_method || 'other',
                     description: `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`
                 })
@@ -414,7 +420,17 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
         }
     }
 
-    await supabase.from('customer_packages').update({ payment_status: status, payment_method: method }).eq('id', id)
+    const updatePayload: Record<string, any> = { 
+        payment_status: status, 
+        payment_method: method 
+    }
+    if (status === 'paid') {
+        updatePayload.paid_at = realPaidAt
+    } else if (status === 'pending') {
+        updatePayload.paid_at = null
+    }
+
+    await supabase.from('customer_packages').update(updatePayload).eq('id', id)
     
     revalidatePath('/owner/pets')
     revalidatePath('/owner/packages')

@@ -79,6 +79,7 @@ interface Appointment {
     discount_percent?: number | null
     payment_status?: string | null
     payment_method?: string | null
+    paid_at?: string | null
     package_credit_id?: string | null
     package_slot_id?: string | null
     package_schedule_slots?: any
@@ -97,6 +98,7 @@ interface Appointment {
             calculated_price: number,
             total_paid: number,
             purchased_at: string,
+            paid_at?: string | null,
             has_taxi: boolean,
             taxi_fee: number
         }
@@ -245,7 +247,7 @@ export default function AgendaPage() {
                 .select(`
                     id, pet_id, service_id, scheduled_at, status, checklist, notes,
                     calculated_price, has_taxi, taxi_fee, has_extras, extras_fee, extras,
-                    final_price, discount_percent, payment_status, payment_method,
+                    final_price, discount_percent, payment_status, payment_method, paid_at,
                     actual_check_in, actual_check_out,
                     check_in_date, check_out_date,
                     package_credit_id, package_slot_id, package_usage_index,
@@ -259,6 +261,7 @@ export default function AgendaPage() {
                             payment_status,
                             payment_method,
                             purchased_at,
+                            paid_at,
                             package_credits (
                                 total_quantity
                             )
@@ -285,7 +288,7 @@ export default function AgendaPage() {
                     .select(`
                         id, pet_id, service_id, scheduled_at, status, checklist, notes,
                         calculated_price, has_taxi, taxi_fee, has_extras, extras_fee, extras,
-                        final_price, discount_percent, payment_status, payment_method,
+                        final_price, discount_percent, payment_status, payment_method, paid_at,
                         actual_check_in, actual_check_out,
                         check_in_date, check_out_date,
                         package_credit_id, package_slot_id,
@@ -299,6 +302,7 @@ export default function AgendaPage() {
                                 payment_status,
                                 payment_method,
                                 purchased_at,
+                                paid_at,
                                 has_taxi,
                                 taxi_fee
                             )
@@ -546,6 +550,7 @@ export default function AgendaPage() {
                             packageTotal={cp?.calculated_price ?? null}
                             packageMethod={cp?.payment_method ?? null}
                             packageDate={cp?.purchased_at ?? null}
+                            packagePaidAt={cp?.paid_at ?? null}
                             packageHasTaxi={cp?.has_taxi ?? false}
                             packageTaxiFee={cp?.taxi_fee ?? 0}
                             customerPackageId={cp?.id ?? null}
@@ -557,6 +562,7 @@ export default function AgendaPage() {
                             extras={appt.extras}
                             apptPaymentStatus={appt.payment_status}
                             apptPaymentMethod={appt.payment_method}
+                            apptPaidAt={appt.paid_at ?? null}
                             packagePaymentStatus={cp?.payment_status ?? null}
                         />
                     );

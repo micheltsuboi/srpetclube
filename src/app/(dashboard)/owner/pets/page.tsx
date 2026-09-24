@@ -61,6 +61,7 @@ function PetsContent() {
     const [loading, setLoading] = useState(true)
     const [showModal, setShowModal] = useState(false)
     const [selectedPet, setSelectedPet] = useState<Pet | null>(null)
+    const [returnToUrl, setReturnToUrl] = useState<string | null>(null)
 
     // Package States
     const [petPackages, setPetPackages] = useState<any[]>([])
@@ -421,11 +422,27 @@ function PetsContent() {
         setShowModal(true)
     }
 
+    const handleCloseModal = () => {
+        setShowModal(false)
+        setSelectedPet(null)
+        if (returnToUrl) {
+            const dest = returnToUrl
+            setReturnToUrl(null)
+            router.push(dest)
+        }
+    }
+
     // Handle return from Agenda or Vacinas (Re-open modal directly)
     const searchParams = useSearchParams()
     useEffect(() => {
         const openPetId = searchParams.get('openPetId')
         const section = searchParams.get('section')
+        const returnTo = searchParams.get('returnTo')
+
+        if (returnTo) {
+            setReturnToUrl(returnTo)
+        }
+
         if (openPetId && !showModal) {
             const openPetModal = async () => {
                 let pet = pets.find(p => p.id === openPetId)
@@ -459,6 +476,7 @@ function PetsContent() {
                     const url = new URL(window.location.href)
                     url.searchParams.delete('openPetId')
                     url.searchParams.delete('section')
+                    url.searchParams.delete('returnTo')
                     window.history.replaceState({}, '', url)
                 }
             }
@@ -468,8 +486,7 @@ function PetsContent() {
 
     useEffect(() => {
         if (updateState.success) {
-            setShowModal(false)
-            setSelectedPet(null)
+            handleCloseModal()
             fetchData()
             alert(updateState.message)
         } else if (updateState.message) {
@@ -500,8 +517,7 @@ function PetsContent() {
         const res = await deletePet(selectedPet.id)
         if (res.success) {
             alert(res.message)
-            setShowModal(false)
-            setSelectedPet(null)
+            handleCloseModal()
             fetchData()
         } else {
             alert(res.message)
@@ -793,13 +809,13 @@ function PetsContent() {
             </div>
 
             {showModal && (
-                <div className={styles.modalOverlay} onClick={() => setShowModal(false)}>
+                <div className={styles.modalOverlay} onClick={handleCloseModal}>
                     <div className={styles.modal} onClick={e => e.stopPropagation()}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
                             <h2 style={{ margin: 0 }}>
                                 {selectedPet ? `Ficha Pet: ${selectedPet.name}` : 'Novo Pet'}
                             </h2>
-                            <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', fontSize: '2rem', lineHeight: '1rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
+                            <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', fontSize: '2rem', lineHeight: '1rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                                 &times;
                             </button>
                         </div>
@@ -1362,6 +1378,7 @@ function PetsContent() {
                                                                     taxi_fee: curr.taxi_fee,
                                                                     auto_renew: curr.auto_renew,
                                                                     purchased_at: curr.purchased_at,
+                                                                    paid_at: curr.paid_at,
                                                                     services: []
                                                                 };
                                                             }
@@ -1389,7 +1406,17 @@ function PetsContent() {
                                                                     <div className={styles.packageHeader} style={{ flexWrap: 'nowrap' }}>
                                                                         <div className={styles.packageInfo} style={{ flex: 1 }}>
                                                                             <h4 style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>📦 {pkgGroup.name} {referenceMonth && <span style={{ fontSize: '0.85rem', color: 'var(--primary)', marginLeft: '0.5rem', fontWeight: 'normal' }}>({referenceMonth})</span>}</h4>
-                                                                            <div className={styles.packageDate} style={{ marginTop: '0.2rem' }}>Validade: {pkgGroup.expires_at ? new Date(pkgGroup.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}</div>
+                                                                            <div className={styles.packageDate} style={{ marginTop: '0.35rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                                                <span>Contratado: {pkgGroup.purchased_at ? new Date(pkgGroup.purchased_at).toLocaleDateString('pt-BR') : '-'}</span>
+                                                                                <span>•</span>
+                                                                                <span>Validade: {pkgGroup.expires_at ? new Date(pkgGroup.expires_at).toLocaleDateString('pt-BR') : 'Indeterminada'}</span>
+                                                                                {pkgGroup.payment_status === 'paid' && pkgGroup.paid_at && (
+                                                                                    <>
+                                                                                        <span>•</span>
+                                                                                        <span style={{ color: '#10b981', fontWeight: 600 }}>Pago em: {new Date(pkgGroup.paid_at).toLocaleDateString('pt-BR')}</span>
+                                                                                    </>
+                                                                                )}
+                                                                            </div>
                                                                             <div style={{ marginTop: '0.75rem' }}>
                                                                                 <button 
                                                                                     type="button"
@@ -1428,6 +1455,8 @@ function PetsContent() {
                                                                             taxiFee={pkgGroup.taxi_fee}
                                                                             onUpdate={fetchPetPackageSummary}
                                                                             compact={true}
+                                                                            paidAt={pkgGroup.paid_at}
+                                                                            purchasedAt={pkgGroup.purchased_at}
                                                                         />
                                                                     </div>
 
@@ -1914,7 +1943,7 @@ function PetsContent() {
                     </div>
 
                     <div className={styles.modalActions} style={{ marginTop: 'auto', borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-                        <button type="button" className={styles.cancelBtn} onClick={() => setShowModal(false)}>
+                        <button type="button" className={styles.cancelBtn} onClick={handleCloseModal}>
                             Fechar
                         </button>
                     </div>

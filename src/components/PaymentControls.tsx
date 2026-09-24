@@ -15,6 +15,7 @@ interface PaymentControlsProps {
     packageTotal?: number | null
     packageMethod?: string | null
     packageDate?: string | null
+    packagePaidAt?: string | null
     packageHasTaxi?: boolean
     packageTaxiFee?: number
     customerPackageId?: string | null
@@ -27,6 +28,7 @@ interface PaymentControlsProps {
     extras?: any
     apptPaymentStatus?: string | null
     apptPaymentMethod?: string | null
+    apptPaidAt?: string | null
     packagePaymentStatus?: string | null
 }
 
@@ -48,6 +50,7 @@ export default function PaymentControls({
     packageTotal,
     packageMethod,
     packageDate,
+    packagePaidAt,
     packageHasTaxi = false,
     packageTaxiFee = 0,
     customerPackageId,
@@ -60,12 +63,16 @@ export default function PaymentControls({
     extras = [],
     apptPaymentStatus = 'pending',
     apptPaymentMethod = null,
+    apptPaidAt,
     packagePaymentStatus = null
 }: PaymentControlsProps) {
     const [showModal, setShowModal] = useState(false)
     const [discountValue, setDiscountValue] = useState(discountPercent?.toString() || '0')
     const [loading, setLoading] = useState(false)
     const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent')
+    const [paymentDate, setPaymentDate] = useState(() => {
+        return new Date().toISOString().split('T')[0]
+    })
 
     // Determine if the main package or appointment is paid
     const isPaid = isPackage ? (packagePaymentStatus === 'paid') : (paymentStatus === 'paid')
@@ -103,7 +110,7 @@ export default function PaymentControls({
         setLoading(true)
         try {
             if (customerPackageId) {
-                await updatePackagePaymentStatus(customerPackageId, 'paid', method)
+                await updatePackagePaymentStatus(customerPackageId, 'paid', method, paymentDate)
             }
             onUpdate?.()
             setShowModal(false)
@@ -127,7 +134,7 @@ export default function PaymentControls({
     const handleApptPayment = async (method: string) => {
         setLoading(true)
         try {
-            await updatePaymentStatus(appointmentId, 'paid', method)
+            await updatePaymentStatus(appointmentId, 'paid', method, paymentDate)
             onUpdate?.()
             setShowModal(false)
         } finally {
@@ -347,10 +354,59 @@ export default function PaymentControls({
                    </div>
                 )}
 
-                {isPackage && packageDate && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1.5rem', padding: '0.5rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                        <span>Data do Pagamento:</span>
-                        <span style={{ color: 'var(--text-primary)' }}>{new Date(packageDate).toLocaleDateString('pt-BR')}</span>
+                {/* Informações de datas */}
+                {isPackage && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', marginBottom: '1rem', padding: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        {packageDate && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Contratado em:</span>
+                                <span style={{ color: 'var(--text-primary)' }}>{new Date(packageDate).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                        )}
+                        {packagePaidAt && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                <span>Pago em:</span>
+                                <span style={{ color: 'var(--status-done)', fontWeight: 600 }}>{new Date(packagePaidAt).toLocaleDateString('pt-BR')}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {!isPackage && apptPaidAt && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', padding: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        <span>Pago em:</span>
+                        <span style={{ color: 'var(--status-done)', fontWeight: 600 }}>{new Date(apptPaidAt).toLocaleDateString('pt-BR')}</span>
+                    </div>
+                )}
+
+                {/* Seleção da Data de Pagamento para registrar novo pagamento */}
+                {(!isPaid || (isPackage && hasAddons && !isAddonsPaid)) && (
+                    <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        padding: '0.6rem 0.75rem',
+                        background: 'var(--bg-secondary)',
+                        borderRadius: '8px',
+                        marginBottom: '1rem',
+                        border: '1px solid var(--border)'
+                    }}>
+                        <label style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                            📅 Data do Pagamento:
+                        </label>
+                        <input
+                            type="date"
+                            value={paymentDate}
+                            onChange={(e) => setPaymentDate(e.target.value)}
+                            style={{
+                                background: 'var(--bg-primary)',
+                                color: 'var(--text-primary)',
+                                border: '1px solid var(--border)',
+                                borderRadius: '6px',
+                                padding: '4px 8px',
+                                fontSize: '0.85rem'
+                            }}
+                        />
                     </div>
                 )}
 
