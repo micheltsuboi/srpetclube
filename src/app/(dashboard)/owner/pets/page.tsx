@@ -673,8 +673,17 @@ function PetsContent() {
                     purchased_at: pkgGroup.purchased_at,
                     expires_at: pkgGroup.expires_at,
                     payment_status: pkgGroup.payment_status,
+                    payment_method: pkgGroup.payment_method,
+                    paid_at: pkgGroup.paid_at,
                     calculated_price: pkgGroup.calculated_price,
-                    services: pkgGroup.services
+                    total_paid: pkgGroup.total_paid,
+                    discount_percent: pkgGroup.discount_percent,
+                    has_taxi: pkgGroup.has_taxi,
+                    taxi_fee: pkgGroup.taxi_fee,
+                    services: pkgGroup.services,
+                    package_extras: pkgGroup.package_extras,
+                    total_extras_fee: pkgGroup.total_extras_fee,
+                    has_pending_extras: pkgGroup.has_pending_extras
                 },
                 slots: slots || []
             })
@@ -1557,6 +1566,51 @@ function PetsContent() {
                                                                             </div>
                                                                         </div>
                                                                     )}
+
+                                                                    {/* Resumo Financeiro Consolidado (Pacote + Táxi + Extras) */}
+                                                                    {(() => {
+                                                                        const hasTaxi = !!pkgGroup.has_taxi;
+                                                                        const taxiFee = Number(pkgGroup.taxi_fee || 0);
+                                                                        const rawPrice = Number(pkgGroup.total_paid ?? pkgGroup.calculated_price ?? 0);
+                                                                        let basePrice = rawPrice;
+                                                                        if (hasTaxi && taxiFee > 0 && rawPrice >= taxiFee) {
+                                                                            basePrice = rawPrice - taxiFee;
+                                                                        }
+                                                                        const pkgSubtotal = basePrice + (hasTaxi ? taxiFee : 0);
+                                                                        const extrasTotal = Number(pkgGroup.total_extras_fee || 0);
+                                                                        const grandTotal = pkgSubtotal + extrasTotal;
+
+                                                                        return (
+                                                                            <div style={{
+                                                                                display: 'flex',
+                                                                                alignItems: 'center',
+                                                                                justifyContent: 'space-between',
+                                                                                padding: '0.65rem 0.85rem',
+                                                                                background: 'rgba(43, 75, 111, 0.05)',
+                                                                                borderRadius: '8px',
+                                                                                marginTop: '0.75rem',
+                                                                                border: '1px solid rgba(43, 75, 111, 0.15)',
+                                                                                flexWrap: 'wrap',
+                                                                                gap: '0.5rem',
+                                                                                fontSize: '0.82rem'
+                                                                            }}>
+                                                                                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                                                                    <span><strong>Pacote:</strong> R$ {basePrice.toFixed(2)}</span>
+                                                                                    {hasTaxi && taxiFee > 0 && (
+                                                                                        <span style={{ color: 'var(--primary)', fontWeight: 600 }}>• 🚕 Táxi Dog: R$ {taxiFee.toFixed(2)}</span>
+                                                                                    )}
+                                                                                    {extrasTotal > 0 && (
+                                                                                        <span style={{ color: '#E8826A', fontWeight: 600 }}>• ✨ Extras: R$ {extrasTotal.toFixed(2)}</span>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div>
+                                                                                    <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                                                                                        Total Geral: <span style={{ color: 'var(--primary)' }}>R$ {grandTotal.toFixed(2)}</span>
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        );
+                                                                    })()}
 
                                                                     {/* Botões de Ação do Pacote */}
                                                                     <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', borderTop: '1px solid var(--border)', paddingTop: '0.75rem', flexWrap: 'wrap' }}>

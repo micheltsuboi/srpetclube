@@ -23,8 +23,17 @@ export interface PackageReportData {
     purchased_at?: string | null
     expires_at?: string | null
     payment_status?: string | null
+    payment_method?: string | null
+    paid_at?: string | null
     calculated_price?: number | null
+    total_paid?: number | null
+    discount_percent?: number | null
+    has_taxi?: boolean | null
+    taxi_fee?: number | null
     services?: PackageReportServiceInfo[]
+    package_extras?: Array<{ name: string, price: number, sessionDate?: string | null }>
+    total_extras_fee?: number | null
+    has_pending_extras?: boolean
 }
 
 export interface PackageReportSlot {
@@ -37,6 +46,8 @@ export interface PackageReportSlot {
     has_extras?: boolean
     extras_fee?: number | null
     extras?: Array<{ name: string, price: number }>
+    has_taxi?: boolean
+    taxi_fee?: number | null
 }
 
 export function exportPackageSessionsPDF({
@@ -68,7 +79,7 @@ export function exportPackageSessionsPDF({
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     doc.setTextColor(230, 235, 245)
-    doc.text('Relatório de Sessões e Utilização de Pacote', 14, 19)
+    doc.text('Relatório e Extrato de Utilização do Pacote', 14, 19)
 
     // Data de emissão no canto direito do cabeçalho
     const emissionDate = new Date().toLocaleDateString('pt-BR', {
@@ -117,39 +128,96 @@ export function exportPackageSessionsPDF({
 
     currentY += 34
 
-    // 4. Bloco de Resumo do Pacote
-    doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
-    doc.roundedRect(14, currentY, 182, 34, 3, 3, 'FD')
+    // 4. Bloco de Resumo do Pacote e Extrato Financeiro
+    const hasTaxi = !!packageData.has_taxi
+    const taxiFee = Number(packageData.taxi_fee || 0)
 
+    const totalPaidNum = packageData.total_paid != null ? Number(packageData.total_paid) : null
+    const calcPriceNum = packageData.calculated_price != null ? Number(packageData.calculated_price) : 0
+    let packageTotal = totalPaidNum ?? calcPriceNum
+
+    let packageBasePrice = packageTotal
+    if (hasTaxi && taxiFee > 0) {
+        if (packageTotal >= taxiFee) {
+            packageBasePrice = packageTotal - taxiFee
+        }
+    }
+    const packageSubtotal = packageBasePrice + (hasTaxi ? taxiFee : 0)
+
+    // Extras das sessões
+    let extrasFee = Number(packageData.total_extras_fee || 0)
+    if (extrasFee === 0 && slots && slots.length > 0) {
+        extrasFee = slots.reduce((acc, s) => acc + Number(s.extras_fee || 0), 0)
+    }
+
+    // Táxi avulso lançado nas sessões que não era parte do pacote
+    const slotsTaxiFee = slots && slots.length > 0 && !hasTaxi
+        ? slots.reduce((acc, s) => acc + (s.has_taxi ? Number(s.taxi_fee || 0) : 0), 0)
+        : 0
+
+    const grandTotal = packageSubtotal + extrasFee + slotsTaxiFee
+
+    const blockHeight = (hasTaxi || extrasFee > 0) ? 52 : 46
+    doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
+    doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
+    doc.roundedRect(14, currentY, 182, blockHeight, 3, 3, 'FD')
+
+    // Título do Pacote
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
     const refText = packageData.referenceMonth ? ` (${packageData.referenceMonth})` : ''
     doc.text(`PACOTE: ${packageData.name.toUpperCase()}${refText}`, 18, currentY + 7)
 
+    // Datas (Contratação e Validade)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
+    doc.setFontSize(8.5)
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
 
+    const purchasedFormatted = packageData.purchased_at
+        ? new Date(packageData.purchased_at).toLocaleDateString('pt-BR')
+        : '-'
     const expiresFormatted = packageData.expires_at 
         ? new Date(packageData.expires_at).toLocaleDateString('pt-BR') 
         : 'Indeterminada'
 
-    const paymentFormatted = packageData.payment_status === 'paid' 
-        ? 'Pago' 
-        : packageData.payment_status === 'pending' 
-        ? 'Pendente' 
-        : packageData.payment_status || 'Outro'
+    doc.setFont('helvetica', 'bold')
+    doc.text('Contratado:', 18, currentY + 15)
+    doc.setFont('helvetica', 'normal')
+    doc.text(purchasedFormatted, 37, currentY + 15)
 
     doc.setFont('helvetica', 'bold')
-    doc.text('Validade:', 18, currentY + 16)
+    doc.text('Validade:', 65, currentY + 15)
     doc.setFont('helvetica', 'normal')
-    doc.text(expiresFormatted, 35, currentY + 16)
+    doc.text(expiresFormatted, 80, currentY + 15)
+
+    // Pagamento do Pacote
+    const paymentMethodLabels: Record<string, string> = {
+        pix: 'PIX',
+        credit: 'Cartão de Crédito',
+        debit: 'Cartão de Débito',
+        cash: 'Dinheiro',
+        other: 'Outro'
+    }
+    const isPaid = packageData.payment_status === 'paid'
+    let paymentText = isPaid ? 'Pago' : (packageData.payment_status === 'pending' ? 'Pendente' : packageData.payment_status || 'Outro')
+    if (isPaid && packageData.paid_at) {
+        paymentText += ` em ${new Date(packageData.paid_at).toLocaleDateString('pt-BR')}`
+    }
+    if (isPaid && packageData.payment_method) {
+        paymentText += ` (${paymentMethodLabels[packageData.payment_method] || packageData.payment_method})`
+    }
 
     doc.setFont('helvetica', 'bold')
-    doc.text('Pagamento:', 110, currentY + 16)
+    doc.text('Pagamento Pacote:', 18, currentY + 23)
     doc.setFont('helvetica', 'normal')
-    doc.text(paymentFormatted, 132, currentY + 16)
+    if (isPaid) {
+        doc.setTextColor(16, 185, 129) // Verde
+    } else {
+        doc.setTextColor(239, 68, 68) // Vermelho
+    }
+    doc.text(paymentText, 49, currentY + 23)
+    doc.setTextColor(textColor[0], textColor[1], textColor[2])
 
     // Resumo de créditos por serviço
     if (packageData.services && packageData.services.length > 0) {
@@ -159,12 +227,70 @@ export function exportPackageSessionsPDF({
         }).join('  |  ')
 
         doc.setFont('helvetica', 'bold')
-        doc.text('Sessões:', 18, currentY + 25)
+        doc.text('Sessões:', 18, currentY + 31)
         doc.setFont('helvetica', 'normal')
-        doc.text(servicesSummary, 35, currentY + 25)
+        doc.text(servicesSummary, 33, currentY + 31)
     }
 
-    currentY += 40
+    // Box de Extrato Financeiro Consolidado (lado direito do bloco)
+    const boxX = 114
+    const boxY = currentY + 4
+    const boxWidth = 78
+    const boxHeight = blockHeight - 8
+    doc.setFillColor(255, 255, 255)
+    doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
+    doc.roundedRect(boxX, boxY, boxWidth, boxHeight, 2, 2, 'FD')
+
+    // Título do Box
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+    doc.text('EXTRATO DE VALORES', boxX + 4, boxY + 6)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8)
+    doc.setTextColor(textColor[0], textColor[1], textColor[2])
+
+    let lineY = boxY + 12
+    // Linha 1: Valor Base do Pacote
+    doc.text('Valor do Pacote:', boxX + 4, lineY)
+    doc.text(`R$ ${packageBasePrice.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
+
+    // Linha 2: Táxi Dog Incluso (se houver)
+    if (hasTaxi && taxiFee > 0) {
+        lineY += 5
+        doc.text('Táxi Dog Incluso:', boxX + 4, lineY)
+        doc.text(`R$ ${taxiFee.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
+    }
+
+    // Linha 3: Extras das Sessões (se houver)
+    if (extrasFee > 0) {
+        lineY += 5
+        doc.text('Extras (Sessões):', boxX + 4, lineY)
+        doc.text(`R$ ${extrasFee.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
+    }
+
+    // Linha 4: Táxi Avulso de Sessões (se houver)
+    if (slotsTaxiFee > 0) {
+        lineY += 5
+        doc.text('Táxi Avulso (Sessões):', boxX + 4, lineY)
+        doc.text(`R$ ${slotsTaxiFee.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
+    }
+
+    // Linha separadora do Total
+    lineY += 3
+    doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
+    doc.line(boxX + 4, lineY, boxX + boxWidth - 4, lineY)
+
+    // Total Geral
+    lineY += 5
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+    doc.text('TOTAL:', boxX + 4, lineY)
+    doc.text(`R$ ${grandTotal.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
+
+    currentY += blockHeight + 6
 
     // 5. Tabela de Histórico de Sessões (Slots)
     const translateStatus = (st: string) => {
@@ -208,6 +334,9 @@ export function exportPackageSessionsPDF({
         const weekday = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase()
 
         let serviceDesc = slot.services?.name || 'Sessão do Pacote'
+        if (slot.has_taxi && slot.taxi_fee && slot.taxi_fee > 0) {
+            serviceDesc += `\n+ Táxi Dog (R$ ${Number(slot.taxi_fee).toFixed(2)})`
+        }
         if (slot.extras && Array.isArray(slot.extras) && slot.extras.length > 0) {
             const extrasText = slot.extras.map((e: any) => `+ Extra: ${e.name} (R$ ${Number(e.price || 0).toFixed(2)})`).join('\n')
             serviceDesc += `\n${extrasText}`
@@ -229,7 +358,7 @@ export function exportPackageSessionsPDF({
 
     autoTable(doc, {
         startY: currentY,
-        head: [['Data / Dia', 'Horário', 'Serviço / Extras', 'Status']],
+        head: [['Data / Dia', 'Horário', 'Serviço / Extras / Táxi', 'Status']],
         body: tableRows,
         theme: 'striped',
         headStyles: {

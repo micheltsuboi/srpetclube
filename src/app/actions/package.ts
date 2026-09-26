@@ -810,6 +810,8 @@ export async function getPackageSlotsHistory(customerPackageId: string) {
             has_extras: hasExtras,
             extras_fee: Number(appt?.extras_fee || 0),
             extras: parsedExtras,
+            has_taxi: !!appt?.has_taxi,
+            taxi_fee: Number(appt?.taxi_fee || 0),
             appt_payment_status: appt?.payment_status || null,
             appt_payment_method: appt?.payment_method || null,
             appt_paid_at: appt?.paid_at || null
@@ -839,6 +841,8 @@ export async function getPackageSlotsHistory(customerPackageId: string) {
             has_extras: hasExtras,
             extras_fee: Number(a.extras_fee || 0),
             extras: parsedExtras,
+            has_taxi: !!a.has_taxi,
+            taxi_fee: Number(a.taxi_fee || 0),
             appt_payment_status: a.payment_status || null,
             appt_payment_method: a.payment_method || null,
             appt_paid_at: a.paid_at || null
