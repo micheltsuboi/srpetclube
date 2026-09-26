@@ -658,10 +658,13 @@ function PetsContent() {
                 setPetSlots(prev => ({ ...prev, [pkgGroup.id]: slots }))
             }
 
-            const fallbackDate = pkgGroup.purchased_at || pkgGroup.expires_at || new Date().toISOString()
-            let referenceMonth = new Date(fallbackDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
-            if (referenceMonth) {
-                referenceMonth = referenceMonth.charAt(0).toUpperCase() + referenceMonth.slice(1)
+            let referenceMonth = pkgGroup.reference_month || null
+            if (!referenceMonth) {
+                const fallbackDate = pkgGroup.purchased_at || pkgGroup.expires_at || new Date().toISOString()
+                referenceMonth = new Date(fallbackDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+                if (referenceMonth) {
+                    referenceMonth = referenceMonth.charAt(0).toUpperCase() + referenceMonth.slice(1)
+                }
             }
 
             const { exportPackageSessionsPDF } = await import('@/utils/packageReportPdf')
@@ -690,6 +693,25 @@ function PetsContent() {
         } catch (error) {
             console.error('Erro ao gerar PDF do pacote:', error)
             alert('Erro ao gerar relatório em PDF.')
+        }
+    }
+
+    const handleEditReferenceMonth = async (cpId: string, currentMonth: string) => {
+        const newMonth = prompt('Informe o mês de referência para este pacote (ex: Outubro de 2026):', currentMonth || '')
+        if (!newMonth || !newMonth.trim()) return
+
+        try {
+            const { updatePackageReferenceMonth } = await import('@/app/actions/package')
+            const res = await updatePackageReferenceMonth(cpId, newMonth.trim())
+            if (res.success) {
+                alert(res.message)
+                await fetchPetPackageSummary()
+            } else {
+                alert('Erro: ' + res.message)
+            }
+        } catch (err) {
+            console.error('Erro ao atualizar mês:', err)
+            alert('Erro ao atualizar mês de referência.')
         }
     }
 
@@ -1388,6 +1410,8 @@ function PetsContent() {
                                                                     auto_renew: curr.auto_renew,
                                                                     purchased_at: curr.purchased_at,
                                                                     paid_at: curr.paid_at,
+                                                                    reference_month: curr.reference_month || null,
+                                                                    period_label: curr.period_label || null,
                                                                     services: [],
                                                                     package_extras: [],
                                                                     total_extras_fee: 0,
@@ -1426,19 +1450,47 @@ function PetsContent() {
                                                             })
                                                             const isExpanded = expandedSlotPackage === cpId
 
-                                                            // Usar a data de compra como mês de referência para evitar saltos visuais
-                                                            const fallbackDate = pkgGroup.purchased_at || pkgGroup.expires_at || new Date().toISOString();
-                                                            let referenceMonth = new Date(fallbackDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-                                                            
-                                                            if (referenceMonth) {
-                                                                referenceMonth = referenceMonth.charAt(0).toUpperCase() + referenceMonth.slice(1);
+                                                            // Priorizar o mês de referência computado (a partir de period_label ou da 1ª aula/sessão)
+                                                            let referenceMonth = pkgGroup.reference_month;
+                                                            if (!referenceMonth) {
+                                                                const fallbackDate = pkgGroup.purchased_at || pkgGroup.expires_at || new Date().toISOString();
+                                                                referenceMonth = new Date(fallbackDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+                                                                if (referenceMonth) {
+                                                                    referenceMonth = referenceMonth.charAt(0).toUpperCase() + referenceMonth.slice(1);
+                                                                }
                                                             }
 
                                                             return (
                                                                 <div key={`${cpId}-${index}`} className={styles.packageCard} style={{ flexDirection: 'column', alignItems: 'stretch', backgroundColor: pkgGroup.is_expired ? 'rgba(255,0,0,0.05)' : 'var(--bg-secondary)', opacity: pkgGroup.is_expired ? 0.7 : 1 }}>
                                                                     <div className={styles.packageHeader} style={{ flexWrap: 'nowrap' }}>
                                                                         <div className={styles.packageInfo} style={{ flex: 1 }}>
-                                                                            <h4 style={{ fontSize: '1.05rem', color: 'var(--text-primary)' }}>📦 {pkgGroup.name} {referenceMonth && <span style={{ fontSize: '0.85rem', color: 'var(--primary)', marginLeft: '0.5rem', fontWeight: 'normal' }}>({referenceMonth})</span>}</h4>
+                                                                            <h4 style={{ fontSize: '1.05rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                                                                <span>📦 {pkgGroup.name}</span>
+                                                                                {referenceMonth && (
+                                                                                    <span style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 'normal' }}>
+                                                                                        ({referenceMonth})
+                                                                                    </span>
+                                                                                )}
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleEditReferenceMonth(cpId, referenceMonth)}
+                                                                                    style={{
+                                                                                        background: 'none',
+                                                                                        border: 'none',
+                                                                                        cursor: 'pointer',
+                                                                                        padding: '2px 4px',
+                                                                                        fontSize: '0.8rem',
+                                                                                        opacity: 0.65,
+                                                                                        display: 'inline-flex',
+                                                                                        alignItems: 'center'
+                                                                                    }}
+                                                                                    title="Editar mês de referência do pacote"
+                                                                                    onMouseOver={(e) => (e.currentTarget.style.opacity = '1')}
+                                                                                    onMouseOut={(e) => (e.currentTarget.style.opacity = '0.65')}
+                                                                                >
+                                                                                    ✏️
+                                                                                </button>
+                                                                            </h4>
                                                                             <div className={styles.packageDate} style={{ marginTop: '0.35rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                                                                                 <span>Contratado: {pkgGroup.purchased_at ? new Date(pkgGroup.purchased_at).toLocaleDateString('pt-BR') : '-'}</span>
                                                                                 <span>•</span>

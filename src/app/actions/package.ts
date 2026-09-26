@@ -539,6 +539,20 @@ export async function sellPackageToPet(
         expires_at = expiry.toISOString()
     }
 
+    // Calcular mês de referência a partir da data de início das aulas (startDate), se informada
+    let calculatedPeriodLabel: string | null = null
+    if (startDate) {
+        try {
+            const d = new Date(startDate + 'T12:00:00')
+            const monthName = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+            if (monthName) {
+                calculatedPeriodLabel = monthName.charAt(0).toUpperCase() + monthName.slice(1)
+            }
+        } catch {
+            calculatedPeriodLabel = null
+        }
+    }
+
     // Criar registro de compra do pacote
     const { data: customerPackage, error: cpError } = await supabase
         .from('customer_packages')
@@ -556,7 +570,8 @@ export async function sellPackageToPet(
             has_taxi: hasTaxi ?? false,
             taxi_fee: taxiFee ?? 0,
             auto_renew: autoRenew ?? false,
-            payment_status: 'pending'
+            payment_status: 'pending',
+            period_label: calculatedPeriodLabel
         })
         .select(`
             *,
@@ -1061,6 +1076,15 @@ export async function getPetPackagesWithUsage(petId: string) {
 
     if (!summary || summary.length === 0) return []
 
+    // 1.1 Buscar period_label customizado de cada customer_package
+    const cpIds = Array.from(new Set(summary.map((s: any) => s.customer_package_id)))
+    const { data: cpRecords } = await supabase
+        .from('customer_packages')
+        .select('id, period_label')
+        .in('id', cpIds)
+
+    const cpMap = new Map((cpRecords || []).map(r => [r.id, r]))
+
     // 2. Buscar detalhes de uso (agendamentos e extras) para cada item
     const packagesWithUsage = await Promise.all(summary.map(async (item: any) => {
         const { data: credit } = await supabase
@@ -1070,11 +1094,39 @@ export async function getPetPackagesWithUsage(petId: string) {
             .eq('service_id', item.service_id)
             .maybeSingle()
 
-        // Buscar slots deste pacote
+        // Buscar slots deste pacote (ordenados para identificar a primeira sessão cronológica)
         const { data: slots } = await supabase
             .from('package_schedule_slots')
-            .select('id, appointment_id')
+            .select('id, appointment_id, slot_date')
             .eq('customer_package_id', item.customer_package_id)
+            .order('slot_date', { ascending: true })
+
+        // Calcular mês de referência inteligente:
+        // 1º: period_label salvo explicitamente no pacote
+        // 2º: mês da primeira sessão/aula agendada (ex: se comprou em setembro para começar em outubro)
+        // 3º: mês da data de compra
+        const cp = cpMap.get(item.customer_package_id)
+        let referenceMonth: string | null = cp?.period_label || null
+
+        if (!referenceMonth && slots && slots.length > 0 && slots[0].slot_date) {
+            try {
+                const d = new Date(slots[0].slot_date + 'T12:00:00')
+                const m = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+                if (m) referenceMonth = m.charAt(0).toUpperCase() + m.slice(1)
+            } catch {
+                // ignore
+            }
+        }
+
+        if (!referenceMonth) {
+            try {
+                const fallbackDate = item.purchased_at || item.expires_at || new Date().toISOString()
+                const m = new Date(fallbackDate).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+                if (m) referenceMonth = m.charAt(0).toUpperCase() + m.slice(1)
+            } catch {
+                // ignore
+            }
+        }
 
         const slotIds = (slots || []).map(s => s.id)
         const apptIdsFromSlots = (slots || []).map(s => s.appointment_id).filter(Boolean)
@@ -1158,11 +1210,40 @@ export async function getPetPackagesWithUsage(petId: string) {
             appointments,
             package_extras: packageExtras,
             total_extras_fee: totalExtrasFee,
-            has_pending_extras: hasPendingExtras
+            has_pending_extras: hasPendingExtras,
+            reference_month: referenceMonth,
+            period_label: cp?.period_label || null
         }
     }))
 
     return packagesWithUsage
+}
+
+/**
+ * Atualiza o mês ou rótulo de referência de um pacote do cliente (ex: "Outubro de 2026")
+ */
+export async function updatePackageReferenceMonth(
+    customerPackageId: string,
+    referenceMonth: string
+): Promise<ActionState> {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { message: 'Não autorizado.', success: false }
+
+    const formatted = referenceMonth.trim()
+    const { error } = await supabase
+        .from('customer_packages')
+        .update({ period_label: formatted })
+        .eq('id', customerPackageId)
+
+    if (error) {
+        console.error('Erro ao atualizar mês de referência do pacote:', error)
+        return { message: error.message, success: false }
+    }
+
+    revalidatePath('/owner/pets')
+    revalidatePath('/owner/packages')
+    return { message: 'Mês de referência atualizado com sucesso!', success: true }
 }
 
 /**
