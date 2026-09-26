@@ -157,17 +157,21 @@ export function exportPackageSessionsPDF({
 
     const grandTotal = packageSubtotal + extrasFee + slotsTaxiFee
 
-    const blockHeight = (hasTaxi || extrasFee > 0) ? 52 : 46
+    const blockHeight = (hasTaxi || extrasFee > 0 || slotsTaxiFee > 0) ? 58 : 50
     doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
     doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
     doc.roundedRect(14, currentY, 182, blockHeight, 3, 3, 'FD')
 
-    // Título do Pacote
+    // Título do Pacote (largura total de ponta a ponta no topo)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
     const refText = packageData.referenceMonth ? ` (${packageData.referenceMonth})` : ''
     doc.text(`PACOTE: ${packageData.name.toUpperCase()}${refText}`, 18, currentY + 7)
+
+    // Linha divisória sutil abaixo do título do pacote
+    doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
+    doc.line(18, currentY + 10.5, 192, currentY + 10.5)
 
     // Datas (Contratação e Validade)
     doc.setFont('helvetica', 'normal')
@@ -182,14 +186,14 @@ export function exportPackageSessionsPDF({
         : 'Indeterminada'
 
     doc.setFont('helvetica', 'bold')
-    doc.text('Contratado:', 18, currentY + 15)
+    doc.text('Contratado:', 18, currentY + 17)
     doc.setFont('helvetica', 'normal')
-    doc.text(purchasedFormatted, 37, currentY + 15)
+    doc.text(purchasedFormatted, 37, currentY + 17)
 
     doc.setFont('helvetica', 'bold')
-    doc.text('Validade:', 65, currentY + 15)
+    doc.text('Validade:', 65, currentY + 17)
     doc.setFont('helvetica', 'normal')
-    doc.text(expiresFormatted, 80, currentY + 15)
+    doc.text(expiresFormatted, 80, currentY + 17)
 
     // Pagamento do Pacote
     const paymentMethodLabels: Record<string, string> = {
@@ -209,17 +213,17 @@ export function exportPackageSessionsPDF({
     }
 
     doc.setFont('helvetica', 'bold')
-    doc.text('Pagamento Pacote:', 18, currentY + 23)
+    doc.text('Pagamento:', 18, currentY + 25)
     doc.setFont('helvetica', 'normal')
     if (isPaid) {
         doc.setTextColor(16, 185, 129) // Verde
     } else {
         doc.setTextColor(239, 68, 68) // Vermelho
     }
-    doc.text(paymentText, 49, currentY + 23)
+    doc.text(paymentText, 38, currentY + 25)
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
 
-    // Resumo de créditos por serviço
+    // Resumo de créditos por serviço (com quebra de linha segura para não invadir o box)
     if (packageData.services && packageData.services.length > 0) {
         const servicesSummary = packageData.services.map(s => {
             const rem = (s.total_qty || 0) - (s.used_qty || 0)
@@ -227,16 +231,17 @@ export function exportPackageSessionsPDF({
         }).join('  |  ')
 
         doc.setFont('helvetica', 'bold')
-        doc.text('Sessões:', 18, currentY + 31)
+        doc.text('Sessões:', 18, currentY + 33)
         doc.setFont('helvetica', 'normal')
-        doc.text(servicesSummary, 33, currentY + 31)
+        const splitSummary = doc.splitTextToSize(servicesSummary, 94)
+        doc.text(splitSummary, 33, currentY + 33)
     }
 
-    // Box de Extrato Financeiro Consolidado (lado direito do bloco)
-    const boxX = 114
-    const boxY = currentY + 4
-    const boxWidth = 78
-    const boxHeight = blockHeight - 8
+    // Box de Extrato Financeiro Consolidado (lado direito, posicionado estritamente abaixo do título)
+    const boxX = 116
+    const boxY = currentY + 13
+    const boxWidth = 76
+    const boxHeight = blockHeight - 16
     doc.setFillColor(255, 255, 255)
     doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
     doc.roundedRect(boxX, boxY, boxWidth, boxHeight, 2, 2, 'FD')
@@ -245,47 +250,47 @@ export function exportPackageSessionsPDF({
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8)
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-    doc.text('EXTRATO DE VALORES', boxX + 4, boxY + 6)
+    doc.text('EXTRATO DE VALORES', boxX + 4, boxY + 5.5)
 
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
+    doc.setFontSize(7.5)
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
 
-    let lineY = boxY + 12
+    let lineY = boxY + 11
     // Linha 1: Valor Base do Pacote
     doc.text('Valor do Pacote:', boxX + 4, lineY)
     doc.text(`R$ ${packageBasePrice.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
 
     // Linha 2: Táxi Dog Incluso (se houver)
     if (hasTaxi && taxiFee > 0) {
-        lineY += 5
+        lineY += 4.5
         doc.text('Táxi Dog Incluso:', boxX + 4, lineY)
         doc.text(`R$ ${taxiFee.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
     }
 
     // Linha 3: Extras das Sessões (se houver)
     if (extrasFee > 0) {
-        lineY += 5
+        lineY += 4.5
         doc.text('Extras (Sessões):', boxX + 4, lineY)
         doc.text(`R$ ${extrasFee.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
     }
 
     // Linha 4: Táxi Avulso de Sessões (se houver)
     if (slotsTaxiFee > 0) {
-        lineY += 5
+        lineY += 4.5
         doc.text('Táxi Avulso (Sessões):', boxX + 4, lineY)
         doc.text(`R$ ${slotsTaxiFee.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
     }
 
     // Linha separadora do Total
-    lineY += 3
+    lineY += 2.5
     doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
     doc.line(boxX + 4, lineY, boxX + boxWidth - 4, lineY)
 
     // Total Geral
-    lineY += 5
+    lineY += 4.5
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9)
+    doc.setFontSize(8.5)
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
     doc.text('TOTAL:', boxX + 4, lineY)
     doc.text(`R$ ${grandTotal.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
