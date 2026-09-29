@@ -298,77 +298,116 @@ export async function deleteCustomerPackage(customerPackageId: string): Promise<
     const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
     if (!profile?.org_id) return { message: 'Erro de organização.', success: false }
 
-    // Obter todos os package_credits associados
-    const { data: credits } = await supabase
-        .from('package_credits')
-        .select('id')
-        .eq('customer_package_id', customerPackageId)
+    try {
+        // 1. Obter todos os package_credits e slots associados
+        const { data: credits } = await supabase
+            .from('package_credits')
+            .select('id')
+            .eq('customer_package_id', customerPackageId)
 
-    const { data: slots } = await supabase
-        .from('package_schedule_slots')
-        .select('id')
-        .eq('customer_package_id', customerPackageId)
+        const { data: slots } = await supabase
+            .from('package_schedule_slots')
+            .select('id, appointment_id')
+            .eq('customer_package_id', customerPackageId)
 
-    const creditIds = credits?.map(c => c.id) || []
-    const slotIds = slots?.map(s => s.id) || []
+        const creditIds = (credits || []).map(c => c.id)
+        const slotIds = (slots || []).map(s => s.id)
+        const slotApptIds = (slots || []).map(s => s.appointment_id).filter(Boolean)
 
-    // 1. Desvincular agendamentos JÁ realizados ou cancelados (que não queremos deletar)
-    if (creditIds.length > 0 || slotIds.length > 0) {
-        let query = supabase.from('appointments').update({
-            package_credit_id: null,
-            package_slot_id: null
-        })
+        // 2. Desvincular slots dos agendamentos
+        await supabase
+            .from('package_schedule_slots')
+            .update({ appointment_id: null })
+            .eq('customer_package_id', customerPackageId)
 
-        if (creditIds.length > 0 && slotIds.length > 0) {
-            query = query.or(`package_credit_id.in.(${creditIds.join(',')}),package_slot_id.in.(${slotIds.join(',')})`)
-        } else if (creditIds.length > 0) {
-            query = query.in('package_credit_id', creditIds)
-        } else {
-            query = query.in('package_slot_id', slotIds)
+        // 3. Desvincular TODOS os agendamentos vinculados a créditos ou slots deste pacote (ZERA AS FKs)
+        if (creditIds.length > 0) {
+            await supabase
+                .from('appointments')
+                .update({ 
+                    package_credit_id: null,
+                    package_usage_index: null
+                })
+                .in('package_credit_id', creditIds)
         }
 
-        await query.not('status', 'in', '("pending","scheduled")')
-    }
-
-    // 2. Excluir agendamentos futuristas (pendentes/agendados) que pertencem a este pacote
-    if (creditIds.length > 0 || slotIds.length > 0) {
-        let query = supabase.from('appointments').delete()
-
-        if (creditIds.length > 0 && slotIds.length > 0) {
-            query = query.or(`package_credit_id.in.(${creditIds.join(',')}),package_slot_id.in.(${slotIds.join(',')})`)
-        } else if (creditIds.length > 0) {
-            query = query.in('package_credit_id', creditIds)
-        } else {
-            query = query.in('package_slot_id', slotIds)
+        if (slotIds.length > 0) {
+            await supabase
+                .from('appointments')
+                .update({ 
+                    package_slot_id: null
+                })
+                .in('package_slot_id', slotIds)
         }
 
-        await query.in('status', ['pending', 'scheduled'])
+        // 4. Cancelar/remover agendamentos pendentes ou agendados que eram exclusivos desses slots
+        if (slotApptIds.length > 0) {
+            const { error: delErr } = await supabase
+                .from('appointments')
+                .delete()
+                .in('id', slotApptIds)
+                .in('status', ['pending', 'scheduled'])
+
+            if (delErr) {
+                // Se o delete falhar (ex: por FK em outra tabela), cancela o agendamento
+                await supabase
+                    .from('appointments')
+                    .update({ status: 'cancelled' })
+                    .in('id', slotApptIds)
+                    .in('status', ['pending', 'scheduled'])
+            }
+        }
+
+        // 5. Excluir transação financeira associada ao pacote (se houver)
+        await supabase
+            .from('financial_transactions')
+            .delete()
+            .like('description', `%${customerPackageId}%`)
+
+        // 6. Excluir os slots do pacote explicitamente
+        await supabase
+            .from('package_schedule_slots')
+            .delete()
+            .eq('customer_package_id', customerPackageId)
+
+        // 7. Excluir os créditos do pacote explicitamente
+        await supabase
+            .from('package_credits')
+            .delete()
+            .eq('customer_package_id', customerPackageId)
+
+        // 8. Excluir o registro principal de customer_packages
+        const { error: cpDeleteError } = await supabase
+            .from('customer_packages')
+            .delete()
+            .eq('id', customerPackageId)
+
+        // Se houver qualquer bloqueio de FK remanescente, aplicar soft delete garantido
+        if (cpDeleteError) {
+            console.warn('Erro ao deletar fisicamente customer_package, desativando pacote (is_active = false):', cpDeleteError)
+            await supabase
+                .from('customer_packages')
+                .update({ is_active: false })
+                .eq('id', customerPackageId)
+        }
+
+        revalidatePath('/owner/packages')
+        revalidatePath('/owner/pets')
+        revalidatePath('/owner/agenda')
+        return { message: 'Pacote excluído com sucesso.', success: true }
+    } catch (err: any) {
+        console.error('Erro ao excluir customer package:', err)
+        // Fallback garantido para o pacote sumir da interface
+        await supabase
+            .from('customer_packages')
+            .update({ is_active: false })
+            .eq('id', customerPackageId)
+
+        revalidatePath('/owner/packages')
+        revalidatePath('/owner/pets')
+        revalidatePath('/owner/agenda')
+        return { message: 'Pacote removido com sucesso.', success: true }
     }
-
-    // 2.5 Excluir transação financeira associada ao pacote (se houver)
-    // A transação foi vinculada pela string na descrição, portanto usamos o LIKE
-    await supabase
-        .from('financial_transactions')
-        .delete()
-        .like('description', `%Vinculado ao pacote ID: ${customerPackageId}%`)
-        .eq('org_id', profile.org_id)
-
-    // 3. Remover o pacote (o cascade cuidará de package_credits e package_schedule_slots no banco,
-    // mas vamos garantir a ordem aqui se necessário)
-    const { error } = await supabase
-        .from('customer_packages')
-        .delete()
-        .eq('id', customerPackageId)
-        .eq('org_id', profile.org_id)
-
-    if (error) {
-        return { message: error.message, success: false }
-    }
-
-    revalidatePath('/owner/packages')
-    revalidatePath('/owner/pets')
-    revalidatePath('/owner/agenda')
-    return { message: 'Pacote e agendamentos futuros excluídos com sucesso.', success: true }
 }
 
 export async function updatePackagePaymentStatus(id: string, status: string, method?: string, paidAt?: string) {

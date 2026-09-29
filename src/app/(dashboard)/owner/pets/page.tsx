@@ -590,17 +590,27 @@ function PetsContent() {
     const handleDeleteCustomerPackage = async (customerPackageId: string) => {
         if (!confirm('Deseja realmente EXCLUIR este pacote? Todos os créditos, sessões e agendamentos vinculados a este pacote poderão ser afetados ou cancelados. Esta ação não pode ser desfeita.')) return;
 
+        // Remoção imediata da interface para feedback instantâneo
+        setPetPackages(prev => prev.filter(p => p.customer_package_id !== customerPackageId && p.id !== customerPackageId))
+        setPetSlots(prev => {
+            const next = { ...prev }
+            delete next[customerPackageId]
+            return next
+        })
+
         try {
             const res = await deleteCustomerPackage(customerPackageId)
             if (res.success) {
                 alert(res.message)
-                fetchPetPackageSummary()
             } else {
                 alert('Erro ao excluir: ' + res.message)
             }
         } catch (error) {
             console.error(error)
             alert('Erro inesperado ao excluir o pacote. Tente novamente.')
+        } finally {
+            await fetchPetPackageSummary()
+            router.refresh()
         }
     }
 
@@ -1134,46 +1144,137 @@ function PetsContent() {
                                                     <div>Carregando...</div>
                                                 ) : vaccines.length === 0 ? (
                                                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Nenhuma vacina registrada.</p>
-                                                ) : (
-                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                        {vaccines.map(vac => {
-                                                            const expiry = new Date(vac.expiry_date)
-                                                            const isExpired = expiry < new Date()
-                                                            return (
-                                                                <div key={vac.id} style={{ padding: '0.75rem', background: 'var(--bg-secondary)', borderRadius: '6px', borderLeft: `4px solid ${isExpired ? '#EF4444' : '#10B981'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                                    <div>
-                                                                        <div style={{ fontWeight: '600' }}>{vac.name}</div>
-                                                                        <div style={{ fontSize: '0.8rem', color: isExpired ? '#EF4444' : 'var(--text-secondary)' }}>
-                                                                            {vac.application_date && <span style={{ color: 'var(--text-secondary)' }}>Aplicado: {new Date(vac.application_date + 'T12:00:00').toLocaleDateString('pt-BR')} • </span>}
-                                                                            Vence: {expiry.toLocaleDateString('pt-BR')} {isExpired && '(VENCIDA)'}
+                                                ) : (() => {
+                                                    // Agrupar doses por nome de vacina (normalizado)
+                                                    const groupedByName: { [key: string]: any[] } = {}
+                                                    vaccines.forEach(vac => {
+                                                        const key = (vac.name || '').trim().toLowerCase()
+                                                        if (!groupedByName[key]) groupedByName[key] = []
+                                                        groupedByName[key].push(vac)
+                                                    })
+
+                                                    const activeVaccines: any[] = []
+                                                    const historicalVaccines: any[] = []
+
+                                                    Object.values(groupedByName).forEach(group => {
+                                                        // Ordenar da data de validade mais recente para a mais antiga
+                                                        group.sort((a, b) => {
+                                                            const expA = a.expiry_date ? new Date(a.expiry_date).getTime() : 0
+                                                            const expB = b.expiry_date ? new Date(b.expiry_date).getTime() : 0
+                                                            if (expB !== expA) return expB - expA
+                                                            const appA = a.application_date ? new Date(a.application_date).getTime() : 0
+                                                            const appB = b.application_date ? new Date(b.application_date).getTime() : 0
+                                                            return appB - appA
+                                                        })
+
+                                                        // A primeira é a dose vigente atual
+                                                        activeVaccines.push(group[0])
+                                                        // As demais são doses anteriores já renovadas
+                                                        for (let i = 1; i < group.length; i++) {
+                                                            historicalVaccines.push(group[i])
+                                                        }
+                                                    })
+
+                                                    // Ordenar ativas alfabeticamente
+                                                    activeVaccines.sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                                                    // Ordenar historico pelas mais recentes
+                                                    historicalVaccines.sort((a, b) => {
+                                                        const expA = a.expiry_date ? new Date(a.expiry_date).getTime() : 0
+                                                        const expB = b.expiry_date ? new Date(b.expiry_date).getTime() : 0
+                                                        return expB - expA
+                                                    })
+
+                                                    return (
+                                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                            {/* Vacinas Vigentes */}
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                                                {activeVaccines.map(vac => {
+                                                                    const expiry = new Date(vac.expiry_date + 'T12:00:00')
+                                                                    const isExpired = expiry < new Date()
+                                                                    return (
+                                                                        <div key={vac.id} style={{ padding: '0.75rem', background: 'var(--bg-secondary)', borderRadius: '6px', borderLeft: `4px solid ${isExpired ? '#EF4444' : '#10B981'}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                            <div>
+                                                                                <div style={{ fontWeight: '600' }}>{vac.name}</div>
+                                                                                <div style={{ fontSize: '0.8rem', color: isExpired ? '#EF4444' : 'var(--text-secondary)' }}>
+                                                                                    {vac.application_date && <span style={{ color: 'var(--text-secondary)' }}>Aplicado: {new Date(vac.application_date + 'T12:00:00').toLocaleDateString('pt-BR')} • </span>}
+                                                                                    Vence: {expiry.toLocaleDateString('pt-BR')} {isExpired && '(VENCIDA)'}
+                                                                                    {vac.batch_number && <span style={{ color: 'var(--text-secondary)' }}> • Lote: {vac.batch_number}</span>}
+                                                                                </div>
+                                                                            </div>
+                                                                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => handleOpenVacUpdateModal(vac)}
+                                                                                    style={{ padding: '4px 8px', fontSize: '0.75rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                                                                                >
+                                                                                    Atualizar
+                                                                                </button>
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={async () => {
+                                                                                        if (confirm('Excluir esta vacina?')) {
+                                                                                            await deleteVaccine(vac.id)
+                                                                                            getPetVaccines(selectedPet.id).then(setVaccines)
+                                                                                        }
+                                                                                    }}
+                                                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#EF4444', opacity: 0.7 }}
+                                                                                >
+                                                                                    &times;
+                                                                                </button>
+                                                                            </div>
                                                                         </div>
+                                                                    )
+                                                                })}
+                                                            </div>
+
+                                                            {/* Historico de Doses Anteriores (Renovadas) */}
+                                                            {historicalVaccines.length > 0 && (
+                                                                <div style={{ marginTop: '0.5rem', borderTop: '1px dashed var(--border-color, #E2E8F0)', paddingTop: '0.75rem' }}>
+                                                                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                                        <span>📜 Histórico de Doses Anteriores (Renovadas)</span>
                                                                     </div>
-                                                                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handleOpenVacUpdateModal(vac)}
-                                                                            style={{ padding: '4px 8px', fontSize: '0.75rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                                                                        >
-                                                                            Atualizar
-                                                                        </button>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={async () => {
-                                                                                if (confirm('Excluir esta vacina?')) {
-                                                                                    await deleteVaccine(vac.id)
-                                                                                    getPetVaccines(selectedPet.id).then(setVaccines)
-                                                                                }
-                                                                            }}
-                                                                            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#EF4444', opacity: 0.7 }}
-                                                                        >
-                                                                            &times;
-                                                                        </button>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                                                        {historicalVaccines.map(vac => (
+                                                                            <div key={vac.id} style={{ padding: '0.6rem 0.75rem', background: 'var(--bg-secondary)', borderRadius: '6px', borderLeft: '4px solid #94A3B8', display: 'flex', justifyContent: 'space-between', alignItems: 'center', opacity: 0.9 }}>
+                                                                                <div>
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                                                        <span style={{ fontWeight: '500', fontSize: '0.9rem' }}>{vac.name}</span>
+                                                                                        <span style={{ fontSize: '0.7rem', background: '#ECFDF5', color: '#047857', padding: '1px 6px', borderRadius: '4px', border: '1px solid #A7F3D0', fontWeight: 600 }}>
+                                                                                            ✓ Renovada
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                                                                        {vac.application_date ? (
+                                                                                            <span>Aplicada em: {new Date(vac.application_date + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                                                                                        ) : (
+                                                                                            <span>Dose anterior registrada</span>
+                                                                                        )}
+                                                                                        {vac.batch_number && <span> • Lote: {vac.batch_number}</span>}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        title="Remover do histórico"
+                                                                                        onClick={async () => {
+                                                                                            if (confirm('Excluir este registro histórico de vacina?')) {
+                                                                                                await deleteVaccine(vac.id)
+                                                                                                getPetVaccines(selectedPet.id).then(setVaccines)
+                                                                                            }
+                                                                                        }}
+                                                                                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: '#94A3B8' }}
+                                                                                    >
+                                                                                        &times;
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
                                                                     </div>
                                                                 </div>
-                                                            )
-                                                        })}
-                                                    </div>
-                                                )}
+                                                            )}
+                                                        </div>
+                                                    )
+                                                })()}
                                             </>
                                         ) : (
                                             <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Salve o pet primeiro.</div>
