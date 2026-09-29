@@ -122,6 +122,7 @@ export default function BanhoTosaPage() {
                             id,
                             calculated_price,
                             total_paid,
+                            discount_percent,
                             payment_status,
                             payment_method,
                             purchased_at,
@@ -409,16 +410,26 @@ export default function BanhoTosaPage() {
                                             const cp = Array.isArray((appt.package_credits as any)?.customer_packages)
                                                 ? (appt.package_credits as any)?.customer_packages[0]
                                                 : (appt.package_credits as any)?.customer_packages;
+                                            const isPackage = !!appt.package_credit_id;
+                                            const cpBasePrice = Number(cp?.calculated_price || 0);
+                                            const cpDiscount = Number(cp?.discount_percent || 0);
+                                            const cpTotalPaid = cp?.total_paid != null ? Number(cp.total_paid) : null;
+                                            const cpEffectiveTotal = cpTotalPaid !== null && (cpTotalPaid > 0 || cpDiscount > 0)
+                                                ? cpTotalPaid
+                                                : (cpDiscount > 0 && cpBasePrice > 0 ? Number((cpBasePrice * (1 - cpDiscount / 100)).toFixed(2)) : cpBasePrice);
+
                                             return (
                                                 <PaymentControls
                                                     appointmentId={appt.id}
                                                     calculatedPrice={appt.calculated_price ?? appt.services?.base_price ?? null}
                                                     finalPrice={appt.final_price}
                                                     taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
-                                                    discountPercent={appt.discount_percent}
-                                                    paymentStatus={appt.package_credit_id ? (cp?.payment_status || 'pending') : (appt.payment_status || 'pending')}
+                                                    discountPercent={isPackage ? (cp?.discount_percent ?? null) : appt.discount_percent}
+                                                    paymentStatus={isPackage ? (cp?.payment_status || 'pending') : (appt.payment_status || 'pending')}
                                                     paymentMethod={(cp?.payment_method || appt.payment_method) ?? null}
-                                                    packageTotal={cp?.calculated_price ?? null}
+                                                    packageTotal={cpEffectiveTotal || cpBasePrice || null}
+                                                    packageOriginalPrice={cpBasePrice || null}
+                                                    packageDiscountPercent={cp?.discount_percent ?? null}
                                                     packageMethod={cp?.payment_method ?? null}
                                                     packageDate={cp?.purchased_at ?? null}
                                                     packagePaidAt={cp?.paid_at ?? null}
@@ -427,7 +438,7 @@ export default function BanhoTosaPage() {
                                                     customerPackageId={cp?.id ?? null}
                                                     onUpdate={() => fetchBanhoTosaData(true)}
                                                     compact
-                                                    isPackage={!!appt.package_credit_id}
+                                                    isPackage={isPackage}
                                                     hasExtras={appt.has_extras}
                                                     extrasFee={appt.extras_fee}
                                                     extras={appt.extras}

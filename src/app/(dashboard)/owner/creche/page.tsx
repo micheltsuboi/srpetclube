@@ -103,6 +103,7 @@ export default function CrechePage() {
                             id,
                             calculated_price,
                             total_paid,
+                            discount_percent,
                             payment_status,
                             payment_method,
                             purchased_at,
@@ -119,6 +120,7 @@ export default function CrechePage() {
                             id,
                             calculated_price,
                             total_paid,
+                            discount_percent,
                             payment_status,
                             payment_method,
                             purchased_at,
@@ -413,6 +415,13 @@ export default function CrechePage() {
                                             const cpRaw = pg?.customer_packages;
                                             const cp = Array.isArray(cpRaw) ? cpRaw[0] : cpRaw;
                                             const isPackage = !!(appt.package_credit_id || (appt as any).package_slot_id);
+
+                                            const cpBasePrice = Number(cp?.calculated_price || 0);
+                                            const cpDiscount = Number(cp?.discount_percent || 0);
+                                            const cpTotalPaid = cp?.total_paid != null ? Number(cp.total_paid) : null;
+                                            const cpEffectiveTotal = cpTotalPaid !== null && (cpTotalPaid > 0 || cpDiscount > 0)
+                                                ? cpTotalPaid
+                                                : (cpDiscount > 0 && cpBasePrice > 0 ? Number((cpBasePrice * (1 - cpDiscount / 100)).toFixed(2)) : cpBasePrice);
                                             
                                             return (
                                                 <PaymentControls
@@ -420,13 +429,15 @@ export default function CrechePage() {
                                                     calculatedPrice={(appt as any).calculated_price ?? (appt.services as any)?.base_price ?? null}
                                                     finalPrice={(appt as any).final_price}
                                                     taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
-                                                    discountPercent={(appt as any).discount_percent}
+                                                    discountPercent={isPackage ? (cp?.discount_percent ?? null) : (appt as any).discount_percent}
                                                     paymentStatus={isPackage ? (cp?.payment_status || 'pending') : ((appt as any).payment_status || 'pending')}
                                                     paymentMethod={(cp?.payment_method || (appt as any).payment_method) ?? null}
                                                     onUpdate={() => fetchCrecheData(true)}
                                                     compact
                                                     isPackage={isPackage}
-                                                    packageTotal={cp?.calculated_price ?? null}
+                                                    packageTotal={cpEffectiveTotal || cpBasePrice || null}
+                                                    packageOriginalPrice={cpBasePrice || null}
+                                                    packageDiscountPercent={cp?.discount_percent ?? null}
                                                     packageMethod={cp?.payment_method ?? null}
                                                     packageDate={cp?.purchased_at ?? null}
                                                     packagePaidAt={cp?.paid_at ?? null}

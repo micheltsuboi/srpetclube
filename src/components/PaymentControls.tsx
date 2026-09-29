@@ -13,6 +13,8 @@ interface PaymentControlsProps {
     paymentStatus: string | null
     paymentMethod: string | null
     packageTotal?: number | null
+    packageOriginalPrice?: number | null
+    packageDiscountPercent?: number | null
     packageMethod?: string | null
     packageDate?: string | null
     packagePaidAt?: string | null
@@ -48,6 +50,8 @@ export default function PaymentControls({
     paymentStatus,
     paymentMethod,
     packageTotal,
+    packageOriginalPrice,
+    packageDiscountPercent,
     packageMethod,
     packageDate,
     packagePaidAt,
@@ -67,7 +71,12 @@ export default function PaymentControls({
     packagePaymentStatus = null
 }: PaymentControlsProps) {
     const [showModal, setShowModal] = useState(false)
-    const [discountValue, setDiscountValue] = useState(discountPercent?.toString() || '0')
+    const [discountValue, setDiscountValue] = useState(() => {
+        if (isPackage && packageDiscountPercent !== undefined && packageDiscountPercent !== null && packageDiscountPercent > 0) {
+            return packageDiscountPercent.toString()
+        }
+        return discountPercent?.toString() || '0'
+    })
     const [loading, setLoading] = useState(false)
     const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent')
     const [paymentDate, setPaymentDate] = useState(() => {
@@ -96,15 +105,22 @@ export default function PaymentControls({
         : (finalPrice ?? ((calculatedPrice || 0) + effectiveTaxiFee + effectiveExtrasFee))
     
     // Se for pacote, o basePrice real do pacote é o total dele menos o taxi de pacote (se houver)
-    const effectivePackageBase = isPackage && packageTotal !== undefined 
-        ? ((packageTotal || 0) - (packageHasTaxi ? packageTaxiFee : 0)) 
-        : (calculatedPrice || 0)
+    const packageEffectiveFee = packageHasTaxi ? packageTaxiFee : 0
+    const effectivePackageBase = isPackage && packageOriginalPrice
+        ? Math.max(0, packageOriginalPrice - packageEffectiveFee)
+        : (isPackage && packageTotal !== undefined 
+            ? Math.max(0, (packageTotal || 0) - packageEffectiveFee) 
+            : (calculatedPrice || 0))
     const basePrice = isPackage ? effectivePackageBase : (calculatedPrice ?? 0)
 
     // Reset local state when props change
     useEffect(() => {
-        setDiscountValue(discountPercent?.toString() || '0')
-    }, [discountPercent])
+        if (isPackage && packageDiscountPercent !== undefined && packageDiscountPercent !== null && packageDiscountPercent > 0) {
+            setDiscountValue(packageDiscountPercent.toString())
+        } else {
+            setDiscountValue(discountPercent?.toString() || '0')
+        }
+    }, [discountPercent, packageDiscountPercent, isPackage])
 
     const handlePackagePayment = async (method: string) => {
         setLoading(true)
@@ -158,7 +174,8 @@ export default function PaymentControls({
         setLoading(true)
         try {
             if (isPackage && customerPackageId) {
-                const effectiveBase = (packageTotal || basePrice || 0)
+                // Ao aplicar desconto no pacote, a base de cálculo é o preço original sem desconto
+                const effectiveBase = (packageOriginalPrice || (basePrice + packageEffectiveFee) || packageTotal || 0)
                 await applyPackageDiscount(customerPackageId, val, discountType, effectiveBase)
             } else {
                 await applyDiscount(appointmentId, val, discountType, basePrice)
@@ -241,6 +258,15 @@ export default function PaymentControls({
                         </div>
                     )}
                     
+                    {/* Exibir Desconto Aplicado do Pacote */}
+                    {isPackage && ((packageDiscountPercent && packageDiscountPercent > 0) || (packageOriginalPrice && packageOriginalPrice > (packageTotal || 0))) ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#10b981', fontWeight: 600 }}>
+                            <span>Desconto no Pacote {packageDiscountPercent ? `(${packageDiscountPercent}%)` : ''}:</span>
+                            <span>- R$ {(((packageOriginalPrice || (basePrice + packageEffectiveFee))) - (packageTotal || 0)).toFixed(2)}</span>
+                        </div>
+                    ) : null}
+
+                    {/* Exibir Desconto Aplicado em Agendamento Avulso */}
                     {!isPackage && discountPercent && discountPercent > 0 ? (
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--status-canceled)' }}>
                             <span>Desconto aplicado:</span>

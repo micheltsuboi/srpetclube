@@ -82,7 +82,6 @@ interface Appointment {
     paid_at?: string | null
     package_credit_id?: string | null
     package_slot_id?: string | null
-    package_schedule_slots?: any
     package_usage_index?: number | null
     has_taxi?: boolean
     taxi_fee?: number
@@ -93,10 +92,26 @@ interface Appointment {
         total_quantity: number
         used_quantity: number
         customer_packages?: {
+            id?: string,
             payment_status: string,
             payment_method: string,
             calculated_price: number,
             total_paid: number,
+            discount_percent?: number | null,
+            purchased_at: string,
+            paid_at?: string | null,
+            has_taxi: boolean,
+            taxi_fee: number
+        }
+    } | null
+    package_schedule_slots?: {
+        customer_packages?: {
+            id?: string,
+            payment_status: string,
+            payment_method: string,
+            calculated_price: number,
+            total_paid: number,
+            discount_percent?: number | null,
             purchased_at: string,
             paid_at?: string | null,
             has_taxi: boolean,
@@ -258,13 +273,30 @@ export default function AgendaPage() {
                             id,
                             calculated_price,
                             total_paid,
+                            discount_percent,
                             payment_status,
                             payment_method,
                             purchased_at,
                             paid_at,
+                            has_taxi,
+                            taxi_fee,
                             package_credits (
                                 total_quantity
                             )
+                        )
+                    ),
+                    package_schedule_slots:package_slot_id (
+                        customer_packages (
+                            id,
+                            calculated_price,
+                            total_paid,
+                            discount_percent,
+                            payment_status,
+                            payment_method,
+                            purchased_at,
+                            paid_at,
+                            has_taxi,
+                            taxi_fee
                         )
                     ),
                     pets ( 
@@ -299,6 +331,21 @@ export default function AgendaPage() {
                                 id,
                                 calculated_price,
                                 total_paid,
+                                discount_percent,
+                                payment_status,
+                                payment_method,
+                                purchased_at,
+                                paid_at,
+                                has_taxi,
+                                taxi_fee
+                            )
+                        ),
+                        package_schedule_slots:package_slot_id (
+                            customer_packages (
+                                id,
+                                calculated_price,
+                                total_paid,
+                                discount_percent,
                                 payment_status,
                                 payment_method,
                                 purchased_at,
@@ -538,16 +585,26 @@ export default function AgendaPage() {
                     const pg = Array.isArray(pgRaw) ? pgRaw[0] : pgRaw;
                     const cpRaw = pg?.customer_packages;
                     const cp = Array.isArray(cpRaw) ? cpRaw[0] : cpRaw;
+
+                    const cpBasePrice = Number(cp?.calculated_price || 0);
+                    const cpDiscount = Number(cp?.discount_percent || 0);
+                    const cpTotalPaid = cp?.total_paid != null ? Number(cp.total_paid) : null;
+                    const cpEffectiveTotal = cpTotalPaid !== null && (cpTotalPaid > 0 || cpDiscount > 0)
+                        ? cpTotalPaid
+                        : (cpDiscount > 0 && cpBasePrice > 0 ? Number((cpBasePrice * (1 - cpDiscount / 100)).toFixed(2)) : cpBasePrice);
+
                     return (
                         <PaymentControls
                             appointmentId={appt.id}
                             calculatedPrice={appt.calculated_price ?? (appt.services as any)?.base_price ?? null}
                             finalPrice={appt.final_price ?? null}
                             taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
-                            discountPercent={appt.discount_percent ?? null}
+                            discountPercent={isPackage ? (cp?.discount_percent ?? null) : (appt.discount_percent ?? null)}
                             paymentStatus={isPackage ? (cp?.payment_status || 'pending') : (appt.payment_status || 'pending')}
                             paymentMethod={(cp?.payment_method || appt.payment_method) ?? null}
-                            packageTotal={cp?.calculated_price ?? null}
+                            packageTotal={cpEffectiveTotal || cpBasePrice || null}
+                            packageOriginalPrice={cpBasePrice || null}
+                            packageDiscountPercent={cp?.discount_percent ?? null}
                             packageMethod={cp?.payment_method ?? null}
                             packageDate={cp?.purchased_at ?? null}
                             packagePaidAt={cp?.paid_at ?? null}
@@ -952,9 +1009,35 @@ export default function AgendaPage() {
                                 <div className={styles.detailRow}>
                                     <strong>Serviço:</strong> {selectedAppointment.services?.name}
                                 </div>
-                                <div className={styles.detailRow}>
-                                    <strong>Valor:</strong> R$ {(selectedAppointment.calculated_price ?? (selectedAppointment.services as any)?.base_price ?? 0).toFixed(2)}
-                                </div>
+                                {(() => {
+                                    const pgRaw = selectedAppointment.package_credits || selectedAppointment.package_schedule_slots;
+                                    const pg = Array.isArray(pgRaw) ? pgRaw[0] : pgRaw;
+                                    const cpRaw = pg?.customer_packages;
+                                    const cp = Array.isArray(cpRaw) ? cpRaw[0] : cpRaw;
+                                    const isPkg = !!(selectedAppointment.package_credit_id || selectedAppointment.package_slot_id || cp);
+                                    
+                                    if (isPkg && cp) {
+                                        const cpBase = Number(cp.calculated_price || 0);
+                                        const cpDisc = Number(cp.discount_percent || 0);
+                                        const cpPaid = cp.total_paid != null ? Number(cp.total_paid) : null;
+                                        const cpEffective = cpPaid !== null && (cpPaid > 0 || cpDisc > 0)
+                                            ? cpPaid
+                                            : (cpDisc > 0 && cpBase > 0 ? Number((cpBase * (1 - cpDisc / 100)).toFixed(2)) : cpBase);
+                                        const hasDisc = cpDisc > 0;
+                                        
+                                        return (
+                                            <div className={styles.detailRow}>
+                                                <strong>Valor:</strong> Incluso no Pacote (Mensalidade: R$ {cpEffective.toFixed(2)}{hasDisc ? ` com ${cpDisc}% desc.` : ''})
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <div className={styles.detailRow}>
+                                            <strong>Valor:</strong> R$ {(selectedAppointment.final_price ?? selectedAppointment.calculated_price ?? (selectedAppointment.services as any)?.base_price ?? 0).toFixed(2)}
+                                        </div>
+                                    );
+                                })()}
                                 <div className={styles.detailRow}>
                                     <strong>Data:</strong> {new Date(selectedAppointment.scheduled_at).toLocaleString('pt-BR')}
                                 </div>
