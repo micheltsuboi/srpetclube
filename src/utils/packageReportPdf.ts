@@ -50,14 +50,25 @@ export interface PackageReportSlot {
     taxi_fee?: number | null
 }
 
+export interface PackageReportOpenProduct {
+    id: string
+    product_name: string
+    quantity: number
+    total_price: number
+    created_at?: string | null
+    payment_status?: string | null
+}
+
 export function exportPackageSessionsPDF({
     pet,
     packageData,
-    slots
+    slots,
+    openProducts = []
 }: {
     pet: PackageReportPetInfo
     packageData: PackageReportData
     slots: PackageReportSlot[]
+    openProducts?: PackageReportOpenProduct[]
 }) {
     const doc = new jsPDF()
 
@@ -144,6 +155,9 @@ export function exportPackageSessionsPDF({
     }
     const packageSubtotal = packageBasePrice + (hasTaxi ? taxiFee : 0)
 
+    // Desconto no pacote (se houver)
+    const discountPercent = packageData.discount_percent ? Number(packageData.discount_percent) : 0
+
     // Extras das sessões
     let extrasFee = Number(packageData.total_extras_fee || 0)
     if (extrasFee === 0 && slots && slots.length > 0) {
@@ -155,9 +169,22 @@ export function exportPackageSessionsPDF({
         ? slots.reduce((acc, s) => acc + (s.has_taxi ? Number(s.taxi_fee || 0) : 0), 0)
         : 0
 
-    const grandTotal = packageSubtotal + extrasFee + slotsTaxiFee
+    // Produtos avulsos em aberto (petshop)
+    const openProductsTotal = openProducts && openProducts.length > 0
+        ? openProducts.reduce((acc, p) => acc + Number(p.total_price || 0), 0)
+        : 0
 
-    const blockHeight = (hasTaxi || extrasFee > 0 || slotsTaxiFee > 0) ? 58 : 50
+    const grandTotal = packageSubtotal + extrasFee + slotsTaxiFee + openProductsTotal
+
+    // Contagem de linhas extras para dimensionar a altura do box dinamicamente
+    let extraLinesCount = 0
+    if (hasTaxi && taxiFee > 0) extraLinesCount++
+    if (extrasFee > 0) extraLinesCount++
+    if (slotsTaxiFee > 0) extraLinesCount++
+    if (openProductsTotal > 0) extraLinesCount++
+    if (discountPercent > 0) extraLinesCount++
+
+    const blockHeight = Math.max(54, 46 + extraLinesCount * 5)
     doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
     doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
     doc.roundedRect(14, currentY, 182, blockHeight, 3, 3, 'FD')
@@ -261,6 +288,13 @@ export function exportPackageSessionsPDF({
     doc.text('Valor do Pacote:', boxX + 4, lineY)
     doc.text(`R$ ${packageBasePrice.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
 
+    // Desconto do pacote (se houver)
+    if (discountPercent > 0) {
+        lineY += 4.5
+        doc.text(`Desconto (${discountPercent}%):`, boxX + 4, lineY)
+        doc.text(`Aplicado`, boxX + boxWidth - 4, lineY, { align: 'right' })
+    }
+
     // Linha 2: Táxi Dog Incluso (se houver)
     if (hasTaxi && taxiFee > 0) {
         lineY += 4.5
@@ -280,6 +314,13 @@ export function exportPackageSessionsPDF({
         lineY += 4.5
         doc.text('Táxi Avulso (Sessões):', boxX + 4, lineY)
         doc.text(`R$ ${slotsTaxiFee.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
+    }
+
+    // Linha 5: Produtos Avulsos em Aberto (se houver)
+    if (openProductsTotal > 0) {
+        lineY += 4.5
+        doc.text('Produtos em Aberto:', boxX + 4, lineY)
+        doc.text(`R$ ${openProductsTotal.toFixed(2)}`, boxX + boxWidth - 4, lineY, { align: 'right' })
     }
 
     // Linha separadora do Total
@@ -396,7 +437,64 @@ export function exportPackageSessionsPDF({
         }
     })
 
-    // 6. Rodapé em todas as páginas
+    // 6. Tabela de Produtos Avulsos em Aberto (Petshop)
+    if (openProducts && openProducts.length > 0) {
+        const lastY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : currentY
+        let startProductsY = lastY + 10
+
+        // Se estiver muito próximo do fim da página, adicionar nova página
+        if (startProductsY > 235) {
+            doc.addPage()
+            startProductsY = 25
+        }
+
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(10)
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+        doc.text('PRODUTOS AVULSOS EM ABERTO (PETSHOP)', 14, startProductsY)
+
+        const productRows = openProducts.map(prod => {
+            const dateStr = prod.created_at ? new Date(prod.created_at).toLocaleDateString('pt-BR') : '-'
+            const unitPrice = prod.quantity > 0 ? (Number(prod.total_price) / prod.quantity) : Number(prod.total_price)
+            return [
+                dateStr,
+                prod.product_name,
+                `${prod.quantity} un`,
+                `R$ ${unitPrice.toFixed(2)}`,
+                `R$ ${Number(prod.total_price).toFixed(2)}`,
+                'Em Aberto'
+            ]
+        })
+
+        autoTable(doc, {
+            startY: startProductsY + 4,
+            head: [['Data da Compra', 'Produto', 'Qtd', 'Valor Unit.', 'Total', 'Status']],
+            body: productRows,
+            theme: 'striped',
+            headStyles: {
+                fillColor: [primaryColor[0], primaryColor[1], primaryColor[2]],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 8.5
+            },
+            bodyStyles: {
+                fontSize: 8,
+                textColor: [40, 40, 40]
+            },
+            alternateRowStyles: {
+                fillColor: [250, 252, 255]
+            },
+            margin: { left: 14, right: 14 },
+            didParseCell: (data) => {
+                if (data.section === 'body' && data.column.index === 5) {
+                    data.cell.styles.textColor = [239, 68, 68] // Vermelho
+                    data.cell.styles.fontStyle = 'bold'
+                }
+            }
+        })
+    }
+
+    // 7. Rodapé em todas as páginas
     const totalPages = (doc as any).internal.getNumberOfPages()
     for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)

@@ -529,6 +529,11 @@ export async function applyPackageDiscount(id: string, value: number, type: 'per
 
     revalidatePath('/owner/pets')
     revalidatePath('/owner/packages')
+    revalidatePath('/owner/agenda')
+    revalidatePath('/owner/banho-tosa')
+    revalidatePath('/owner/creche')
+    revalidatePath('/owner/hospedagem')
+    revalidatePath('/owner')
     return { success: true, message: 'Desconto aplicado com sucesso!' }
 }
 
@@ -544,9 +549,10 @@ export async function sellPackageToPet(
     hasTaxi?: boolean,
     taxiFee?: number,
     startDate?: string, // Data de início das sessões (YYYY-MM-DD)
-    autoRenew?: boolean
+    autoRenew?: boolean,
+    discountPercent?: number
 ): Promise<ActionState> {
-    console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekdays, preferredTime, isAutoSchedule, hasTaxi, taxiFee })
+    console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekdays, preferredTime, isAutoSchedule, hasTaxi, taxiFee, discountPercent })
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -615,6 +621,7 @@ export async function sellPackageToPet(
             org_id: profile.org_id,
             total_paid: totalPaid,
             calculated_price: (packageData.total_price || totalPaid) + (taxiFee || 0),
+            discount_percent: discountPercent || 0,
             expires_at,
             preferred_weekdays: preferredWeekdays ?? null,
             preferred_time: preferredTime ?? null,

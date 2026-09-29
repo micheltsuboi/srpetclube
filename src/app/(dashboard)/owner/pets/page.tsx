@@ -77,6 +77,8 @@ function PetsContent() {
     const [taxiFeePackage, setTaxiFeePackage] = useState(0)
     const [isAutoSchedule, setIsAutoSchedule] = useState(true)
     const [isAutoRenew, setIsAutoRenew] = useState(true)
+    const [packageDiscountType, setPackageDiscountType] = useState<'percent' | 'fixed'>('percent')
+    const [packageDiscountValue, setPackageDiscountValue] = useState<number>(0)
     const [petSlots, setPetSlots] = useState<Record<string, any[]>>({})
     const [expandedSlotPackage, setExpandedSlotPackage] = useState<string | null>(null)
     const [reschedulingSlot, setReschedulingSlot] = useState<any | null>(null)
@@ -528,6 +530,8 @@ function PetsContent() {
         if (!selectedPet || !selectedPackageId) return
 
         const pkg = availablePackages.find(p => p.id === selectedPackageId)
+        if (!pkg) return
+
         const weekdaysNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
         const selectedDaysNames = prefWeekdays.sort().map(d => weekdaysNames[d]).join(', ')
         const autoInfo = isAutoSchedule && prefWeekdays.length > 0
@@ -535,14 +539,30 @@ function PetsContent() {
             : ' | Agendamento manual'
         const taxiInfo = hasTaxiPackage ? ` | Taxi Dog: R$ ${taxiFeePackage.toFixed(2)}` : ''
         const renewInfo = isAutoRenew ? ' | Renovação automática: Sim' : ' | Renovação automática: Não'
-        const finalTotal = pkg.total_price + (hasTaxiPackage ? taxiFeePackage : 0)
+
+        const baseSubtotal = pkg.total_price + (hasTaxiPackage ? taxiFeePackage : 0)
+        let discountAmount = 0
+        let calculatedDiscountPercent = 0
+        if (packageDiscountValue > 0) {
+            if (packageDiscountType === 'percent') {
+                calculatedDiscountPercent = Math.min(100, Math.max(0, packageDiscountValue))
+                discountAmount = (baseSubtotal * calculatedDiscountPercent) / 100
+            } else {
+                discountAmount = Math.min(baseSubtotal, Math.max(0, packageDiscountValue))
+                calculatedDiscountPercent = baseSubtotal > 0 ? (discountAmount / baseSubtotal) * 100 : 0
+            }
+        }
+        const finalTotal = Math.max(0, baseSubtotal - discountAmount)
+        const discountInfo = discountAmount > 0 
+            ? ` | Desconto: ${packageDiscountType === 'percent' ? `${packageDiscountValue}%` : `R$ ${packageDiscountValue.toFixed(2)}`} (-R$ ${discountAmount.toFixed(2)})`
+            : ''
         
         if (isAutoSchedule && prefWeekdays.length === 0) {
             alert('Por favor, selecione pelo menos um dia da semana para o agendamento automático.')
             return
         }
 
-        if (!confirm(`Confirmar contratação do pacote "${pkg.name}" para ${selectedPet.name} por R$ ${finalTotal.toFixed(2)}?${autoInfo}${taxiInfo}${renewInfo}`)) return
+        if (!confirm(`Confirmar contratação do pacote "${pkg.name}" para ${selectedPet.name} por R$ ${finalTotal.toFixed(2)}?${autoInfo}${taxiInfo}${discountInfo}${renewInfo}`)) return
 
         setIsSelling(true)
         try {
@@ -557,7 +577,8 @@ function PetsContent() {
                 hasTaxiPackage,
                 taxiFeePackage,
                 isAutoSchedule && scheduleStartDate ? scheduleStartDate : undefined,
-                isAutoRenew
+                isAutoRenew,
+                parseFloat(calculatedDiscountPercent.toFixed(2))
             )
 
             if (res.success) {
@@ -567,6 +588,7 @@ function PetsContent() {
                 setSelectedPackageId('')
                 setPrefWeekdays([])
                 setPrefTime('')
+                setPackageDiscountValue(0)
                 
                 // Redefine para a data de hoje após o sucesso
                 const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
@@ -677,6 +699,14 @@ function PetsContent() {
                 }
             }
 
+            // Buscar produtos avulsos em aberto (petshop) para este pet
+            const { data: openProducts } = await supabase
+                .from('petshop_sales')
+                .select('id, product_name, quantity, total_price, payment_status, created_at')
+                .eq('pet_id', selectedPet.id)
+                .eq('payment_status', 'pending')
+                .order('created_at', { ascending: false })
+
             const { exportPackageSessionsPDF } = await import('@/utils/packageReportPdf')
             exportPackageSessionsPDF({
                 pet: selectedPet,
@@ -698,7 +728,8 @@ function PetsContent() {
                     total_extras_fee: pkgGroup.total_extras_fee,
                     has_pending_extras: pkgGroup.has_pending_extras
                 },
-                slots: slots || []
+                slots: slots || [],
+                openProducts: openProducts || []
             })
         } catch (error) {
             console.error('Erro ao gerar PDF do pacote:', error)
@@ -1473,6 +1504,63 @@ function PetsContent() {
                                                                         />
                                                                     </div>
                                                                 )}
+                                                            </div>
+
+                                                            {/* Desconto no Pacote */}
+                                                            <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(var(--primary-rgb), 0.2)' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                                                    <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}>🏷️ Desconto no Pacote (opcional)</span>
+                                                                    <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setPackageDiscountType('percent')}
+                                                                            style={{
+                                                                                padding: '3px 8px', fontSize: '0.75rem', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                                                                                background: packageDiscountType === 'percent' ? 'var(--primary)' : 'transparent',
+                                                                                color: 'white', fontWeight: packageDiscountType === 'percent' ? 600 : 400
+                                                                            }}
+                                                                        >%</button>
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => setPackageDiscountType('fixed')}
+                                                                            style={{
+                                                                                padding: '3px 8px', fontSize: '0.75rem', borderRadius: '4px', border: 'none', cursor: 'pointer',
+                                                                                background: packageDiscountType === 'fixed' ? 'var(--primary)' : 'transparent',
+                                                                                color: 'white', fontWeight: packageDiscountType === 'fixed' ? 600 : 400
+                                                                            }}
+                                                                        >R$</button>
+                                                                    </div>
+                                                                </div>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                                                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                                                                        {packageDiscountType === 'fixed' && <span style={{ position: 'absolute', left: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>R$</span>}
+                                                                        <input
+                                                                            type="number"
+                                                                            min="0"
+                                                                            step={packageDiscountType === 'percent' ? '1' : '0.01'}
+                                                                            value={packageDiscountValue || ''}
+                                                                            placeholder="0"
+                                                                            onChange={e => setPackageDiscountValue(parseFloat(e.target.value) || 0)}
+                                                                            className={styles.input}
+                                                                            style={{ width: '110px', padding: `6px 8px 6px ${packageDiscountType === 'fixed' ? '26px' : '8px'}` }}
+                                                                        />
+                                                                        {packageDiscountType === 'percent' && <span style={{ marginLeft: '4px', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>%</span>}
+                                                                    </div>
+                                                                    {packageDiscountValue > 0 && (() => {
+                                                                        const pkg = availablePackages.find(p => p.id === selectedPackageId)
+                                                                        if (!pkg) return null
+                                                                        const base = pkg.total_price + (hasTaxiPackage ? taxiFeePackage : 0)
+                                                                        const disc = packageDiscountType === 'percent' 
+                                                                            ? (base * Math.min(100, packageDiscountValue)) / 100 
+                                                                            : Math.min(base, packageDiscountValue)
+                                                                        const discountedTotal = Math.max(0, base - disc)
+                                                                        return (
+                                                                            <span style={{ fontSize: '0.85rem', color: '#10b981', fontWeight: 600 }}>
+                                                                                ✓ Total com desconto: R$ {discountedTotal.toFixed(2)}
+                                                                            </span>
+                                                                        )
+                                                                    })()}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     )}

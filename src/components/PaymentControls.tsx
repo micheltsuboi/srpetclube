@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { updatePaymentStatus, applyDiscount } from '@/app/actions/appointment'
-import { updatePackagePaymentStatus } from '@/app/actions/package'
+import { updatePackagePaymentStatus, applyPackageDiscount } from '@/app/actions/package'
 import { createPortal } from 'react-dom'
 
 interface PaymentControlsProps {
@@ -157,7 +157,12 @@ export default function PaymentControls({
         if (isNaN(val) || val < 0) return
         setLoading(true)
         try {
-            await applyDiscount(appointmentId, val, discountType, basePrice)
+            if (isPackage && customerPackageId) {
+                const effectiveBase = (packageTotal || basePrice || 0)
+                await applyPackageDiscount(customerPackageId, val, discountType, effectiveBase)
+            } else {
+                await applyDiscount(appointmentId, val, discountType, basePrice)
+            }
             onUpdate?.()
         } finally {
             setLoading(false)
@@ -265,16 +270,13 @@ export default function PaymentControls({
                 </div>
 
                 {/* Discount Section */}
-                {isPackage && !isPaid && (
-                    <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid rgba(122, 201, 160, 0.2)', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        ℹ️ Você está pagando a <strong>mensalidade de um pacote</strong>. Descontos não estão disponíveis por aqui. Eles devem ser aplicados na Gestão de Pets ou no momento da venda.
-                    </div>
-                )}
-                {!isPackage && !isPaid && (
+                {!isPaid && (
                    <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>Tipo de Desconto:</span>
+                                <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                    {isPackage ? 'Desconto no Pacote:' : 'Tipo de Desconto:'}
+                                </span>
                                 <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: '6px', padding: '2px', border: '1px solid var(--border)' }}>
                                     <button
                                         onClick={() => setDiscountType('percent')}
