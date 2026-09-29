@@ -8,6 +8,7 @@ import {
     createServicePackage,
     updateServicePackage,
     deleteServicePackage,
+    deleteCustomerPackage,
     togglePackageStatus,
     addPackageItem,
     deletePackageItem
@@ -205,15 +206,48 @@ export default function PackagesPage() {
 
     const handleDelete = async () => {
         if (!selectedPackage) return
-        if (confirm(`Tem certeza que deseja excluir o pacote "${selectedPackage.name}"?`)) {
-            const res = await deleteServicePackage(selectedPackage.id)
+        if (confirm(`Tem certeza que deseja excluir o modelo de pacote "${selectedPackage.name}"? Todos os vínculos associados serão limpos.`)) {
+            const pkgId = selectedPackage.id
+            // Remoção imediata da interface para feedback instantâneo
+            setPackages(prev => prev.filter(p => p.id !== pkgId))
+            setShowModal(false)
+
+            try {
+                const res = await deleteServicePackage(pkgId)
+                if (res.success) {
+                    alert(res.message)
+                } else {
+                    alert('Erro ao excluir: ' + res.message)
+                }
+            } catch (error) {
+                console.error('Erro ao excluir pacote:', error)
+                alert('Erro inesperado ao excluir pacote.')
+            } finally {
+                await fetchData()
+            }
+        }
+    }
+
+    const handleDeleteActivePackage = async (customerPackageId: string, pkgName?: string, petName?: string) => {
+        if (!confirm(`Deseja realmente EXCLUIR o pacote "${pkgName || 'Pacote'}" do pet "${petName || ''}"? Esta ação cancelará os agendamentos futuros pendentes vinculados a este pacote.`)) {
+            return
+        }
+
+        // Remoção imediata da interface para feedback instantâneo
+        setActivePackages(prev => prev.filter(p => p.id !== customerPackageId))
+
+        try {
+            const res = await deleteCustomerPackage(customerPackageId)
             if (res.success) {
-                setShowModal(false)
-                fetchData()
                 alert(res.message)
             } else {
-                alert(res.message)
+                alert('Erro ao excluir: ' + res.message)
             }
+        } catch (error) {
+            console.error('Erro ao excluir pacote ativo:', error)
+            alert('Erro inesperado ao excluir pacote ativo.')
+        } finally {
+            await fetchActivePackages()
         }
     }
 
@@ -413,7 +447,7 @@ export default function PackagesPage() {
                                         </div>
                                     ))}
                                 </div>
-                                <div style={{ textAlign: 'right' }}>
+                                <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', justifyContent: 'center' }}>
                                     <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
                                         R$ {cp.calculated_price?.toFixed(2)}
                                     </div>
@@ -424,10 +458,31 @@ export default function PackagesPage() {
                                         fontSize: '0.75rem', 
                                         fontWeight: 'bold',
                                         background: cp.payment_status === 'paid' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                        color: cp.payment_status === 'paid' ? '#10B981' : '#ef4444'
+                                        color: cp.payment_status === 'paid' ? '#10B981' : '#ef4444',
+                                        marginBottom: '0.5rem'
                                     }}>
                                         {cp.payment_status === 'paid' ? 'Pago' : 'Pendente'}
                                     </span>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleDeleteActivePackage(cp.id, cp.service_packages?.name, cp.pets?.name)}
+                                        style={{
+                                            padding: '4px 10px',
+                                            fontSize: '0.75rem',
+                                            background: 'rgba(239, 68, 68, 0.1)',
+                                            color: '#ef4444',
+                                            border: '1px solid rgba(239, 68, 68, 0.25)',
+                                            borderRadius: '4px',
+                                            cursor: 'pointer',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '0.35rem',
+                                            fontWeight: '600'
+                                        }}
+                                        title="Excluir este pacote vendido e cancelar agendamentos futuros pendentes"
+                                    >
+                                        🗑️ Excluir Pacote
+                                    </button>
                                 </div>
                             </div>
                         ))
