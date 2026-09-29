@@ -1,7 +1,7 @@
 
 'use client'
 
-import { useState, useEffect, useCallback, useActionState, Suspense, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useActionState, Suspense, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import styles from './page.module.css'
@@ -84,6 +84,56 @@ function PetsContent() {
     const [reschedulingSlot, setReschedulingSlot] = useState<any | null>(null)
     const [slotNewDate, setSlotNewDate] = useState('')
     const [slotNewTime, setSlotNewTime] = useState('')
+
+    // Categorização e agrupamento dos pacotes disponíveis
+    const getPackageCategory = useCallback((pkg: any): string => {
+        if (pkg.package_items && Array.isArray(pkg.package_items) && pkg.package_items.length > 0) {
+            for (const item of pkg.package_items) {
+                const catName = item.services?.service_categories?.name || item.services?.category
+                if (catName) {
+                    const norm = catName.trim().toLowerCase()
+                    if (norm.includes('creche')) return 'Creche'
+                    if (norm.includes('banho') || norm.includes('tosa')) return 'Banho e Tosa'
+                    if (norm.includes('hospedagem') || norm.includes('hotel')) return 'Hospedagem'
+                    if (norm.includes('veterin')) return 'Veterinário'
+                    if (norm.includes('adestram') || norm.includes('treino')) return 'Adestramento'
+                    return item.services?.service_categories?.name || catName
+                }
+            }
+        }
+
+        const nameNorm = (pkg.name || '').toLowerCase()
+        if (nameNorm.includes('creche')) return 'Creche'
+        if (nameNorm.includes('banho') || nameNorm.includes('tosa')) return 'Banho e Tosa'
+        if (nameNorm.includes('hospedagem') || nameNorm.includes('hotel')) return 'Hospedagem'
+        if (nameNorm.includes('veterin')) return 'Veterinário'
+        if (nameNorm.includes('adestram') || nameNorm.includes('treino')) return 'Adestramento'
+
+        return 'Outros'
+    }, [])
+
+    const packageCategoryOrder = ['Creche', 'Banho e Tosa', 'Hospedagem', 'Veterinário', 'Adestramento', 'Outros']
+
+    const groupedPackages = useMemo(() => {
+        const groups: Record<string, any[]> = {}
+        for (const pkg of availablePackages) {
+            const cat = getPackageCategory(pkg)
+            if (!groups[cat]) groups[cat] = []
+            groups[cat].push(pkg)
+        }
+        return groups
+    }, [availablePackages, getPackageCategory])
+
+    const sortedPackageCategories = useMemo(() => {
+        return Object.keys(groupedPackages).sort((a, b) => {
+            const idxA = packageCategoryOrder.indexOf(a)
+            const idxB = packageCategoryOrder.indexOf(b)
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB
+            if (idxA !== -1) return -1
+            if (idxB !== -1) return 1
+            return a.localeCompare(b)
+        })
+    }, [groupedPackages])
     
     // Pagination
     const [displayLimit, setDisplayLimit] = useState(50)
@@ -315,10 +365,27 @@ function PetsContent() {
             // Fetch Available Service Packages
             const { data: packagesData } = await supabase
                 .from('service_packages')
-                .select('id, name, total_price, description')
+                .select(`
+                    id, 
+                    name, 
+                    total_price, 
+                    description,
+                    package_items (
+                        quantity,
+                        services (
+                            id,
+                            name,
+                            category,
+                            service_categories (
+                                id,
+                                name
+                            )
+                        )
+                    )
+                `)
                 .eq('org_id', profile.org_id)
                 .eq('is_active', true)
-                .order('total_price')
+                .order('name')
 
             if (customersData) setCustomers(customersData)
             if (packagesData) setAvailablePackages(packagesData)
@@ -1386,7 +1453,15 @@ function PetsContent() {
                                                     <div className={styles.packageSelection}>
                                                         <select className={styles.select} value={selectedPackageId} onChange={e => setSelectedPackageId(e.target.value)}>
                                                             <option value="">Selecione um pacote...</option>
-                                                            {availablePackages.map(pkg => (<option key={pkg.id} value={pkg.id}>{pkg.name} - R$ {pkg.total_price.toFixed(2)}</option>))}
+                                                            {sortedPackageCategories.map(category => (
+                                                                <optgroup key={category} label={`📁 ${category}`}>
+                                                                    {groupedPackages[category]?.map((pkg: any) => (
+                                                                        <option key={pkg.id} value={pkg.id}>
+                                                                            {pkg.name} - R$ {pkg.total_price.toFixed(2)}
+                                                                        </option>
+                                                                    ))}
+                                                                </optgroup>
+                                                            ))}
                                                         </select>
                                                     </div>
 

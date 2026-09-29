@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useActionState } from 'react'
+import { useState, useEffect, useCallback, useMemo, useActionState } from 'react'
 import Link from 'next/link'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
@@ -137,6 +137,28 @@ export default function PackagesPage() {
             .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
             .join(' ')
     }
+
+    const groupedServices = useMemo(() => {
+        const groups: Record<string, Service[]> = {}
+        for (const s of services) {
+            const cat = formatCategory(s.category) || 'Outros'
+            if (!groups[cat]) groups[cat] = []
+            groups[cat].push(s)
+        }
+        return groups
+    }, [services])
+
+    const sortedServiceCategories = useMemo(() => {
+        const order = ['Creche', 'Banho e Tosa', 'Hospedagem', 'Veterinário', 'Adestramento', 'Outros']
+        return Object.keys(groupedServices).sort((a, b) => {
+            const idxA = order.indexOf(a)
+            const idxB = order.indexOf(b)
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB
+            if (idxA !== -1) return -1
+            if (idxB !== -1) return 1
+            return a.localeCompare(b)
+        })
+    }, [groupedServices])
 
     const fetchData = useCallback(async () => {
         try {
@@ -622,11 +644,15 @@ export default function PackagesPage() {
                                                 value={selectedServiceId}
                                                 onChange={(e) => setSelectedServiceId(e.target.value)}
                                             >
-                                                <option value="">Selecione um serviço</option>
-                                                {services.map(service => (
-                                                    <option key={service.id} value={service.id}>
-                                                        [{formatCategory(service.category)}] {service.name} - R$ {service.base_price.toFixed(2)}
-                                                    </option>
+                                                <option value="">Selecione um serviço...</option>
+                                                {sortedServiceCategories.map(category => (
+                                                    <optgroup key={category} label={`📁 ${category}`}>
+                                                        {groupedServices[category]?.map(service => (
+                                                            <option key={service.id} value={service.id}>
+                                                                {service.name} - R$ {service.base_price.toFixed(2)}
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
                                                 ))}
                                             </select>
                                         </div>
