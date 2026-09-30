@@ -135,7 +135,7 @@ export default function FinanceiroPage() {
                     .order('created_at', { ascending: true }),
                 supabase
                     .from('customer_packages')
-                    .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name )')
+                    .select('id, total_paid, calculated_price, payment_status, purchased_at, payment_due_date, period_label, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name ), package_schedule_slots ( slot_date, status )')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'pending')
                     .order('purchased_at', { ascending: true }),
@@ -530,6 +530,29 @@ export default function FinanceiroPage() {
         return false
     }
 
+    const getPackageEffectiveDate = (pkg: any): string => {
+        if (pkg.payment_due_date) return pkg.payment_due_date
+        if (pkg.package_schedule_slots && pkg.package_schedule_slots.length > 0) {
+            const sortedSlots = [...pkg.package_schedule_slots].sort((a: any, b: any) => (a.slot_date || '').localeCompare(b.slot_date || ''))
+            if (sortedSlots[0]?.slot_date) return sortedSlots[0].slot_date
+        }
+        return pkg.purchased_at ? pkg.purchased_at.split('T')[0] : ''
+    }
+
+    const isPackageRealized = (pkg: any): boolean => {
+        // Se alguma sessão do pacote já foi realizada, o serviço começou
+        if (pkg.package_schedule_slots?.some((s: any) => s.status === 'done')) {
+            return true
+        }
+        const effectiveDateStr = getPackageEffectiveDate(pkg)
+        if (!effectiveDateStr) return true
+        
+        const effectiveDate = new Date(effectiveDateStr + 'T00:00:00')
+        const todayEnd = new Date()
+        todayEnd.setHours(23, 59, 59, 999)
+        return effectiveDate <= todayEnd
+    }
+
     const realizedPendingTotal = extractRecords.allPendingAppts
         .filter(a => isApptRealized(a))
         .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
@@ -538,6 +561,7 @@ export default function FinanceiroPage() {
             .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
             .reduce((sum, s) => sum + s.total_price, 0)
         + extractRecords.pendingPackages
+            .filter(p => isPackageRealized(p))
             .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
             .reduce((sum, p) => sum + (p.total_paid || p.calculated_price || 0), 0)
 
@@ -545,6 +569,10 @@ export default function FinanceiroPage() {
         .filter(a => !isApptRealized(a))
         .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
         .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
+        + extractRecords.pendingPackages
+            .filter(p => !isPackageRealized(p))
+            .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
+            .reduce((sum, p) => sum + (p.total_paid || p.calculated_price || 0), 0)
 
     const pendingTotal = realizedPendingTotal + forecastPendingTotal
 
@@ -620,7 +648,22 @@ export default function FinanceiroPage() {
                         sale.total_price.toFixed(2).replace('.', ','),
                         'Venda Produto'
                     ])
-                })
+                });
+
+            extractRecords.pendingPackages
+                .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
+                .forEach(pkg => {
+                    const effectiveDate = getPackageEffectiveDate(pkg) || pkg.purchased_at;
+                    const petName = pkg.pets?.name || 'Pet';
+                    const pkgName = pkg.service_packages?.name || 'Pacote';
+                    const amount = pkg.total_paid || pkg.calculated_price || 0;
+                    rows.push([
+                        `${petName} • Pacote: ${pkgName}`,
+                        new Date(effectiveDate.includes('T') ? effectiveDate : effectiveDate + 'T12:00:00').toLocaleDateString('pt-BR'),
+                        amount.toFixed(2).replace('.', ','),
+                        'Pacotes'
+                    ]);
+                });
         }
 
         exportToCsv(`financeiro_${extractRecords.type}`, headers, rows)
@@ -692,7 +735,22 @@ export default function FinanceiroPage() {
                         formatCurrency(sale.total_price),
                         'Venda Produto'
                     ])
-                })
+                });
+
+            extractRecords.pendingPackages
+                .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
+                .forEach(pkg => {
+                    const effectiveDate = getPackageEffectiveDate(pkg) || pkg.purchased_at;
+                    const petName = pkg.pets?.name || 'Pet';
+                    const pkgName = pkg.service_packages?.name || 'Pacote';
+                    const amount = pkg.total_paid || pkg.calculated_price || 0;
+                    rows.push([
+                        `${petName} • Pacote: ${pkgName}`,
+                        new Date(effectiveDate.includes('T') ? effectiveDate : effectiveDate + 'T12:00:00').toLocaleDateString('pt-BR'),
+                        formatCurrency(amount),
+                        'Pacotes'
+                    ]);
+                });
         }
 
         autoTable(doc, {
@@ -1044,16 +1102,24 @@ export default function FinanceiroPage() {
         })
 
     // 3. Filtragem de Pacotes
-    let pkgsSource = extractRecords.type === 'pending' && pendingTab !== 'forecast'
+    let pkgsSource = extractRecords.type === 'pending'
         ? extractRecords.pendingPackages
         : []
 
-    if (extractRecords.type === 'pending' && applyPeriodFilterToPending) {
-        pkgsSource = pkgsSource.filter(p => {
-            if (!p.purchased_at) return false
-            const d = p.purchased_at.split('T')[0]
-            return d >= startDate && d <= endDate
-        })
+    if (extractRecords.type === 'pending') {
+        if (pendingTab === 'realized') {
+            pkgsSource = pkgsSource.filter(p => isPackageRealized(p))
+        } else if (pendingTab === 'forecast') {
+            pkgsSource = pkgsSource.filter(p => !isPackageRealized(p))
+        }
+
+        if (applyPeriodFilterToPending) {
+            pkgsSource = pkgsSource.filter(p => {
+                const d = getPackageEffectiveDate(p)
+                if (!d) return false
+                return d >= startDate && d <= endDate
+            })
+        }
     }
 
     const filteredPkgs = pkgsSource
@@ -1106,15 +1172,17 @@ export default function FinanceiroPage() {
         ...filteredPkgs.map(pkg => {
             const petName = pkg.pets?.name || 'Pet'
             const tutorName = pkg.pets?.customers?.name || pkg.customers?.name || 'Sem tutor'
+            const effectiveDate = getPackageEffectiveDate(pkg)
+            const isRealized = isPackageRealized(pkg)
             return {
                 id: pkg.id,
                 type: 'package' as const,
                 petName,
                 customerName: tutorName,
                 title: `${petName} (${tutorName}) • Pacote: ${pkg.service_packages?.name || 'Serviço'}`,
-                date: pkg.purchased_at,
+                date: effectiveDate || pkg.purchased_at,
                 amount: pkg.total_paid || pkg.calculated_price || 0,
-                isRealized: true,
+                isRealized,
                 raw: pkg
             }
         })
@@ -1175,7 +1243,7 @@ export default function FinanceiroPage() {
                     <div className={styles.extractInfo}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                             <strong>{item.title}</strong>
-                            {item.type === 'appointment' && (
+                            {(item.type === 'appointment' || item.type === 'package') && (
                                 item.isRealized ? (
                                     <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(230, 126, 34, 0.2)', color: '#e67e22', border: '1px solid rgba(230, 126, 34, 0.4)', fontWeight: 600 }}>
                                         ⚠️ Realizado
@@ -1198,8 +1266,8 @@ export default function FinanceiroPage() {
                             )}
                         </div>
                         <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
-                            {item.type === 'appointment' ? 'Agendado para: ' : 'Data: '}
-                            {new Date(item.date).toLocaleDateString('pt-BR')}
+                            {item.type === 'appointment' ? 'Agendado para: ' : (item.type === 'package' ? 'Previsão / Vencimento: ' : 'Data: ')}
+                            {item.date ? new Date(item.date.includes('T') ? item.date : item.date + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}
                         </span>
                     </div>
                     <div className={styles.extractActions}>

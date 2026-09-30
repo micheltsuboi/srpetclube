@@ -550,9 +550,10 @@ export async function sellPackageToPet(
     taxiFee?: number,
     startDate?: string, // Data de início das sessões (YYYY-MM-DD)
     autoRenew?: boolean,
-    discountPercent?: number
+    discountPercent?: number,
+    paymentDueDate?: string // Data prevista de pagamento / vencimento (YYYY-MM-DD)
 ): Promise<ActionState> {
-    console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekdays, preferredTime, isAutoSchedule, hasTaxi, taxiFee, discountPercent })
+    console.log('sellPackageToPet iniciado', { petId, packageId, totalPaid, paymentMethod, preferredWeekdays, preferredTime, isAutoSchedule, hasTaxi, taxiFee, discountPercent, paymentDueDate })
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -611,6 +612,10 @@ export async function sellPackageToPet(
         }
     }
 
+    // Definir data de previsão de pagamento / vencimento:
+    // Se fornecida explicitamente, usa ela; senão usa startDate; senão usa hoje
+    const finalPaymentDueDate = paymentDueDate || startDate || new Date().toISOString().split('T')[0]
+
     // Criar registro de compra do pacote
     const { data: customerPackage, error: cpError } = await supabase
         .from('customer_packages')
@@ -630,7 +635,8 @@ export async function sellPackageToPet(
             taxi_fee: taxiFee ?? 0,
             auto_renew: autoRenew ?? false,
             payment_status: 'pending',
-            period_label: calculatedPeriodLabel
+            period_label: calculatedPeriodLabel,
+            payment_due_date: finalPaymentDueDate
         })
         .select(`
             *,
@@ -1047,7 +1053,8 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
             payment_status: 'pending',
             payment_method: 'other',
             notes: 'Renovação automática',
-            expires_at: new_expires_at
+            expires_at: new_expires_at,
+            payment_due_date: new Date().toISOString().split('T')[0]
         })
         .select()
         .single()
@@ -1088,6 +1095,23 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
         await supabase.rpc('generate_package_slots', {
             p_customer_package_id: newPackage.id
         })
+        
+        // Atualizar payment_due_date da renovação com a data da primeira sessão gerada
+        const { data: firstSlot } = await supabase
+            .from('package_schedule_slots')
+            .select('slot_date')
+            .eq('customer_package_id', newPackage.id)
+            .order('slot_date', { ascending: true })
+            .limit(1)
+            .single()
+
+        if (firstSlot?.slot_date) {
+            await supabase
+                .from('customer_packages')
+                .update({ payment_due_date: firstSlot.slot_date })
+                .eq('id', newPackage.id)
+        }
+
         if (newPackage.pet_id) {
             await fixPackageUsageIndices(newPackage.pet_id)
         }

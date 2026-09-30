@@ -73,6 +73,7 @@ function PetsContent() {
     // Define a data atual considerando o fuso horário local para o campo Data de Início
     const todayLocal = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
     const [scheduleStartDate, setScheduleStartDate] = useState(todayLocal) // Data de início das sessões
+    const [packagePaymentDueDate, setPackagePaymentDueDate] = useState(todayLocal) // Data prevista de pagamento / vencimento
     const [hasTaxiPackage, setHasTaxiPackage] = useState(false)
     const [taxiFeePackage, setTaxiFeePackage] = useState(0)
     const [isAutoSchedule, setIsAutoSchedule] = useState(true)
@@ -645,7 +646,8 @@ function PetsContent() {
                 taxiFeePackage,
                 isAutoSchedule && scheduleStartDate ? scheduleStartDate : undefined,
                 isAutoRenew,
-                parseFloat(calculatedDiscountPercent.toFixed(2))
+                parseFloat(calculatedDiscountPercent.toFixed(2)),
+                packagePaymentDueDate || (isAutoSchedule && scheduleStartDate ? scheduleStartDate : undefined)
             )
 
             if (res.success) {
@@ -660,6 +662,7 @@ function PetsContent() {
                 // Redefine para a data de hoje após o sucesso
                 const today = new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0]
                 setScheduleStartDate(today)
+                setPackagePaymentDueDate(today)
                 
                 setIsAutoSchedule(false)
                 setHasTaxiPackage(false)
@@ -1540,7 +1543,11 @@ function PetsContent() {
                                                                         <input
                                                                             type="date"
                                                                             value={scheduleStartDate}
-                                                                            onChange={e => setScheduleStartDate(e.target.value)}
+                                                                            onChange={e => {
+                                                                                const val = e.target.value
+                                                                                setScheduleStartDate(val)
+                                                                                setPackagePaymentDueDate(val)
+                                                                            }}
                                                                             className={styles.input}
                                                                             style={{ width: '100%', maxWidth: '180px' }}
                                                                         />
@@ -1555,6 +1562,25 @@ function PetsContent() {
                                                                     As sessões serão criadas como disponíveis para agendamento manual.
                                                                 </p>
                                                             )}
+
+                                                            {/* Previsão de Pagamento / Vencimento */}
+                                                            <div style={{ marginTop: '0.85rem', paddingTop: '0.85rem', borderTop: '1px solid rgba(var(--primary-rgb), 0.15)' }}>
+                                                                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
+                                                                    📅 Previsão de Pagamento / Vencimento
+                                                                </label>
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                                                    <input
+                                                                        type="date"
+                                                                        value={packagePaymentDueDate}
+                                                                        onChange={e => setPackagePaymentDueDate(e.target.value)}
+                                                                        className={styles.input}
+                                                                        style={{ width: '100%', maxWidth: '180px' }}
+                                                                    />
+                                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                                                                        Data considerada no Contas a Receber (previsão futura vs pendência vencida).
+                                                                    </span>
+                                                                </div>
+                                                            </div>
 
                                                             <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid rgba(var(--primary-rgb), 0.2)' }}>
                                                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', marginBottom: hasTaxiPackage ? '0.75rem' : '0', color: 'var(--text-primary)' }}>
