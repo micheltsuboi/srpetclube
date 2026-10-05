@@ -101,6 +101,7 @@ export interface Pet {
     next_vaccination_date: string | null
     is_active: boolean
     is_adapted: boolean
+    is_deceased?: boolean
     created_at: string
     updated_at: string
 }
@@ -254,6 +255,7 @@ export interface PetFormData {
     perfume_allowed?: boolean
     accessories_allowed?: boolean
     special_care?: string
+    is_deceased?: boolean
 }
 
 export interface AppointmentFormData {

@@ -10,6 +10,7 @@ import { maskCPF, maskPhone, getWhatsAppLink } from '@/utils/mask'
 interface Pet {
     id: string
     name: string
+    is_deceased?: boolean
 }
 
 interface Customer {
@@ -98,7 +99,7 @@ export default function TutorsPage() {
             } else {
                 const { data, error } = await supabase
                     .from('customers')
-                    .select('*, pets(id, name)')
+                    .select('*, pets(id, name, is_deceased)')
                     .eq('org_id', profile.org_id)
                     .order('name')
                     .limit(displayLimit + 1)
@@ -253,8 +254,13 @@ export default function TutorsPage() {
                                     <div className={styles.petsList}>
                                         {tutor.pets && tutor.pets.length > 0 ? (
                                             tutor.pets.map(pet => (
-                                                <span key={pet.id} className={styles.petBadge}>
-                                                    🐾 {pet.name}
+                                                <span 
+                                                    key={pet.id} 
+                                                    className={styles.petBadge}
+                                                    style={pet.is_deceased ? { background: '#f1f5f9', color: '#64748b', borderColor: '#cbd5e1' } : undefined}
+                                                    title={pet.is_deceased ? 'Memorial (Falecido)' : undefined}
+                                                >
+                                                    {pet.is_deceased ? '🖤' : '🐾'} {pet.name}
                                                 </span>
                                             ))
                                         ) : (

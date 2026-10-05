@@ -40,6 +40,7 @@ interface Pet {
     is_adapted?: boolean
     color?: string | null
     characteristics?: string | null
+    is_deceased?: boolean
 }
 
 interface Customer {
@@ -283,6 +284,17 @@ function PetsContent() {
     const [petshopHistory, setPetshopHistory] = useState<any[]>([])
     const [searchTerm, setSearchTerm] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
+    const [petTab, setPetTab] = useState<'active' | 'deceased'>('active')
+
+    const activePets = useMemo(() => {
+        return pets.filter(p => !p.is_deceased)
+    }, [pets])
+
+    const deceasedPets = useMemo(() => {
+        return pets.filter(p => !!p.is_deceased)
+    }, [pets])
+
+    const displayedPets = petTab === 'active' ? activePets : deceasedPets
 
     // Debounce search term
     useEffect(() => {
@@ -328,7 +340,7 @@ function PetsContent() {
                 .select(`
                     id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
                     existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
-                    color, characteristics,
+                    color, characteristics, is_deceased,
                     customers ( id, name, phone_1 )
                 `)
                 .order('name')
@@ -565,6 +577,11 @@ function PetsContent() {
     }, [updateState]) // Removido fetchData das dependências para evitar múltiplos alertas ao buscar
 
     const handleOpenBooking = (category: string) => {
+        if (selectedPet?.is_deceased) {
+            if (!confirm(`Atenção: O pet "${selectedPet.name}" está no Memorial (falecido). Deseja realmente prosseguir com um novo agendamento?`)) {
+                return
+            }
+        }
         setBookingCategory(category)
         setShowBookingModal(true)
     }
@@ -596,6 +613,12 @@ function PetsContent() {
 
     const handleSellPackage = async () => {
         if (!selectedPet || !selectedPackageId) return
+
+        if (selectedPet.is_deceased) {
+            if (!confirm(`Atenção: O pet "${selectedPet.name}" está no Memorial (falecido). Deseja realmente contratar um pacote para ele?`)) {
+                return
+            }
+        }
 
         const pkg = availablePackages.find(p => p.id === selectedPackageId)
         if (!pkg) return
@@ -847,10 +870,60 @@ function PetsContent() {
                 </button>
             </div>
 
+            {/* Abas: Pets Ativos vs Memorial */}
+            <div style={{ display: 'flex', gap: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
+                <button
+                    type="button"
+                    onClick={() => setPetTab('active')}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: petTab === 'active' ? '2px solid var(--primary)' : '2px solid transparent',
+                        color: petTab === 'active' ? 'white' : 'var(--text-secondary)',
+                        padding: '0.6rem 1rem',
+                        fontSize: '1rem',
+                        fontWeight: petTab === 'active' ? '600' : 'normal',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    <span>🐾 Pets Ativos</span>
+                    <span style={{ fontSize: '0.75rem', background: petTab === 'active' ? 'var(--primary)' : 'rgba(255,255,255,0.08)', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>
+                        {activePets.length}
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setPetTab('deceased')}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: petTab === 'deceased' ? '2px solid #94a3b8' : '2px solid transparent',
+                        color: petTab === 'deceased' ? 'white' : 'var(--text-secondary)',
+                        padding: '0.6rem 1rem',
+                        fontSize: '1rem',
+                        fontWeight: petTab === 'deceased' ? '600' : 'normal',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    <span>🖤 Memorial (Falecidos)</span>
+                    <span style={{ fontSize: '0.75rem', background: petTab === 'deceased' ? 'rgba(148, 163, 184, 0.3)' : 'rgba(255,255,255,0.08)', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>
+                        {deceasedPets.length}
+                    </span>
+                </button>
+            </div>
+
             <div className={styles.actionGroup || ''} style={{ marginBottom: '1rem', width: '100%' }}>
                 <input
                     type="text"
-                    placeholder="🔍 Buscar pet por nome ou raça..."
+                    placeholder={petTab === 'active' ? "🔍 Buscar pet ativo por nome ou raça..." : "🔍 Buscar no Memorial por nome ou raça..."}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className={styles.input}
@@ -869,11 +942,11 @@ function PetsContent() {
                         </tr>
                     </thead>
                     <tbody>
-                        {pets.map(pet => (
+                        {displayedPets.map(pet => (
                             <tr key={pet.id} onClick={() => handleRowClick(pet)} style={{ cursor: 'pointer' }}>
                                 <td>
                                     <div className={styles.itemInfo}>
-                                        <div className={styles.avatar}>
+                                        <div className={styles.avatar} style={pet.is_deceased ? { filter: 'grayscale(70%)', opacity: 0.85 } : undefined}>
                                             {pet.photo_url ? (
                                                 <img
                                                     src={pet.photo_url}
@@ -885,7 +958,14 @@ function PetsContent() {
                                             )}
                                         </div>
                                         <div>
-                                            <span className={styles.itemName}>{pet.name}</span>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                                <span className={styles.itemName}>{pet.name}</span>
+                                                {pet.is_deceased && (
+                                                    <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(100, 116, 139, 0.25)', color: '#cbd5e1', border: '1px solid rgba(100, 116, 139, 0.4)', fontWeight: 600 }}>
+                                                        🖤 Memorial
+                                                    </span>
+                                                )}
+                                            </div>
                                             <span className={styles.itemSub}>{pet.breed || 'Sem raça definida'}</span>
                                         </div>
                                     </div>
@@ -934,8 +1014,10 @@ function PetsContent() {
                         ))}
                     </tbody>
                 </table>
-                {pets.length === 0 && (
-                    <p style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>Nenhum pet cadastrado.</p>
+                {displayedPets.length === 0 && (
+                    <p style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
+                        {petTab === 'active' ? 'Nenhum pet ativo cadastrado.' : 'Nenhum pet no Memorial.'}
+                    </p>
                 )}
                 {hasMore && !debouncedSearch && (
                     <div style={{ textAlign: 'center', padding: '1.5rem', borderTop: '1px solid var(--border)' }}>
@@ -963,6 +1045,28 @@ function PetsContent() {
                         </div>
 
                         <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 100px)', paddingRight: '0.5rem' }}>
+
+                            {selectedPet?.is_deceased && (
+                                <div style={{
+                                    background: 'rgba(100, 116, 139, 0.15)',
+                                    border: '1px solid rgba(100, 116, 139, 0.3)',
+                                    borderRadius: '10px',
+                                    padding: '0.85rem 1.2rem',
+                                    marginBottom: '1rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.85rem',
+                                    color: '#cbd5e1'
+                                }}>
+                                    <span style={{ fontSize: '1.5rem' }}>🖤</span>
+                                    <div>
+                                        <strong style={{ fontSize: '0.95rem' }}>Em Memória — Este pet está no Memorial</strong>
+                                        <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', color: '#94a3b8' }}>
+                                            Todo o histórico de banhos, tosas, creche, hospedagens, vacinas e saúde deste pet está preservado com carinho.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* 1. DADOS CADASTRAIS */}
                             <div className={styles.accordionItem}>
@@ -1095,6 +1199,20 @@ function PetsContent() {
                                                 <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
                                                     <label className={styles.label}>Doença Pré-existente</label>
                                                     <input name="existing_conditions" className={styles.input} defaultValue={selectedPet?.existing_conditions || ''} placeholder="Ex: Diabetes, Alergia..." />
+                                                </div>
+                                                <div className={`${styles.formGroup} ${styles.fullWidth}`} style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                                                    <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', color: '#cbd5e1' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            name="is_deceased"
+                                                            defaultChecked={selectedPet?.is_deceased || false}
+                                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                                        />
+                                                        <span style={{ fontWeight: 600 }}>🖤 Pet falecido (Mover para o Memorial)</span>
+                                                    </label>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginLeft: '1.75rem', marginTop: '0.2rem' }}>
+                                                        Ao marcar esta opção, o pet é transferido para a aba "Memorial (Falecidos)" e sai da listagem comum, mantendo todo o seu histórico no sistema.
+                                                    </span>
                                                 </div>
                                             </div>
                                             <div className={styles.modalActions} style={{ justifyContent: 'space-between', marginTop: '1rem' }}>
