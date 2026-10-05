@@ -12,6 +12,8 @@ ADD COLUMN IF NOT EXISTS is_deceased BOOLEAN DEFAULT false;
 CREATE INDEX IF NOT EXISTS idx_pets_is_deceased ON public.pets(is_deceased);
 
 -- 3. Atualizar search_pets_rpc para não sugerir pets falecidos em novos agendamentos
+DROP FUNCTION IF EXISTS public.search_pets_rpc(TEXT, UUID, INTEGER);
+
 CREATE OR REPLACE FUNCTION public.search_pets_rpc(
   search_term TEXT,
   organization_id UUID,
