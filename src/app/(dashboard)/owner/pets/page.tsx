@@ -215,6 +215,136 @@ function PetsContent() {
         }
     }
 
+    // Service Report Modal States (Banho e Tosa, Creche, Hospedagem)
+    const [serviceReportModalOpen, setServiceReportModalOpen] = useState(false)
+    const [serviceReportCategory, setServiceReportCategory] = useState<'Banho e Tosa' | 'Creche' | 'Hospedagem'>('Banho e Tosa')
+    const [serviceReportStartDate, setServiceReportStartDate] = useState(() => {
+        const now = new Date()
+        return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    })
+    const [serviceReportEndDate, setServiceReportEndDate] = useState(() => {
+        return new Date().toISOString().split('T')[0]
+    })
+    const [isGeneratingServiceReport, setIsGeneratingServiceReport] = useState(false)
+
+    const handleOpenServiceReportModal = (category: 'Banho e Tosa' | 'Creche' | 'Hospedagem') => {
+        setServiceReportCategory(category)
+        const now = new Date()
+        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+        const today = now.toISOString().split('T')[0]
+        setServiceReportStartDate(firstDay)
+        setServiceReportEndDate(today)
+        setServiceReportModalOpen(true)
+    }
+
+    const handleQuickDateRange = (range: 'current_month' | 'last_month' | 'last_30_days' | 'current_year' | 'all') => {
+        const now = new Date()
+        if (range === 'current_month') {
+            const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+            const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+            setServiceReportStartDate(firstDay)
+            setServiceReportEndDate(lastDay)
+        } else if (range === 'last_month') {
+            const firstDay = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0]
+            const lastDay = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0]
+            setServiceReportStartDate(firstDay)
+            setServiceReportEndDate(lastDay)
+        } else if (range === 'last_30_days') {
+            const past30 = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+            const today = now.toISOString().split('T')[0]
+            setServiceReportStartDate(past30)
+            setServiceReportEndDate(today)
+        } else if (range === 'current_year') {
+            const firstDay = `${now.getFullYear()}-01-01`
+            const today = now.toISOString().split('T')[0]
+            setServiceReportStartDate(firstDay)
+            setServiceReportEndDate(today)
+        } else if (range === 'all') {
+            setServiceReportStartDate('2020-01-01')
+            const today = now.toISOString().split('T')[0]
+            setServiceReportEndDate(today)
+        }
+    }
+
+    const handleGenerateServiceReport = async () => {
+        if (!selectedPet) return
+        if (!serviceReportStartDate || !serviceReportEndDate) {
+            alert('Por favor, informe a data inicial e a data final.')
+            return
+        }
+        if (serviceReportStartDate > serviceReportEndDate) {
+            alert('A data inicial não pode ser posterior à data final.')
+            return
+        }
+
+        setIsGeneratingServiceReport(true)
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user?.id).single()
+
+            if (!profile?.org_id) {
+                alert('Não foi possível identificar a organização.')
+                setIsGeneratingServiceReport(false)
+                return
+            }
+
+            const { data: appts, error } = await supabase
+                .from('appointments')
+                .select(`
+                    id, scheduled_at, status, check_in_date, check_out_date, notes,
+                    has_taxi, taxi_fee, package_credit_id, package_usage_index,
+                    services!inner (
+                        id, name, base_price,
+                        service_categories!inner ( name )
+                    ),
+                    staff:profiles ( full_name ),
+                    appointment_extras ( name, price )
+                `)
+                .eq('pet_id', selectedPet.id)
+                .eq('org_id', profile.org_id)
+                .eq('services.service_categories.name', serviceReportCategory)
+                .gte('scheduled_at', `${serviceReportStartDate}T00:00:00`)
+                .lte('scheduled_at', `${serviceReportEndDate}T23:59:59`)
+                .order('scheduled_at', { ascending: false })
+
+            if (error) {
+                console.error('Erro ao buscar atendimentos para relatório:', error)
+                alert('Erro ao buscar dados dos atendimentos.')
+                setIsGeneratingServiceReport(false)
+                return
+            }
+
+            if (!appts || appts.length === 0) {
+                const sFormatted = new Date(serviceReportStartDate + 'T00:00:00').toLocaleDateString('pt-BR')
+                const eFormatted = new Date(serviceReportEndDate + 'T00:00:00').toLocaleDateString('pt-BR')
+                alert(`Nenhum atendimento de "${serviceReportCategory}" encontrado no período de ${sFormatted} a ${eFormatted}.`)
+                setIsGeneratingServiceReport(false)
+                return
+            }
+
+            const { exportServiceReportPDF } = await import('@/utils/serviceReportPdf')
+            exportServiceReportPDF({
+                pet: {
+                    name: selectedPet.name,
+                    breed: selectedPet.breed,
+                    species: selectedPet.species,
+                    customers: selectedPet.customers
+                },
+                category: serviceReportCategory,
+                startDate: serviceReportStartDate,
+                endDate: serviceReportEndDate,
+                appointments: appts as any
+            })
+
+            setServiceReportModalOpen(false)
+        } catch (err) {
+            console.error('Erro ao gerar relatório:', err)
+            alert('Ocorreu um erro ao gerar o relatório em PDF.')
+        } finally {
+            setIsGeneratingServiceReport(false)
+        }
+    }
+
     const isPending = isCreatePending || isUpdatePending
 
     const calculateAge = (birthDate: string | null) => {
@@ -1641,12 +1771,33 @@ function PetsContent() {
                                     <div className={styles.accordionContent}>
                                         {selectedPet ? (
                                             <>
-                                                <div style={{ marginBottom: '1rem' }}>
+                                                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                                                     <button
                                                         onClick={() => handleOpenBooking('Banho e Tosa')}
                                                         className={styles.submitButton}
-                                                        style={{ width: '100%' }}>
+                                                        style={{ flex: '1 1 200px' }}>
                                                         + Novo Agendamento de Banho e Tosa
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleOpenServiceReportModal('Banho e Tosa')}
+                                                        style={{
+                                                            padding: '0.65rem 1.1rem',
+                                                            background: 'rgba(43, 75, 111, 0.15)',
+                                                            border: '1px solid rgba(43, 75, 111, 0.35)',
+                                                            borderRadius: '8px',
+                                                            color: 'var(--primary)',
+                                                            cursor: 'pointer',
+                                                            fontSize: '0.85rem',
+                                                            fontWeight: 600,
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            gap: '0.4rem',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        📄 Relatório em PDF
                                                     </button>
                                                 </div>
 
@@ -2471,12 +2622,35 @@ function PetsContent() {
                                                             <strong>💡 Avaliação Pendente:</strong> Este pet ainda não possui avaliação, mas você pode agendar assim mesmo.
                                                         </div>
                                                     )}
-                                                    <button
-                                                        onClick={() => handleOpenBooking('Creche')}
-                                                        className={styles.submitButton}
-                                                        style={{ width: '100%' }}>
-                                                        + Novo Agendamento de Creche
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                                        <button
+                                                            onClick={() => handleOpenBooking('Creche')}
+                                                            className={styles.submitButton}
+                                                            style={{ flex: '1 1 200px' }}>
+                                                            + Novo Agendamento de Creche
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenServiceReportModal('Creche')}
+                                                            style={{
+                                                                padding: '0.65rem 1.1rem',
+                                                                background: 'rgba(43, 75, 111, 0.15)',
+                                                                border: '1px solid rgba(43, 75, 111, 0.35)',
+                                                                borderRadius: '8px',
+                                                                color: 'var(--primary)',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.85rem',
+                                                                fontWeight: 600,
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                gap: '0.4rem',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                        >
+                                                            📄 Relatório em PDF
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Histórico Recente</h4>
@@ -2533,12 +2707,35 @@ function PetsContent() {
                                                             <strong>💡 Avaliação Pendente:</strong> Este pet ainda não possui avaliação, mas você pode agendar assim mesmo.
                                                         </div>
                                                     )}
-                                                    <button
-                                                        onClick={() => handleOpenBooking('Hospedagem')}
-                                                        className={styles.submitButton}
-                                                        style={{ width: '100%' }}>
-                                                        + Novo Agendamento de Hospedagem
-                                                    </button>
+                                                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                                        <button
+                                                            onClick={() => handleOpenBooking('Hospedagem')}
+                                                            className={styles.submitButton}
+                                                            style={{ flex: '1 1 200px' }}>
+                                                            + Novo Agendamento de Hospedagem
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOpenServiceReportModal('Hospedagem')}
+                                                            style={{
+                                                                padding: '0.65rem 1.1rem',
+                                                                background: 'rgba(43, 75, 111, 0.15)',
+                                                                border: '1px solid rgba(43, 75, 111, 0.35)',
+                                                                borderRadius: '8px',
+                                                                color: 'var(--primary)',
+                                                                cursor: 'pointer',
+                                                                fontSize: '0.85rem',
+                                                                fontWeight: 600,
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                gap: '0.4rem',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                        >
+                                                            📄 Relatório em PDF
+                                                        </button>
+                                                    </div>
                                                 </div>
 
                                                 <h4 style={{ marginTop: '1rem', marginBottom: '0.5rem', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Histórico Recente</h4>
@@ -2868,6 +3065,139 @@ function PetsContent() {
                             </button>
                             <button onClick={handleSaveVacUpdate} disabled={isSavingVacUpdate} style={{ padding: '0.5rem 1rem', background: 'var(--primary)', color: 'white', border: 'none', borderRadius: '6px', cursor: isSavingVacUpdate ? 'not-allowed' : 'pointer', fontWeight: 'bold' }}>
                                 {isSavingVacUpdate ? 'Salvando...' : 'Salvar Nova Aplicação'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Seleção de Período para Relatório de Serviço (Banho e Tosa, Creche, Hospedagem) */}
+            {serviceReportModalOpen && selectedPet && (
+                <div className={styles.modalOverlay} onClick={() => setServiceReportModalOpen(false)} style={{ zIndex: 10000 }}>
+                    <div className={styles.modal} onClick={e => e.stopPropagation()} style={{ maxWidth: '480px', width: '90%' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ fontSize: '1.5rem' }}>
+                                    {serviceReportCategory === 'Banho e Tosa' ? '🚿' : serviceReportCategory === 'Creche' ? '🎾' : '🏨'}
+                                </span>
+                                <div>
+                                    <h2 className={styles.title} style={{ margin: 0, fontSize: '1.2rem' }}>
+                                        Relatório em PDF
+                                    </h2>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--primary)', fontWeight: 600 }}>
+                                        {serviceReportCategory} • {selectedPet.name}
+                                    </span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => setServiceReportModalOpen(false)}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', fontSize: '1.5rem', cursor: 'pointer', lineHeight: 1 }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            Selecione o período dos atendimentos que deseja incluir no relatório em PDF:
+                        </p>
+
+                        {/* Atalhos rápidos de período */}
+                        <div style={{ marginBottom: '1.25rem' }}>
+                            <label style={{ display: 'block', marginBottom: '0.4rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                Atalhos de Período
+                            </label>
+                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickDateRange('current_month')}
+                                    style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                >
+                                    Mês Atual
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickDateRange('last_month')}
+                                    style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                >
+                                    Mês Anterior
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickDateRange('last_30_days')}
+                                    style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                >
+                                    Últimos 30 Dias
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickDateRange('current_year')}
+                                    style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                >
+                                    Ano Atual
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleQuickDateRange('all')}
+                                    style={{ padding: '0.35rem 0.65rem', borderRadius: '6px', fontSize: '0.75rem', background: 'var(--bg-secondary)', border: '1px solid var(--border-color)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                >
+                                    Todo o Histórico
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Campos de Data Inicial e Final */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                                    Data Inicial *
+                                </label>
+                                <input
+                                    type="date"
+                                    value={serviceReportStartDate}
+                                    onChange={e => setServiceReportStartDate(e.target.value)}
+                                    style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }}
+                                />
+                            </div>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.85rem', fontWeight: 600 }}>
+                                    Data Final *
+                                </label>
+                                <input
+                                    type="date"
+                                    value={serviceReportEndDate}
+                                    onChange={e => setServiceReportEndDate(e.target.value)}
+                                    style={{ width: '100%', padding: '0.55rem', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'white' }}
+                                />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                            <button
+                                type="button"
+                                onClick={() => setServiceReportModalOpen(false)}
+                                style={{ padding: '0.55rem 1.1rem', background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '6px', cursor: 'pointer' }}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleGenerateServiceReport}
+                                disabled={isGeneratingServiceReport}
+                                style={{
+                                    padding: '0.55rem 1.25rem',
+                                    background: 'var(--primary)',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '6px',
+                                    cursor: isGeneratingServiceReport ? 'not-allowed' : 'pointer',
+                                    fontWeight: 'bold',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem'
+                                }}
+                            >
+                                {isGeneratingServiceReport ? 'Gerando PDF...' : '📥 Gerar Relatório PDF'}
                             </button>
                         </div>
                     </div>
