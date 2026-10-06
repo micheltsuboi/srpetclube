@@ -23,13 +23,13 @@ export interface ServiceReportAppointment {
     package_credit_id?: string | null
     package_usage_index?: number | null
     package_credits?: any
-    services?: {
-        name: string
-        base_price?: number | null
-    } | null
+    services?: any
     staff?: {
         full_name?: string | null
     } | null
+    has_extras?: boolean | null
+    extras_fee?: number | null
+    extras?: any
     appointment_extras?: Array<{
         name: string
         price: number
@@ -239,7 +239,8 @@ export function exportServiceReportPDF({
         }
 
         // Descrição do Serviço e Detalhes
-        let serviceDesc = appt.services?.name || category
+        const serv = Array.isArray(appt.services) ? appt.services[0] : appt.services
+        let serviceDesc = serv?.name || category
 
         // Indicador de sessão de pacote
         if (appt.package_usage_index) {
@@ -252,10 +253,19 @@ export function exportServiceReportPDF({
             serviceDesc += `\n+ Táxi Dog${feeText}`
         }
 
-        // Extras
-        if (appt.appointment_extras && Array.isArray(appt.appointment_extras) && appt.appointment_extras.length > 0) {
+        // Extras (suporta JSONB array de objetos ou objeto ou campo manual)
+        let parsedExtras = appt.extras
+        if (typeof parsedExtras === 'string') {
+            try { parsedExtras = JSON.parse(parsedExtras) } catch (_) {}
+        }
+        if (Array.isArray(parsedExtras) && parsedExtras.length > 0) {
+            const extrasList = parsedExtras.map((e: any) => `+ Extra: ${e.name || e.description || 'Extra'} (R$ ${Number(e.price || e.value || 0).toFixed(2)})`).join('\n')
+            serviceDesc += `\n${extrasList}`
+        } else if (appt.appointment_extras && Array.isArray(appt.appointment_extras) && appt.appointment_extras.length > 0) {
             const extrasList = appt.appointment_extras.map(e => `+ Extra: ${e.name} (R$ ${Number(e.price || 0).toFixed(2)})`).join('\n')
             serviceDesc += `\n${extrasList}`
+        } else if (appt.has_extras && appt.extras_fee && Number(appt.extras_fee) > 0) {
+            serviceDesc += `\n+ Extra (R$ ${Number(appt.extras_fee).toFixed(2)})`
         }
 
         // Observações (se houver e não for muito longa)

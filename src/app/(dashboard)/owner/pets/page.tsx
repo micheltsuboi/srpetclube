@@ -288,33 +288,52 @@ function PetsContent() {
                 return
             }
 
+            // Buscar agendamentos do pet no período (usando campos nativos da tabela appointments)
             const { data: appts, error } = await supabase
                 .from('appointments')
                 .select(`
-                    id, scheduled_at, status, check_in_date, check_out_date, notes,
-                    has_taxi, taxi_fee, package_credit_id, package_usage_index,
-                    services!inner (
-                        id, name, base_price,
-                        service_categories!inner ( name )
-                    ),
-                    staff:profiles ( full_name ),
-                    appointment_extras ( name, price )
+                    id, scheduled_at, status, notes,
+                    has_taxi, taxi_fee, has_extras, extras_fee, extras,
+                    check_in_date, check_out_date,
+                    package_credit_id, package_usage_index,
+                    services (
+                        id, name, base_price, category,
+                        service_categories ( id, name )
+                    )
                 `)
                 .eq('pet_id', selectedPet.id)
                 .eq('org_id', profile.org_id)
-                .eq('services.service_categories.name', serviceReportCategory)
                 .gte('scheduled_at', `${serviceReportStartDate}T00:00:00`)
                 .lte('scheduled_at', `${serviceReportEndDate}T23:59:59`)
                 .order('scheduled_at', { ascending: false })
 
             if (error) {
                 console.error('Erro ao buscar atendimentos para relatório:', error)
-                alert('Erro ao buscar dados dos atendimentos.')
+                alert(`Erro ao buscar dados dos atendimentos: ${error.message || 'Verifique sua conexão.'}`)
                 setIsGeneratingServiceReport(false)
                 return
             }
 
-            if (!appts || appts.length === 0) {
+            // Filtrar no JS pela categoria de forma inteligente e tolerante a variações
+            const categoryNorm = serviceReportCategory.toLowerCase()
+            const filteredAppts = (appts || []).filter((a: any) => {
+                const serv = Array.isArray(a.services) ? a.services[0] : a.services
+                const cat = Array.isArray(serv?.service_categories) ? serv?.service_categories[0] : serv?.service_categories
+                const catName = (cat?.name || serv?.category || serv?.name || '').toLowerCase()
+
+                if (serviceReportCategory === 'Banho e Tosa') {
+                    return catName.includes('banho') || catName.includes('tosa')
+                }
+                if (serviceReportCategory === 'Creche') {
+                    return catName.includes('creche')
+                }
+                if (serviceReportCategory === 'Hospedagem') {
+                    return catName.includes('hospedagem') || catName.includes('hotel')
+                }
+                return catName.includes(categoryNorm)
+            })
+
+            if (!filteredAppts || filteredAppts.length === 0) {
                 const sFormatted = new Date(serviceReportStartDate + 'T00:00:00').toLocaleDateString('pt-BR')
                 const eFormatted = new Date(serviceReportEndDate + 'T00:00:00').toLocaleDateString('pt-BR')
                 alert(`Nenhum atendimento de "${serviceReportCategory}" encontrado no período de ${sFormatted} a ${eFormatted}.`)
@@ -333,13 +352,13 @@ function PetsContent() {
                 category: serviceReportCategory,
                 startDate: serviceReportStartDate,
                 endDate: serviceReportEndDate,
-                appointments: appts as any
+                appointments: filteredAppts as any
             })
 
             setServiceReportModalOpen(false)
-        } catch (err) {
+        } catch (err: any) {
             console.error('Erro ao gerar relatório:', err)
-            alert('Ocorreu um erro ao gerar o relatório em PDF.')
+            alert(`Ocorreu um erro ao gerar o relatório em PDF: ${err?.message || 'Erro desconhecido.'}`)
         } finally {
             setIsGeneratingServiceReport(false)
         }
