@@ -11,6 +11,7 @@ interface Pet {
     id: string
     name: string
     is_deceased?: boolean
+    is_active?: boolean
 }
 
 interface Customer {
@@ -99,7 +100,7 @@ export default function TutorsPage() {
             } else {
                 const { data, error } = await supabase
                     .from('customers')
-                    .select('*, pets(id, name, is_deceased)')
+                    .select('*, pets(id, name, is_deceased, is_active)')
                     .eq('org_id', profile.org_id)
                     .order('name')
                     .limit(displayLimit + 1)
@@ -257,10 +258,16 @@ export default function TutorsPage() {
                                                 <span 
                                                     key={pet.id} 
                                                     className={styles.petBadge}
-                                                    style={pet.is_deceased ? { background: '#f1f5f9', color: '#64748b', borderColor: '#cbd5e1' } : undefined}
-                                                    title={pet.is_deceased ? 'Memorial (Falecido)' : undefined}
+                                                    style={
+                                                        pet.is_deceased 
+                                                            ? { background: '#f1f5f9', color: '#64748b', borderColor: '#cbd5e1' } 
+                                                            : pet.is_active === false 
+                                                            ? { background: 'rgba(234, 179, 8, 0.1)', color: '#ca8a04', borderColor: 'rgba(234, 179, 8, 0.3)' } 
+                                                            : undefined
+                                                    }
+                                                    title={pet.is_deceased ? 'Memorial (Falecido)' : pet.is_active === false ? 'Pet Inativo' : undefined}
                                                 >
-                                                    {pet.is_deceased ? '🖤' : '🐾'} {pet.name}
+                                                    {pet.is_deceased ? '🖤' : pet.is_active === false ? '⏸️' : '🐾'} {pet.name}
                                                 </span>
                                             ))
                                         ) : (

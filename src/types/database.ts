@@ -256,6 +256,7 @@ export interface PetFormData {
     accessories_allowed?: boolean
     special_care?: string
     is_deceased?: boolean
+    is_active?: boolean
 }
 
 export interface AppointmentFormData {

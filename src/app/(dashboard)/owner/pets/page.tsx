@@ -41,6 +41,7 @@ interface Pet {
     color?: string | null
     characteristics?: string | null
     is_deceased?: boolean
+    is_active?: boolean
 }
 
 interface Customer {
@@ -284,17 +285,18 @@ function PetsContent() {
     const [petshopHistory, setPetshopHistory] = useState<any[]>([])
     const [searchTerm, setSearchTerm] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
-    const [petTab, setPetTab] = useState<'active' | 'deceased'>('active')
+    const [petTab, setPetTab] = useState<'active' | 'inactive' | 'deceased'>('active')
+    const [counts, setCounts] = useState({ active: 0, inactive: 0, deceased: 0 })
 
-    const activePets = useMemo(() => {
-        return pets.filter(p => !p.is_deceased)
-    }, [pets])
-
-    const deceasedPets = useMemo(() => {
-        return pets.filter(p => !!p.is_deceased)
-    }, [pets])
-
-    const displayedPets = petTab === 'active' ? activePets : deceasedPets
+    const displayedPets = useMemo(() => {
+        if (petTab === 'deceased') {
+            return pets.filter(p => !!p.is_deceased)
+        }
+        if (petTab === 'inactive') {
+            return pets.filter(p => !p.is_deceased && p.is_active === false)
+        }
+        return pets.filter(p => !p.is_deceased && p.is_active !== false)
+    }, [pets, petTab])
 
     // Debounce search term
     useEffect(() => {
@@ -334,16 +336,56 @@ function PetsContent() {
                 if (blks) setScheduleBlocks(blks)
             }
 
-            // Fetch Pets
+            // 1. Fetch Counts para as abas (mantém os números sempre 100% exatos em tempo real)
+            try {
+                const [activeCountRes, inactiveCountRes, deceasedCountRes] = await Promise.all([
+                    supabase
+                        .from('pets')
+                        .select('id, customers!inner(org_id)', { count: 'exact', head: true })
+                        .eq('customers.org_id', profile.org_id)
+                        .or('is_deceased.is.null,is_deceased.eq.false')
+                        .or('is_active.is.null,is_active.eq.true'),
+                    supabase
+                        .from('pets')
+                        .select('id, customers!inner(org_id)', { count: 'exact', head: true })
+                        .eq('customers.org_id', profile.org_id)
+                        .or('is_deceased.is.null,is_deceased.eq.false')
+                        .eq('is_active', false),
+                    supabase
+                        .from('pets')
+                        .select('id, customers!inner(org_id)', { count: 'exact', head: true })
+                        .eq('customers.org_id', profile.org_id)
+                        .eq('is_deceased', true)
+                ])
+
+                setCounts({
+                    active: activeCountRes.count || 0,
+                    inactive: inactiveCountRes.count || 0,
+                    deceased: deceasedCountRes.count || 0
+                })
+            } catch (countErr) {
+                console.error('Erro ao buscar contagens de pets:', countErr)
+            }
+
+            // 2. Fetch Pets filtrando diretamente pela aba selecionada no banco
             let query = supabase
                 .from('pets')
                 .select(`
                     id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
                     existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
-                    color, characteristics, is_deceased,
-                    customers ( id, name, phone_1 )
+                    color, characteristics, is_deceased, is_active,
+                    customers!inner ( id, name, phone_1, org_id )
                 `)
+                .eq('customers.org_id', profile.org_id)
                 .order('name')
+
+            if (petTab === 'deceased') {
+                query = query.eq('is_deceased', true)
+            } else if (petTab === 'inactive') {
+                query = query.or('is_deceased.is.null,is_deceased.eq.false').eq('is_active', false)
+            } else {
+                query = query.or('is_deceased.is.null,is_deceased.eq.false').or('is_active.is.null,is_active.eq.true')
+            }
 
             if (debouncedSearch) {
                 query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%`)
@@ -362,7 +404,6 @@ function PetsContent() {
             } else {
                 setHasMore(false)
             }
-
 
             if (finalPets) setPets(finalPets as unknown as Pet[])
 
@@ -408,7 +449,7 @@ function PetsContent() {
         } finally {
             setLoading(false)
         }
-    }, [supabase, debouncedSearch, displayLimit])
+    }, [supabase, debouncedSearch, displayLimit, petTab])
 
     // Buscar pacotes do pet quando o accordion muda ou o pet é selecionado
     const fetchPetPackageSummary = useCallback(async () => {
@@ -581,6 +622,10 @@ function PetsContent() {
             if (!confirm(`Atenção: O pet "${selectedPet.name}" está no Memorial (falecido). Deseja realmente prosseguir com um novo agendamento?`)) {
                 return
             }
+        } else if (selectedPet?.is_active === false) {
+            if (!confirm(`Atenção: O pet "${selectedPet.name}" está marcado como Inativo. Deseja realmente prosseguir com um novo agendamento?`)) {
+                return
+            }
         }
         setBookingCategory(category)
         setShowBookingModal(true)
@@ -616,6 +661,10 @@ function PetsContent() {
 
         if (selectedPet.is_deceased) {
             if (!confirm(`Atenção: O pet "${selectedPet.name}" está no Memorial (falecido). Deseja realmente contratar um pacote para ele?`)) {
+                return
+            }
+        } else if (selectedPet.is_active === false) {
+            if (!confirm(`Atenção: O pet "${selectedPet.name}" está marcado como Inativo. Deseja realmente contratar um pacote para ele?`)) {
                 return
             }
         }
@@ -870,11 +919,11 @@ function PetsContent() {
                 </button>
             </div>
 
-            {/* Abas: Pets Ativos vs Memorial */}
+            {/* Abas: Pets Ativos vs Inativos vs Memorial */}
             <div style={{ display: 'flex', gap: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
                 <button
                     type="button"
-                    onClick={() => setPetTab('active')}
+                    onClick={() => { setPetTab('active'); setDisplayLimit(50); }}
                     style={{
                         background: 'transparent',
                         border: 'none',
@@ -892,12 +941,35 @@ function PetsContent() {
                 >
                     <span>🐾 Pets Ativos</span>
                     <span style={{ fontSize: '0.75rem', background: petTab === 'active' ? 'var(--primary)' : 'rgba(255,255,255,0.08)', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>
-                        {activePets.length}
+                        {debouncedSearch && petTab === 'active' ? displayedPets.length : counts.active}
                     </span>
                 </button>
                 <button
                     type="button"
-                    onClick={() => setPetTab('deceased')}
+                    onClick={() => { setPetTab('inactive'); setDisplayLimit(50); }}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: petTab === 'inactive' ? '2px solid #eab308' : '2px solid transparent',
+                        color: petTab === 'inactive' ? 'white' : 'var(--text-secondary)',
+                        padding: '0.6rem 1rem',
+                        fontSize: '1rem',
+                        fontWeight: petTab === 'inactive' ? '600' : 'normal',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    <span>⏸️ Inativos</span>
+                    <span style={{ fontSize: '0.75rem', background: petTab === 'inactive' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255,255,255,0.08)', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>
+                        {debouncedSearch && petTab === 'inactive' ? displayedPets.length : counts.inactive}
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    onClick={() => { setPetTab('deceased'); setDisplayLimit(50); }}
                     style={{
                         background: 'transparent',
                         border: 'none',
@@ -915,7 +987,7 @@ function PetsContent() {
                 >
                     <span>🖤 Memorial (Falecidos)</span>
                     <span style={{ fontSize: '0.75rem', background: petTab === 'deceased' ? 'rgba(148, 163, 184, 0.3)' : 'rgba(255,255,255,0.08)', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>
-                        {deceasedPets.length}
+                        {debouncedSearch && petTab === 'deceased' ? displayedPets.length : counts.deceased}
                     </span>
                 </button>
             </div>
@@ -923,7 +995,13 @@ function PetsContent() {
             <div className={styles.actionGroup || ''} style={{ marginBottom: '1rem', width: '100%' }}>
                 <input
                     type="text"
-                    placeholder={petTab === 'active' ? "🔍 Buscar pet ativo por nome ou raça..." : "🔍 Buscar no Memorial por nome ou raça..."}
+                    placeholder={
+                        petTab === 'active' 
+                            ? "🔍 Buscar pet ativo por nome ou raça..." 
+                            : petTab === 'inactive'
+                            ? "🔍 Buscar pet inativo por nome ou raça..."
+                            : "🔍 Buscar no Memorial por nome ou raça..."
+                    }
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className={styles.input}
@@ -946,7 +1024,16 @@ function PetsContent() {
                             <tr key={pet.id} onClick={() => handleRowClick(pet)} style={{ cursor: 'pointer' }}>
                                 <td>
                                     <div className={styles.itemInfo}>
-                                        <div className={styles.avatar} style={pet.is_deceased ? { filter: 'grayscale(70%)', opacity: 0.85 } : undefined}>
+                                        <div 
+                                            className={styles.avatar} 
+                                            style={
+                                                pet.is_deceased 
+                                                    ? { filter: 'grayscale(70%)', opacity: 0.85 } 
+                                                    : pet.is_active === false 
+                                                    ? { opacity: 0.75, filter: 'grayscale(30%)' } 
+                                                    : undefined
+                                            }
+                                        >
                                             {pet.photo_url ? (
                                                 <img
                                                     src={pet.photo_url}
@@ -960,11 +1047,15 @@ function PetsContent() {
                                         <div>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                                                 <span className={styles.itemName}>{pet.name}</span>
-                                                {pet.is_deceased && (
+                                                {pet.is_deceased ? (
                                                     <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(100, 116, 139, 0.25)', color: '#cbd5e1', border: '1px solid rgba(100, 116, 139, 0.4)', fontWeight: 600 }}>
                                                         🖤 Memorial
                                                     </span>
-                                                )}
+                                                ) : pet.is_active === false ? (
+                                                    <span style={{ fontSize: '0.7rem', padding: '1px 6px', borderRadius: '4px', background: 'rgba(234, 179, 8, 0.15)', color: '#fde047', border: '1px solid rgba(234, 179, 8, 0.3)', fontWeight: 600 }}>
+                                                        ⏸️ Inativo
+                                                    </span>
+                                                ) : null}
                                             </div>
                                             <span className={styles.itemSub}>{pet.breed || 'Sem raça definida'}</span>
                                         </div>
@@ -1016,7 +1107,11 @@ function PetsContent() {
                 </table>
                 {displayedPets.length === 0 && (
                     <p style={{ textAlign: 'center', padding: '3rem', color: '#666' }}>
-                        {petTab === 'active' ? 'Nenhum pet ativo cadastrado.' : 'Nenhum pet no Memorial.'}
+                        {petTab === 'active' 
+                            ? 'Nenhum pet ativo cadastrado.' 
+                            : petTab === 'inactive' 
+                            ? 'Nenhum pet inativo.' 
+                            : 'Nenhum pet no Memorial.'}
                     </p>
                 )}
                 {hasMore && !debouncedSearch && (
@@ -1046,7 +1141,7 @@ function PetsContent() {
 
                         <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 100px)', paddingRight: '0.5rem' }}>
 
-                            {selectedPet?.is_deceased && (
+                            {selectedPet?.is_deceased ? (
                                 <div style={{
                                     background: 'rgba(100, 116, 139, 0.15)',
                                     border: '1px solid rgba(100, 116, 139, 0.3)',
@@ -1066,7 +1161,27 @@ function PetsContent() {
                                         </p>
                                     </div>
                                 </div>
-                            )}
+                            ) : selectedPet?.is_active === false ? (
+                                <div style={{
+                                    background: 'rgba(234, 179, 8, 0.12)',
+                                    border: '1px solid rgba(234, 179, 8, 0.3)',
+                                    borderRadius: '10px',
+                                    padding: '0.85rem 1.2rem',
+                                    marginBottom: '1rem',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.85rem',
+                                    color: '#fde047'
+                                }}>
+                                    <span style={{ fontSize: '1.5rem' }}>⏸️</span>
+                                    <div>
+                                        <strong style={{ fontSize: '0.95rem' }}>Pet Inativo</strong>
+                                        <p style={{ margin: '0.15rem 0 0 0', fontSize: '0.8rem', color: '#fef08a' }}>
+                                            Este pet está marcado como inativo (ex: parou de frequentar ou mudou de cidade). Todo o seu histórico continua preservado no sistema.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : null}
 
                             {/* 1. DADOS CADASTRAIS */}
                             <div className={styles.accordionItem}>
@@ -1201,6 +1316,20 @@ function PetsContent() {
                                                     <input name="existing_conditions" className={styles.input} defaultValue={selectedPet?.existing_conditions || ''} placeholder="Ex: Diabetes, Alergia..." />
                                                 </div>
                                                 <div className={`${styles.formGroup} ${styles.fullWidth}`} style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+                                                    <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', color: '#cbd5e1' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            name="is_inactive"
+                                                            defaultChecked={selectedPet ? selectedPet.is_active === false : false}
+                                                            style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                                                        />
+                                                        <span style={{ fontWeight: 600 }}>⏸️ Pet inativo (Mover para Inativos)</span>
+                                                    </label>
+                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'block', marginLeft: '1.75rem', marginTop: '0.2rem' }}>
+                                                        Marque caso o pet tenha parado de frequentar ou a família tenha se mudado. O pet sai da lista ativa do dia a dia e todo o histórico continua preservado.
+                                                    </span>
+                                                </div>
+                                                <div className={`${styles.formGroup} ${styles.fullWidth}`} style={{ marginTop: '0.5rem' }}>
                                                     <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', color: '#cbd5e1' }}>
                                                         <input
                                                             type="checkbox"

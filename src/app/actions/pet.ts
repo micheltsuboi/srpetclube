@@ -68,6 +68,8 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
     const vaccine_card_urls = formData.get('vaccine_card_urls') ? JSON.parse(formData.get('vaccine_card_urls') as string) : []
     const isAdapted = formData.get('is_adapted') === 'on'
     const isDeceased = formData.get('is_deceased') === 'on'
+    const isInactive = formData.get('is_inactive') === 'on'
+    const isActive = !isInactive
 
     const { error } = await supabaseAdmin
         .from('pets')
@@ -88,6 +90,7 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
             vaccine_card_urls: vaccine_card_urls,
             is_adapted: isAdapted,
             is_deceased: isDeceased,
+            is_active: isActive,
             color: color || null,
             characteristics: characteristics || null
         })
@@ -126,6 +129,8 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
     const vaccine_card_urls = formData.get('vaccine_card_urls') ? JSON.parse(formData.get('vaccine_card_urls') as string) : []
     const isAdapted = formData.get('is_adapted') === 'on'
     const isDeceased = formData.get('is_deceased') === 'on'
+    const isInactive = formData.get('is_inactive') === 'on'
+    const isActive = !isInactive
     const color = formData.get("color") as string;
     const characteristics = formData.get("characteristics") as string;
 
@@ -151,6 +156,7 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
             vaccine_card_urls: vaccine_card_urls,
             is_adapted: isAdapted,
             is_deceased: isDeceased,
+            is_active: isActive,
             color: color || null,
             characteristics: characteristics || null
         })
