@@ -364,6 +364,206 @@ function PetsContent() {
         }
     }
 
+    const handleGenerateGeneralStatement = async () => {
+        if (!selectedPet) return
+        if (!statementStartDate || !statementEndDate) {
+            alert('Por favor, selecione a data inicial e final do período.')
+            return
+        }
+
+        const anyModuleSelected = Object.values(statementModules).some(Boolean)
+        if (!anyModuleSelected) {
+            alert('Por favor, selecione pelo menos um módulo para incluir no extrato.')
+            return
+        }
+
+        setIsGeneratingGeneralStatement(true)
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user?.id).single()
+
+            if (!profile?.org_id) {
+                alert('Não foi possível identificar a organização.')
+                setIsGeneratingGeneralStatement(false)
+                return
+            }
+
+            const items: any[] = []
+            const includedNames: string[] = []
+
+            // 1. Atendimentos (Banho e Tosa, Creche, Hospedagem)
+            const needsAppointments = statementModules.banho || statementModules.creche || statementModules.hotel
+            if (needsAppointments) {
+                const { data: appts, error: apptError } = await supabase
+                    .from('appointments')
+                    .select(`
+                        id, scheduled_at, status, notes,
+                        has_taxi, taxi_fee, has_extras, extras_fee, extras,
+                        final_price, calculated_price, payment_status,
+                        package_credit_id, package_usage_index,
+                        check_in_date, check_out_date,
+                        services (
+                            id, name, base_price, category,
+                            service_categories ( id, name )
+                        )
+                    `)
+                    .eq('pet_id', selectedPet.id)
+                    .eq('org_id', profile.org_id)
+                    .gte('scheduled_at', `${statementStartDate}T00:00:00`)
+                    .lte('scheduled_at', `${statementEndDate}T23:59:59`)
+                    .order('scheduled_at', { ascending: false })
+
+                if (apptError) {
+                    console.error('Erro ao buscar atendimentos para extrato:', apptError)
+                } else if (appts) {
+                    appts.forEach((a: any) => {
+                        const serv = Array.isArray(a.services) ? a.services[0] : a.services
+                        const cat = Array.isArray(serv?.service_categories) ? serv?.service_categories[0] : serv?.service_categories
+                        const catName = (cat?.name || serv?.category || serv?.name || '').toLowerCase()
+
+                        let itemType: 'Banho e Tosa' | 'Creche' | 'Hospedagem' = 'Banho e Tosa'
+                        if (catName.includes('banho') || catName.includes('tosa')) itemType = 'Banho e Tosa'
+                        else if (catName.includes('creche')) itemType = 'Creche'
+                        else if (catName.includes('hospedagem') || catName.includes('hotel')) itemType = 'Hospedagem'
+
+                        const isBanhoSelected = itemType === 'Banho e Tosa' && statementModules.banho
+                        const isCrecheSelected = itemType === 'Creche' && statementModules.creche
+                        const isHotelSelected = itemType === 'Hospedagem' && statementModules.hotel
+
+                        if (isBanhoSelected || isCrecheSelected || isHotelSelected) {
+                            const details: string[] = []
+                            if (a.package_usage_index) details.push(`Sessão ${a.package_usage_index} do pacote`)
+                            if (a.has_taxi && a.taxi_fee) details.push(`+ Táxi Dog (R$ ${Number(a.taxi_fee).toFixed(2)})`)
+                            if (a.has_extras && a.extras_fee) details.push(`+ Extra (R$ ${Number(a.extras_fee).toFixed(2)})`)
+                            if (a.notes && a.notes.trim()) details.push(`Obs: ${a.notes.trim()}`)
+
+                            const rawPrice = a.package_credit_id ? 0 : (a.final_price ?? a.calculated_price ?? serv?.base_price ?? 0)
+
+                            items.push({
+                                id: a.id,
+                                date: a.scheduled_at,
+                                type: itemType,
+                                description: serv?.name || itemType,
+                                status: a.status,
+                                amount: Number(rawPrice) || 0,
+                                paymentStatus: a.package_credit_id ? 'paid' : (a.payment_status || 'pending'),
+                                details
+                            })
+                        }
+                    })
+                }
+            }
+
+            if (statementModules.banho) includedNames.push('Banho e Tosa')
+            if (statementModules.creche) includedNames.push('Creche')
+            if (statementModules.hotel) includedNames.push('Hospedagem')
+
+            // 2. Pedidos Avulsos / Pet Shop
+            if (statementModules.petshop) {
+                includedNames.push('Pet Shop')
+                const { data: sales, error: salesError } = await supabase
+                    .from('petshop_sales')
+                    .select('id, product_name, total_price, payment_status, created_at, description')
+                    .eq('pet_id', selectedPet.id)
+                    .eq('org_id', profile.org_id)
+                    .gte('created_at', `${statementStartDate}T00:00:00`)
+                    .lte('created_at', `${statementEndDate}T23:59:59`)
+                    .order('created_at', { ascending: false })
+
+                if (salesError) {
+                    console.error('Erro ao buscar compras de petshop:', salesError)
+                } else if (sales) {
+                    sales.forEach((s: any) => {
+                        const details: string[] = []
+                        if (s.description && s.description.trim()) details.push(s.description.trim())
+
+                        items.push({
+                            id: s.id,
+                            date: s.created_at,
+                            type: 'Pet Shop' as const,
+                            description: s.product_name,
+                            status: s.payment_status === 'paid' ? 'Pago' : 'Pendente',
+                            amount: Number(s.total_price) || 0,
+                            paymentStatus: s.payment_status || 'pending',
+                            details
+                        })
+                    })
+                }
+            }
+
+            // 3. Pacotes de Serviços
+            if (statementModules.packages) {
+                includedNames.push('Pacotes')
+                const { data: pkgs, error: pkgError } = await supabase
+                    .from('customer_packages')
+                    .select('id, total_paid, calculated_price, payment_status, discount_percent, purchased_at, payment_due_date, period_label, service_packages(name)')
+                    .eq('pet_id', selectedPet.id)
+                    .eq('org_id', profile.org_id)
+                    .or(`purchased_at.gte.${statementStartDate}T00:00:00,payment_due_date.gte.${statementStartDate}`)
+                    .order('purchased_at', { ascending: false })
+
+                if (pkgError) {
+                    console.error('Erro ao buscar pacotes do pet:', pkgError)
+                } else if (pkgs) {
+                    pkgs.forEach((p: any) => {
+                        const pkgDate = p.payment_due_date || p.purchased_at
+                        if (!pkgDate) return
+
+                        const dStr = pkgDate.split('T')[0]
+                        if (dStr < statementStartDate || dStr > statementEndDate) return
+
+                        const pkgName = (p.service_packages as any)?.name || 'Pacote de Serviços'
+                        const details: string[] = []
+                        if (p.period_label) details.push(`Referência: ${p.period_label}`)
+                        if (p.discount_percent && p.discount_percent > 0) details.push(`Desconto: ${p.discount_percent}%`)
+
+                        const pkgAmount = p.discount_percent === 100
+                            ? 0
+                            : (p.total_paid != null && (p.total_paid as any) !== '' ? Number(p.total_paid) : Number(p.calculated_price || 0))
+
+                        items.push({
+                            id: p.id,
+                            date: pkgDate,
+                            type: 'Pacote' as const,
+                            description: pkgName,
+                            status: p.payment_status === 'paid' ? 'Pago' : 'Pendente',
+                            amount: pkgAmount,
+                            paymentStatus: p.payment_status || 'pending',
+                            details
+                        })
+                    })
+                }
+            }
+
+            if (items.length === 0) {
+                const sFormatted = new Date(statementStartDate + 'T00:00:00').toLocaleDateString('pt-BR')
+                const eFormatted = new Date(statementEndDate + 'T00:00:00').toLocaleDateString('pt-BR')
+                alert(`Nenhum lançamento encontrado para os filtros selecionados no período de ${sFormatted} a ${eFormatted}.`)
+                setIsGeneratingGeneralStatement(false)
+                return
+            }
+
+            const { exportGeneralStatementPDF } = await import('@/utils/petGeneralStatementPdf')
+            exportGeneralStatementPDF({
+                pet: {
+                    name: selectedPet.name,
+                    breed: selectedPet.breed,
+                    species: selectedPet.species,
+                    customers: selectedPet.customers
+                },
+                startDate: statementStartDate,
+                endDate: statementEndDate,
+                includedCategories: includedNames,
+                items
+            })
+        } catch (err: any) {
+            console.error('Erro ao emitir extrato geral:', err)
+            alert(`Erro ao gerar o extrato em PDF: ${err?.message || 'Erro desconhecido.'}`)
+        } finally {
+            setIsGeneratingGeneralStatement(false)
+        }
+    }
+
     const isPending = isCreatePending || isUpdatePending
 
     const calculateAge = (birthDate: string | null) => {
@@ -382,7 +582,24 @@ function PetsContent() {
     }
 
     // Accordion State
-    const [accordions, setAccordions] = useState({ details: false, bathGrooming: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
+    const [accordions, setAccordions] = useState({ details: false, bathGrooming: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false, generalStatement: false })
+
+    // General Statement (Extrato Geral) States
+    const [statementStartDate, setStatementStartDate] = useState(() => {
+        const d = new Date()
+        return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
+    })
+    const [statementEndDate, setStatementEndDate] = useState(() => {
+        return new Date().toISOString().split('T')[0]
+    })
+    const [statementModules, setStatementModules] = useState({
+        banho: true,
+        creche: true,
+        hotel: true,
+        petshop: true,
+        packages: true
+    })
+    const [isGeneratingGeneralStatement, setIsGeneratingGeneralStatement] = useState(false)
 
     const toggleAccordion = async (key: keyof typeof accordions) => {
         setAccordions(prev => {
@@ -662,7 +879,7 @@ function PetsContent() {
         }
     }, [createState]) // Removido fetchData das dependências para evitar múltiplos alertas ao buscar
 
-    const handleRowClick = async (pet: Pet, initialAccordions?: Partial<{ details: boolean, bathGrooming: boolean, packages: boolean, creche: boolean, hotel: boolean, assessment: boolean, vaccines: boolean, petshop: boolean }>) => {
+    const handleRowClick = async (pet: Pet, initialAccordions?: Partial<{ details: boolean, bathGrooming: boolean, packages: boolean, creche: boolean, hotel: boolean, assessment: boolean, vaccines: boolean, petshop: boolean, generalStatement: boolean }>) => {
         setSelectedPet(pet)
         setIsViewingAssessment(false)
         setIsEditingAssessment(false)
@@ -675,6 +892,7 @@ function PetsContent() {
             assessment: false,
             vaccines: false,
             petshop: false,
+            generalStatement: false,
             ...initialAccordions
         })
 
@@ -785,7 +1003,7 @@ function PetsContent() {
         setPetAssessment(null)
         setIsViewingAssessment(false)
         setIsEditingAssessment(false)
-        setAccordions({ details: true, bathGrooming: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false })
+        setAccordions({ details: true, bathGrooming: false, packages: false, creche: false, hotel: false, assessment: false, vaccines: false, petshop: false, generalStatement: false })
         setResponsible2Phone('')
         setSelectedCustomerId('')
         setShowModal(true)
@@ -2956,6 +3174,204 @@ function PetsContent() {
                                                     </div>
                                                 )}
                                             </>
+                                        ) : (
+                                            <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Salve o pet primeiro.</div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* 7. Extrato Geral (PDF) */}
+                            <div className={styles.accordionItem}>
+                                <button type="button" onClick={() => toggleAccordion('generalStatement')} className={styles.accordionHeader}>
+                                    <span style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>📑 Extrato Geral do Pet (PDF)</span>
+                                    <span>{accordions.generalStatement ? '−' : '+'}</span>
+                                </button>
+                                {accordions.generalStatement && (
+                                    <div className={styles.accordionContent}>
+                                        {selectedPet ? (
+                                            <div>
+                                                <div style={{ marginBottom: '1.25rem' }}>
+                                                    <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '1rem', color: 'var(--text-primary)' }}>
+                                                        📄 Emissão de Extrato Completo
+                                                    </h4>
+                                                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                                        Gere um extrato em PDF contendo o histórico consolidado de atendimentos, compras e pacotes com seus respectivos valores.
+                                                    </p>
+                                                </div>
+
+                                                {/* Filtro de Período */}
+                                                <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '1.25rem' }}>
+                                                    <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+                                                        📅 Período do Extrato
+                                                    </label>
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                                        <div>
+                                                            <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Data Inicial</span>
+                                                            <input
+                                                                type="date"
+                                                                value={statementStartDate}
+                                                                onChange={e => setStatementStartDate(e.target.value)}
+                                                                className={styles.input}
+                                                                style={{ width: '100%' }}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Data Final</span>
+                                                            <input
+                                                                type="date"
+                                                                value={statementEndDate}
+                                                                onChange={e => setStatementEndDate(e.target.value)}
+                                                                className={styles.input}
+                                                                style={{ width: '100%' }}
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Atalhos de Período */}
+                                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const d = new Date()
+                                                                setStatementStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0])
+                                                                setStatementEndDate(new Date().toISOString().split('T')[0])
+                                                            }}
+                                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                                        >
+                                                            Mês Atual
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const d = new Date()
+                                                                const past30 = new Date(d.getTime() - 30 * 24 * 60 * 60 * 1000)
+                                                                setStatementStartDate(past30.toISOString().split('T')[0])
+                                                                setStatementEndDate(d.toISOString().split('T')[0])
+                                                            }}
+                                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                                        >
+                                                            Últimos 30 Dias
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const d = new Date()
+                                                                const past90 = new Date(d.getTime() - 90 * 24 * 60 * 60 * 1000)
+                                                                setStatementStartDate(past90.toISOString().split('T')[0])
+                                                                setStatementEndDate(d.toISOString().split('T')[0])
+                                                            }}
+                                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                                        >
+                                                            Últimos 90 Dias
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const d = new Date()
+                                                                setStatementStartDate(new Date(d.getFullYear(), 0, 1).toISOString().split('T')[0])
+                                                                setStatementEndDate(new Date().toISOString().split('T')[0])
+                                                            }}
+                                                            style={{ padding: '0.3rem 0.6rem', fontSize: '0.75rem', background: 'rgba(255,255,255,0.08)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                                        >
+                                                            Ano Atual
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                {/* Escolher o que vai aparecer no extrato */}
+                                                <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '1.5rem' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                                                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                                            ☑️ O que incluir no Extrato Geral:
+                                                        </label>
+                                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setStatementModules({ banho: true, creche: true, hotel: true, petshop: true, packages: true })}
+                                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', background: 'transparent', border: 'none', color: 'var(--primary)', cursor: 'pointer', textDecoration: 'underline' }}
+                                                            >
+                                                                Selecionar Todos
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setStatementModules({ banho: false, creche: false, hotel: false, petshop: false, packages: false })}
+                                                                style={{ padding: '0.2rem 0.5rem', fontSize: '0.7rem', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', textDecoration: 'underline' }}
+                                                            >
+                                                                Limpar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.6rem' }}>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-primary)', padding: '0.4rem 0.6rem', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={statementModules.banho}
+                                                                onChange={e => setStatementModules(prev => ({ ...prev, banho: e.target.checked }))}
+                                                            />
+                                                            🛁 Banho e Tosa
+                                                        </label>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-primary)', padding: '0.4rem 0.6rem', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={statementModules.creche}
+                                                                onChange={e => setStatementModules(prev => ({ ...prev, creche: e.target.checked }))}
+                                                            />
+                                                            🐕 Creche
+                                                        </label>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-primary)', padding: '0.4rem 0.6rem', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={statementModules.hotel}
+                                                                onChange={e => setStatementModules(prev => ({ ...prev, hotel: e.target.checked }))}
+                                                            />
+                                                            🏨 Hospedagem
+                                                        </label>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-primary)', padding: '0.4rem 0.6rem', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={statementModules.petshop}
+                                                                onChange={e => setStatementModules(prev => ({ ...prev, petshop: e.target.checked }))}
+                                                            />
+                                                            🛍️ Pedidos Avulsos / Pet Shop
+                                                        </label>
+                                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-primary)', padding: '0.4rem 0.6rem', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={statementModules.packages}
+                                                                onChange={e => setStatementModules(prev => ({ ...prev, packages: e.target.checked }))}
+                                                            />
+                                                            🎁 Pacotes de Serviços
+                                                        </label>
+                                                    </div>
+                                                </div>
+
+                                                {/* Botão de Ação */}
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleGenerateGeneralStatement}
+                                                        disabled={isGeneratingGeneralStatement}
+                                                        style={{
+                                                            padding: '0.75rem 1.5rem',
+                                                            background: 'linear-gradient(135deg, var(--primary) 0%, #1e3a8a 100%)',
+                                                            color: 'white',
+                                                            border: 'none',
+                                                            borderRadius: '8px',
+                                                            fontWeight: 700,
+                                                            fontSize: '0.95rem',
+                                                            cursor: isGeneratingGeneralStatement ? 'not-allowed' : 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '0.5rem',
+                                                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.2)'
+                                                        }}
+                                                    >
+                                                        {isGeneratingGeneralStatement ? '⏳ Gerando Extrato em PDF...' : '📄 Baixar Extrato Geral em PDF'}
+                                                    </button>
+                                                </div>
+                                            </div>
                                         ) : (
                                             <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>Salve o pet primeiro.</div>
                                         )}

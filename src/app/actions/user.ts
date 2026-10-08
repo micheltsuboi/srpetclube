@@ -33,6 +33,7 @@ export async function createUser(prevState: CreateUserState, formData: FormData)
     const password = formData.get('password') as string
     const fullName = formData.get('fullName') as string
     const role = formData.get('role') as string
+    const birthDate = (formData.get('birthDate') as string) || null
     const workScheduleStr = formData.get('workSchedule') as string
     const permissionsStr = formData.get('permissions') as string
 
@@ -40,7 +41,7 @@ export async function createUser(prevState: CreateUserState, formData: FormData)
         return { message: 'Todos os campos são obrigatórios.', success: false }
     }
 
-    let workSchedule = []
+    let workSchedule: any = []
     let permissions = []
     if (role === 'staff') {
         try {
@@ -72,23 +73,31 @@ export async function createUser(prevState: CreateUserState, formData: FormData)
         return { message: 'Erro inesperado ao criar usuário via Admin API.', success: false }
     }
 
-    // 4. Update Profile with correct Role and Org ID
-    // Note: The trigger might have created a profile already, so we should update it
-    // Or if we need to insert manually if the trigger isn't set up for admin.createUser
-    // Let's try update first, insert if not exists (upsert)
+    // 4. Update Profile with correct Role, Org ID and birth_date
+    const profilePayload: any = {
+        id: newUser.user.id,
+        email: email,
+        full_name: fullName,
+        role: role as 'admin' | 'staff' | 'customer',
+        org_id: profile.org_id,
+        work_schedule: workSchedule,
+        permissions: permissions,
+        is_active: true
+    }
+    if (birthDate) {
+        profilePayload.birth_date = birthDate
+    }
 
-    const { error: profileError } = await supabaseAdmin
+    let { error: profileError } = await supabaseAdmin
         .from('profiles')
-        .upsert({
-            id: newUser.user.id,
-            email: email,
-            full_name: fullName,
-            role: role as 'admin' | 'staff' | 'customer',
-            org_id: profile.org_id,
-            work_schedule: workSchedule,
-            permissions: permissions,
-            is_active: true
-        })
+        .upsert(profilePayload)
+
+    // Fallback se a coluna birth_date ainda não tiver sido criada no banco
+    if (profileError && profileError.message?.includes('birth_date')) {
+        delete profilePayload.birth_date
+        const retry = await supabaseAdmin.from('profiles').upsert(profilePayload)
+        profileError = retry.error
+    }
 
     if (profileError) {
         // Rollback user creation if profile fails (optional but good practice)
@@ -123,6 +132,7 @@ export async function updateUser(prevState: any, formData: FormData) {
     const userId = formData.get('userId') as string
     const fullName = formData.get('fullName') as string
     const role = formData.get('role') as string
+    const birthDate = (formData.get('birthDate') as string) || null
     const workScheduleStr = formData.get('workSchedule') as string
     const permissionsStr = formData.get('permissions') as string
     const isActive = formData.get('isActive') === 'true'
@@ -146,7 +156,8 @@ export async function updateUser(prevState: any, formData: FormData) {
     const updateData: any = {
         full_name: fullName,
         role: role as 'admin' | 'staff' | 'customer',
-        is_active: isActive
+        is_active: isActive,
+        birth_date: birthDate
     }
 
     if (role === 'staff' && workSchedule !== null) {
@@ -161,11 +172,21 @@ export async function updateUser(prevState: any, formData: FormData) {
         updateData.permissions = []
     }
 
-    const { error: updateError } = await supabaseAdmin
+    let { error: updateError } = await supabaseAdmin
         .from('profiles')
         .update(updateData)
         .eq('id', userId)
         .eq('org_id', profile.org_id) // Ensure we only update users in the same org
+
+    if (updateError && updateError.message?.includes('birth_date')) {
+        delete updateData.birth_date
+        const retry = await supabaseAdmin
+            .from('profiles')
+            .update(updateData)
+            .eq('id', userId)
+            .eq('org_id', profile.org_id)
+        updateError = retry.error
+    }
 
     if (updateError) {
         return { message: `Erro ao atualizar usuário: ${updateError.message}`, success: false }

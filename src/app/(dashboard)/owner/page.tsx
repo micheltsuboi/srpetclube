@@ -88,6 +88,17 @@ export default function OwnerDashboard() {
     })
     const [activePackagesCount, setActivePackagesCount] = useState(0)
 
+    // Aniversariantes do Mês
+    interface BirthdayUser {
+        id: string
+        full_name: string
+        role: string
+        birth_date: string
+        day: number
+        isToday: boolean
+    }
+    const [birthdayUsers, setBirthdayUsers] = useState<BirthdayUser[]>([])
+
     // Records for drill-down
     const [extractRecords, setExtractRecords] = useState<{
         type: 'revenue' | 'expenses' | 'pending' | null;
@@ -220,7 +231,7 @@ export default function OwnerDashboard() {
 
                 const realizedPendingTotal = realizedAppts.reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
                     + (pendingSalesData || []).reduce((sum, s) => sum + Number(s.total_price), 0)
-                    + (pendingPackagesData || []).reduce((sum, p) => sum + Number(p.total_paid || p.calculated_price || 0), 0)
+                    + (pendingPackagesData || []).reduce((sum, p) => sum + Number((p as any).discount_percent === 100 ? 0 : (p.total_paid != null && (p.total_paid as any) !== '' ? p.total_paid : (p.calculated_price || 0))), 0)
 
                 const forecastPendingTotal = forecastAppts.reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
 
@@ -451,6 +462,55 @@ export default function OwnerDashboard() {
                 
                 setActivePackagesCount(activePkgs || 0)
 
+                // 5. Fetch Staff / User Birthdays of the Month
+                try {
+                    let staffProfiles: any[] = []
+                    const { data: profilesList, error: pError } = await supabase
+                        .from('profiles')
+                        .select('id, full_name, email, role, birth_date, is_active')
+                        .eq('org_id', profile.org_id)
+                        .neq('role', 'customer')
+                        .eq('is_active', true)
+
+                    if (!pError && profilesList) {
+                        staffProfiles = profilesList
+                    } else {
+                        const { data: fallbackProfiles } = await supabase
+                            .from('profiles')
+                            .select('id, full_name, email, role, is_active')
+                            .eq('org_id', profile.org_id)
+                            .neq('role', 'customer')
+                            .eq('is_active', true)
+                        staffProfiles = fallbackProfiles || []
+                    }
+
+                    const currentMonth = now.getMonth() + 1 // 1-12
+                    const currentDay = now.getDate()
+
+                    const currentMonthBirthdays: BirthdayUser[] = []
+                    staffProfiles.forEach((user: any) => {
+                        if (!user.birth_date) return
+                        const parts = user.birth_date.split('-').map(Number)
+                        const m = parts[1]
+                        const d = parts[2]
+                        if (m === currentMonth) {
+                            currentMonthBirthdays.push({
+                                id: user.id,
+                                full_name: user.full_name || user.email,
+                                role: user.role === 'admin' || user.role === 'superadmin' ? 'Administrador' : 'Staff',
+                                birth_date: user.birth_date,
+                                day: d,
+                                isToday: d === currentDay
+                            })
+                        }
+                    })
+
+                    currentMonthBirthdays.sort((a, b) => a.day - b.day)
+                    setBirthdayUsers(currentMonthBirthdays)
+                } catch (bErr) {
+                    console.warn('Erro ao carregar aniversariantes:', bErr)
+                }
+
             } catch (error) {
                 console.error('Erro ao carregar dashboard:', error)
             } finally {
@@ -667,6 +727,55 @@ export default function OwnerDashboard() {
                         <span className={styles.cardLabel}>Agendamentos Hoje</span>
                     </div>
                 </div>
+                <div className={styles.financialCard}>
+                    <div className={styles.cardIcon}>🎂</div>
+                    <div className={styles.cardContent}>
+                        <span className={styles.cardValue}>{birthdayUsers.length}</span>
+                        <span className={styles.cardLabel}>Aniversariantes do Mês</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Card Detalhado Aniversariantes do Mês */}
+            <div className={styles.birthdayCard} style={{ marginBottom: '2rem' }}>
+                <div className={styles.birthdayHeader}>
+                    <h3 className={styles.birthdayTitle}>
+                        <span>🎂</span> Aniversariantes do Mês (Colaboradores & Equipe)
+                    </h3>
+                    <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span className={styles.birthdayBadge}>
+                            {birthdayUsers.length} {birthdayUsers.length === 1 ? 'aniversariante' : 'aniversariantes'} em {new Date().toLocaleString('pt-BR', { month: 'long' })}
+                        </span>
+                        <Link href="/owner/usuarios" style={{ fontSize: '0.85rem', color: '#c084fc', textDecoration: 'none', fontWeight: 600 }}>
+                            Gerenciar Usuários →
+                        </Link>
+                    </div>
+                </div>
+
+                {birthdayUsers.length > 0 ? (
+                    <div className={styles.birthdayList}>
+                        {birthdayUsers.map(bUser => (
+                            <div key={bUser.id} className={styles.birthdayItem}>
+                                <div className={styles.birthdayUser}>
+                                    <div className={styles.birthdayAvatar}>
+                                        {bUser.full_name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <div className={styles.birthdayInfo}>
+                                        <span className={styles.birthdayName}>{bUser.full_name}</span>
+                                        <span className={styles.birthdayRole}>{bUser.role}</span>
+                                    </div>
+                                </div>
+                                <div className={`${styles.birthdayDateTag} ${bUser.isToday ? styles.birthdayToday : ''}`}>
+                                    {bUser.isToday ? '🎉 É HOJE!' : `Dia ${bUser.day.toString().padStart(2, '0')}`}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className={styles.birthdayEmpty}>
+                        🎉 Nenhum colaborador ou funcionário faz aniversário neste mês.
+                    </div>
+                )}
             </div>
 
             {/* Financial Summary */}
@@ -1176,7 +1285,7 @@ export default function OwnerDashboard() {
                 customerName: tutorName,
                 title: `${petName} (${tutorName}) • Pacote: ${pkg.service_packages?.name || 'Serviço'}`,
                 date: pkg.purchased_at,
-                amount: pkg.total_paid || pkg.calculated_price || 0,
+                amount: (pkg as any).discount_percent === 100 ? 0 : (pkg.total_paid != null && (pkg.total_paid as any) !== '' ? Number(pkg.total_paid) : Number(pkg.calculated_price || 0)),
                 isRealized: true,
                 raw: pkg
             }

@@ -32,6 +32,7 @@ export interface Profile {
     email: string
     role: 'superadmin' | 'admin' | 'staff' | 'customer'
     is_active: boolean
+    birth_date?: string | null
     work_schedule?: any
     permissions?: string[]
     created_at: string
@@ -149,7 +150,7 @@ export default function UsuariosPage() {
         formData.append('role', user.role)
         formData.append('isActive', (!user.is_active).toString())
 
-        // Pass existing work schedule if any
+        if (user.birth_date) formData.append('birthDate', user.birth_date)
         if (user.work_schedule) formData.append('workSchedule', JSON.stringify(user.work_schedule))
         if (user.permissions) formData.append('permissions', JSON.stringify(user.permissions))
 
@@ -210,6 +211,7 @@ export default function UsuariosPage() {
                         <tr>
                             <th>Usuário</th>
                             <th>Função</th>
+                            <th>Aniversário</th>
                             <th>Status</th>
                             <th>Cadastro</th>
                             <th>Ações</th>
@@ -239,6 +241,15 @@ export default function UsuariosPage() {
                                         <span className={`${styles.roleBadge} ${styles[user.role]}`}>
                                             {user.role.includes('admin') ? '👑' : '🛠️'} {roleLabels[user.role] || user.role}
                                         </span>
+                                    </td>
+                                    <td>
+                                        {user.birth_date ? (
+                                            <span style={{ fontSize: '0.85rem', color: '#10b981', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 500 }}>
+                                                🎂 {new Date(user.birth_date + 'T12:00:00').toLocaleDateString('pt-BR')}
+                                            </span>
+                                        ) : (
+                                            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>-</span>
+                                        )}
                                     </td>
                                     <td>
                                         <span className={`${styles.statusBadge} ${user.is_active ? styles.active : styles.inactive}`}>
@@ -307,6 +318,16 @@ export default function UsuariosPage() {
                                         className={styles.input}
                                         placeholder="exemplo@email.com"
                                         required
+                                    />
+                                </div>
+
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="birthDate" className={styles.label}>🎂 Data de Nascimento / Aniversário</label>
+                                    <input
+                                        id="birthDate"
+                                        name="birthDate"
+                                        type="date"
+                                        className={styles.input}
                                     />
                                 </div>
 
@@ -449,6 +470,17 @@ export default function UsuariosPage() {
                                         defaultValue={selectedUser.email}
                                         disabled
                                         style={{ backgroundColor: 'rgba(255, 255, 255, 0.02)', cursor: 'not-allowed' }}
+                                    />
+                                </div>
+
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="editBirthDate" className={styles.label}>🎂 Data de Nascimento / Aniversário</label>
+                                    <input
+                                        id="editBirthDate"
+                                        name="birthDate"
+                                        type="date"
+                                        className={styles.input}
+                                        defaultValue={selectedUser.birth_date || ''}
                                     />
                                 </div>
 

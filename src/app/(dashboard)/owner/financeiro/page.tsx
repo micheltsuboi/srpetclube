@@ -553,6 +553,12 @@ export default function FinanceiroPage() {
         return effectiveDate <= todayEnd
     }
 
+    const getPackageAmount = (p: any): number => {
+        if (p.discount_percent === 100) return 0
+        if (p.total_paid != null && p.total_paid !== '') return Number(p.total_paid)
+        return Number(p.calculated_price || 0)
+    }
+
     const realizedPendingTotal = extractRecords.allPendingAppts
         .filter(a => isApptRealized(a))
         .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
@@ -563,7 +569,7 @@ export default function FinanceiroPage() {
         + extractRecords.pendingPackages
             .filter(p => isPackageRealized(p))
             .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
-            .reduce((sum, p) => sum + (p.total_paid || p.calculated_price || 0), 0)
+            .reduce((sum, p) => sum + getPackageAmount(p), 0)
 
     const forecastPendingTotal = extractRecords.allPendingAppts
         .filter(a => !isApptRealized(a))
@@ -572,7 +578,7 @@ export default function FinanceiroPage() {
         + extractRecords.pendingPackages
             .filter(p => !isPackageRealized(p))
             .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
-            .reduce((sum, p) => sum + (p.total_paid || p.calculated_price || 0), 0)
+            .reduce((sum, p) => sum + getPackageAmount(p), 0)
 
     const pendingTotal = realizedPendingTotal + forecastPendingTotal
 
@@ -656,7 +662,7 @@ export default function FinanceiroPage() {
                     const effectiveDate = getPackageEffectiveDate(pkg) || pkg.purchased_at;
                     const petName = pkg.pets?.name || 'Pet';
                     const pkgName = pkg.service_packages?.name || 'Pacote';
-                    const amount = pkg.total_paid || pkg.calculated_price || 0;
+                    const amount = getPackageAmount(pkg);
                     rows.push([
                         `${petName} • Pacote: ${pkgName}`,
                         new Date(effectiveDate.includes('T') ? effectiveDate : effectiveDate + 'T12:00:00').toLocaleDateString('pt-BR'),
@@ -743,7 +749,7 @@ export default function FinanceiroPage() {
                     const effectiveDate = getPackageEffectiveDate(pkg) || pkg.purchased_at;
                     const petName = pkg.pets?.name || 'Pet';
                     const pkgName = pkg.service_packages?.name || 'Pacote';
-                    const amount = pkg.total_paid || pkg.calculated_price || 0;
+                    const amount = getPackageAmount(pkg);
                     rows.push([
                         `${petName} • Pacote: ${pkgName}`,
                         new Date(effectiveDate.includes('T') ? effectiveDate : effectiveDate + 'T12:00:00').toLocaleDateString('pt-BR'),
@@ -1181,7 +1187,7 @@ export default function FinanceiroPage() {
                 customerName: tutorName,
                 title: `${petName} (${tutorName}) • Pacote: ${pkg.service_packages?.name || 'Serviço'}`,
                 date: effectiveDate || pkg.purchased_at,
-                amount: pkg.total_paid || pkg.calculated_price || 0,
+                amount: getPackageAmount(pkg),
                 isRealized,
                 raw: pkg
             }

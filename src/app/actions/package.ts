@@ -447,7 +447,9 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
             .single()
 
         if (!pkgError && pkg) {
-            const amount = pkg.total_paid || pkg.calculated_price || 0
+            const amount = (pkg as any).discount_percent === 100
+                ? 0
+                : (pkg.total_paid != null && (pkg.total_paid as any) !== '' ? Number(pkg.total_paid) : Number(pkg.calculated_price || 0))
             const packageName = (pkg.service_packages as any)?.name || 'Pacote'
             const targetName = (pkg.pets as any)?.name || (pkg.customers as any)?.name || 'Cliente'
 
@@ -458,7 +460,7 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
                 .eq('description', `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`)
                 .limit(1)
 
-            if (!existing || existing.length === 0) {
+            if (amount > 0 && (!existing || existing.length === 0)) {
                 await addFinancialTransaction({
                     type: 'income',
                     category: 'Pacotes',
@@ -521,7 +523,8 @@ export async function applyPackageDiscount(id: string, value: number, type: 'per
         .from('customer_packages')
         .update({
             discount_percent: parseFloat(discountPercent.toFixed(2)),
-            total_paid: parseFloat(finalPrice.toFixed(2))
+            total_paid: parseFloat(finalPrice.toFixed(2)),
+            calculated_price: parseFloat(finalPrice.toFixed(2))
         })
         .eq('id', id)
 
@@ -625,7 +628,7 @@ export async function sellPackageToPet(
             package_id: packageId,
             org_id: profile.org_id,
             total_paid: totalPaid,
-            calculated_price: (packageData.total_price || totalPaid) + (taxiFee || 0),
+            calculated_price: discountPercent === 100 ? 0 : (totalPaid != null ? totalPaid : ((packageData.total_price || 0) + (taxiFee || 0))),
             discount_percent: discountPercent || 0,
             expires_at,
             preferred_weekdays: preferredWeekdays ?? null,

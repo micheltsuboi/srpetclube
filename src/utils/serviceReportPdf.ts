@@ -30,6 +30,8 @@ export interface ServiceReportAppointment {
     has_extras?: boolean | null
     extras_fee?: number | null
     extras?: any
+    final_price?: number | null
+    calculated_price?: number | null
     appointment_extras?: Array<{
         name: string
         price: number
@@ -281,21 +283,27 @@ export function exportServiceReportPDF({
         const staffName = appt.staff?.full_name || 'Equipe Sr Pet'
         const statusLabel = translateStatus(appt.status)
 
+        const rawVal = appt.final_price ?? appt.calculated_price ?? serv?.base_price ?? 0
+        const priceFormatted = appt.package_credit_id
+            ? 'Pacote'
+            : (Number(rawVal) > 0 ? `R$ ${Number(rawVal).toFixed(2).replace('.', ',')}` : 'R$ 0,00')
+
         return [
             dateCol,
             serviceDesc,
             staffName,
-            statusLabel
+            statusLabel,
+            priceFormatted
         ]
     })
 
     if (tableRows.length === 0) {
-        tableRows.push(['-', 'Nenhum atendimento registrado no período selecionado', '-', '-'])
+        tableRows.push(['-', 'Nenhum atendimento registrado no período selecionado', '-', '-', '-'])
     }
 
     autoTable(doc, {
         startY: currentY,
-        head: [['Data / Horário', 'Serviço / Detalhes / Extras', 'Profissional', 'Status']],
+        head: [['Data / Horário', 'Serviço / Detalhes / Extras', 'Profissional', 'Status', 'Valor']],
         body: tableRows,
         theme: 'striped',
         headStyles: {
@@ -312,10 +320,11 @@ export function exportServiceReportPDF({
             fillColor: [250, 252, 255]
         },
         columnStyles: {
-            0: { cellWidth: 38 },
-            1: { cellWidth: 80 },
-            2: { cellWidth: 36 },
-            3: { cellWidth: 28, halign: 'center' }
+            0: { cellWidth: 34 },
+            1: { cellWidth: 68 },
+            2: { cellWidth: 32 },
+            3: { cellWidth: 24, halign: 'center' },
+            4: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
         },
         margin: { left: 14, right: 14 },
         didParseCell: (data) => {

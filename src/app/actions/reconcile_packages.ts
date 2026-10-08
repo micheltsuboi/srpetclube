@@ -45,22 +45,26 @@ export async function reconcilePaidPackages() {
 
         if (!existingTx || existingTx.length === 0) {
             // 3. Criar transação faltante
-            const amount = pkg.total_paid || pkg.calculated_price || 0
+            const amount = (pkg as any).discount_percent === 100
+                ? 0
+                : (pkg.total_paid != null && (pkg.total_paid as any) !== '' ? Number(pkg.total_paid) : Number(pkg.calculated_price || 0))
             const packageName = Array.isArray(pkg.service_packages) 
                 ? pkg.service_packages[0]?.name 
                 : (pkg.service_packages as any)?.name || 'Pacote'
             
             const targetName = petName || customerName || 'Cliente'
 
-            await addFinancialTransaction({
-                type: 'income',
-                category: 'Pacotes',
-                name: `Venda de Pacote: ${packageName} (Retroativo)`,
-                amount: amount,
-                date: pkg.purchased_at, // DATA ORIGINAL
-                payment_method: pkg.payment_method || 'other',
-                description: `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`
-            })
+            if (amount > 0) {
+                await addFinancialTransaction({
+                    type: 'income',
+                    category: 'Pacotes',
+                    name: `Venda de Pacote: ${packageName} (Retroativo)`,
+                    amount: amount,
+                    date: pkg.purchased_at, // DATA ORIGINAL
+                    payment_method: pkg.payment_method || 'other',
+                    description: `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`
+                })
+            }
             createdCount++
         }
     }
