@@ -128,12 +128,14 @@ export function exportGeneralStatementPDF({
     doc.setFont('helvetica', 'bold')
     doc.text('Pet:', 18, currentY + 15)
     doc.setFont('helvetica', 'normal')
-    doc.text(`${pet.name} (${pet.breed || 'Sem raça definida'})`, 28, currentY + 15)
+    const petLabel = `${pet.name} (${pet.breed || 'Sem raça definida'})`
+    doc.text(petLabel, 28, currentY + 15, { maxWidth: 78 })
 
     doc.setFont('helvetica', 'bold')
     doc.text('Tutor:', 110, currentY + 15)
     doc.setFont('helvetica', 'normal')
-    doc.text(`${pet.customers?.name || 'Não informado'}`, 122, currentY + 15)
+    const tutorLabel = `${pet.customers?.name || 'Não informado'}`
+    doc.text(tutorLabel, 122, currentY + 15, { maxWidth: 70 })
 
     // Linha 2: Contato
     if (pet.customers?.phone_1) {
@@ -158,58 +160,63 @@ export function exportGeneralStatementPDF({
     const paidAmount = items
         .filter(item => ['paid', 'pago'].includes((item.paymentStatus || '').toLowerCase()))
         .reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
-    const pendingAmount = totalAmount - paidAmount
+    const pendingAmount = Math.max(0, totalAmount - paidAmount)
+
+    const catsText = includedCategories.length > 0 ? includedCategories.join(', ') : 'Todos os módulos'
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    const splitCats = doc.splitTextToSize(catsText, 150)
+    const extraCatsHeight = (splitCats.length - 1) * 4.5
+    const cardHeight = 35 + extraCatsHeight
 
     doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
     doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
-    doc.roundedRect(14, currentY, 182, 32, 3, 3, 'FD')
+    doc.roundedRect(14, currentY, 182, cardHeight, 3, 3, 'FD')
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(10)
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
     doc.text('RESUMO DO EXTRATO & TOTAIS', 18, currentY + 7)
 
-    doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
 
-    // Período
+    // Linha 1: Período (esquerda) e VALOR TOTAL (direita)
     doc.setFont('helvetica', 'bold')
     doc.text('Período:', 18, currentY + 15)
     doc.setFont('helvetica', 'normal')
-    doc.text(`${startFormatted} a ${endFormatted}`, 35, currentY + 15)
+    doc.text(`${startFormatted} a ${endFormatted}`, 34, currentY + 15)
 
-    // Filtros selecionados
     doc.setFont('helvetica', 'bold')
-    doc.text('Módulos Incluídos:', 18, currentY + 21)
-    doc.setFont('helvetica', 'normal')
-    const catsText = includedCategories.length > 0 ? includedCategories.join(', ') : 'Todos'
-    doc.text(catsText.length > 55 ? catsText.substring(0, 52) + '...' : catsText, 55, currentY + 21)
-
-    // Quantidade total
-    doc.setFont('helvetica', 'bold')
-    doc.text('Lançamentos:', 18, currentY + 27)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`${totalCount} item(s)`, 44, currentY + 27)
-
-    // Totais Financeiros no lado direito
-    doc.setFont('helvetica', 'bold')
-    doc.text('VALOR TOTAL:', 110, currentY + 15)
-    doc.setFont('helvetica', 'bold')
+    doc.text('VALOR TOTAL:', 115, currentY + 15)
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-    doc.text(formatCurrency(totalAmount), 140, currentY + 15)
+    doc.text(formatCurrency(totalAmount), 143, currentY + 15)
 
+    // Linha 2: Quantidade de lançamentos (esquerda) e Status de pagamento (direita)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(textColor[0], textColor[1], textColor[2])
+    doc.text('Lançamentos:', 18, currentY + 21)
     doc.setFont('helvetica', 'normal')
+    doc.text(`${totalCount} item(s)`, 44, currentY + 21)
+
+    doc.setFont('helvetica', 'bold')
     doc.setTextColor(16, 185, 129) // Verde
-    doc.text(`Pago: ${formatCurrency(paidAmount)}`, 110, currentY + 21)
+    doc.text(`Pago: ${formatCurrency(paidAmount)}`, 115, currentY + 21)
 
     if (pendingAmount > 0) {
-        doc.setTextColor(245, 158, 11) // Âmbar
-        doc.text(`A Pagar: ${formatCurrency(pendingAmount)}`, 110, currentY + 27)
+        doc.setTextColor(220, 38, 38) // Vermelho
+        doc.text(`A Pagar: ${formatCurrency(pendingAmount)}`, 155, currentY + 21)
     }
 
+    // Linha 3: Módulos Incluídos (linha dedicada com largura total)
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
-    currentY += 38
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.text('Módulos:', 18, currentY + 28)
+    doc.setFont('helvetica', 'normal')
+    doc.text(splitCats, 35, currentY + 28)
+
+    currentY += cardHeight + 7
 
     // 4. Tabela de Lançamentos Detalhada
     doc.setFont('helvetica', 'bold')
