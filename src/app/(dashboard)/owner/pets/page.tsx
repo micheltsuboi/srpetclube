@@ -388,13 +388,13 @@ function PetsContent() {
                 return
             }
 
-            const items: any[] = []
             const includedNames: string[] = []
 
-            // 1. Atendimentos (Banho e Tosa, Creche, Hospedagem)
-            const needsAppointments = statementModules.banho || statementModules.creche || statementModules.hotel
+            // 1. Atendimentos no período
+            const needsAppointments = statementModules.banho || statementModules.creche || statementModules.hotel || statementModules.packages
+            let appts: any[] = []
             if (needsAppointments) {
-                const { data: appts, error: apptError } = await supabase
+                const { data: apptsData, error: apptError } = await supabase
                     .from('appointments')
                     .select(`
                         id, scheduled_at, status, notes,
@@ -415,50 +415,146 @@ function PetsContent() {
 
                 if (apptError) {
                     console.error('Erro ao buscar atendimentos para extrato:', apptError)
-                } else if (appts) {
-                    appts.forEach((a: any) => {
-                        const serv = Array.isArray(a.services) ? a.services[0] : a.services
-                        const cat = Array.isArray(serv?.service_categories) ? serv?.service_categories[0] : serv?.service_categories
-                        const catName = (cat?.name || serv?.category || serv?.name || '').toLowerCase()
+                } else if (apptsData) {
+                    appts = apptsData
+                }
+            }
 
-                        let itemType: 'Banho e Tosa' | 'Creche' | 'Hospedagem' = 'Banho e Tosa'
-                        if (catName.includes('banho') || catName.includes('tosa')) itemType = 'Banho e Tosa'
-                        else if (catName.includes('creche')) itemType = 'Creche'
-                        else if (catName.includes('hospedagem') || catName.includes('hotel')) itemType = 'Hospedagem'
+            // 2. Pacotes de Serviços
+            let packagesList: any[] = []
+            const usedPackageIds = appts.map(a => a.package_credit_id).filter(Boolean)
 
-                        const isBanhoSelected = itemType === 'Banho e Tosa' && statementModules.banho
-                        const isCrecheSelected = itemType === 'Creche' && statementModules.creche
-                        const isHotelSelected = itemType === 'Hospedagem' && statementModules.hotel
+            if (statementModules.packages) {
+                includedNames.push('Pacotes')
+                const { data: pkgsData, error: pkgError } = await supabase
+                    .from('customer_packages')
+                    .select('id, total_paid, calculated_price, payment_status, discount_percent, purchased_at, payment_due_date, period_label, service_packages(name)')
+                    .eq('pet_id', selectedPet.id)
+                    .eq('org_id', profile.org_id)
+                    .order('purchased_at', { ascending: false })
 
-                        if (isBanhoSelected || isCrecheSelected || isHotelSelected) {
-                            const details: string[] = []
-                            if (a.package_usage_index) details.push(`Sessão ${a.package_usage_index} do pacote`)
-                            if (a.has_taxi && a.taxi_fee) details.push(`+ Táxi Dog (R$ ${Number(a.taxi_fee).toFixed(2)})`)
-                            if (a.has_extras && a.extras_fee) details.push(`+ Extra (R$ ${Number(a.extras_fee).toFixed(2)})`)
-                            if (a.notes && a.notes.trim()) details.push(`Obs: ${a.notes.trim()}`)
+                if (pkgError) {
+                    console.error('Erro ao buscar pacotes do pet:', pkgError)
+                } else if (pkgsData) {
+                    // Filtrar pacotes: se a data do pacote está dentro do período OU se o pacote teve sessão utilizada no período
+                    const relevantPkgs = pkgsData.filter(p => {
+                        const pkgDate = p.payment_due_date || p.purchased_at
+                        const dStr = pkgDate ? pkgDate.split('T')[0] : ''
+                        const isInPeriod = dStr >= statementStartDate && dStr <= statementEndDate
+                        const hasUsageInPeriod = usedPackageIds.includes(p.id)
+                        return isInPeriod || hasUsageInPeriod
+                    })
 
-                            const rawPrice = a.package_credit_id ? 0 : (a.final_price ?? a.calculated_price ?? serv?.base_price ?? 0)
+                    packagesList = relevantPkgs.map(p => {
+                        const pkgDate = p.payment_due_date || p.purchased_at
+                        const pkgName = (p.service_packages as any)?.name || 'Pacote de Serviços'
+                        const pkgAmount = p.discount_percent === 100
+                            ? 0
+                            : (p.total_paid != null && (p.total_paid as any) !== '' ? Number(p.total_paid) : Number(p.calculated_price || 0))
 
-                            items.push({
+                        // Filtrar agendamentos que pertencem a este pacote
+                        const pkgAppts = appts.filter(a => a.package_credit_id === p.id)
+
+                        const sessions = pkgAppts.map(a => {
+                            const serv = Array.isArray(a.services) ? a.services[0] : a.services
+                            const servName = serv?.name || 'Sessão de Pacote'
+
+                            // Detalhes de Extras e Táxi
+                            const extraNames: string[] = []
+                            let extraTotalFee = 0
+
+                            if (a.has_extras && a.extras_fee) {
+                                extraTotalFee += Number(a.extras_fee)
+                                if (Array.isArray(a.extras) && a.extras.length > 0) {
+                                    a.extras.forEach((ext: any) => {
+                                        const extName = typeof ext === 'string' ? ext : ext.name || 'Extra'
+                                        const extPrice = typeof ext === 'object' && ext.price ? ` (R$ ${Number(ext.price).toFixed(2).replace('.', ',')})` : ''
+                                        extraNames.push(`${extName}${extPrice}`)
+                                    })
+                                } else {
+                                    extraNames.push(`Serviço Extra (R$ ${Number(a.extras_fee).toFixed(2).replace('.', ',')})`)
+                                }
+                            }
+
+                            if (a.has_taxi && a.taxi_fee) {
+                                extraTotalFee += Number(a.taxi_fee)
+                                extraNames.push(`Táxi Dog (R$ ${Number(a.taxi_fee).toFixed(2).replace('.', ',')})`)
+                            }
+
+                            return {
                                 id: a.id,
                                 date: a.scheduled_at,
-                                type: itemType,
-                                description: serv?.name || itemType,
+                                serviceName: servName,
+                                sessionIndex: a.package_usage_index,
                                 status: a.status,
-                                amount: Number(rawPrice) || 0,
-                                paymentStatus: a.package_credit_id ? 'paid' : (a.payment_status || 'pending'),
-                                details
-                            })
+                                hasExtras: extraNames.length > 0,
+                                extrasDescription: extraNames.join(' + '),
+                                extrasAmount: extraTotalFee,
+                                extrasPaymentStatus: a.payment_status || 'pending',
+                                notes: a.notes
+                            }
+                        }).sort((s1, s2) => new Date(s1.date).getTime() - new Date(s2.date).getTime())
+
+                        return {
+                            id: p.id,
+                            name: pkgName,
+                            date: pkgDate,
+                            amount: pkgAmount,
+                            paymentStatus: p.payment_status || 'pending',
+                            periodLabel: p.period_label,
+                            discountPercent: p.discount_percent,
+                            sessions
                         }
                     })
                 }
             }
 
+            // 3. Atendimentos Avulsos (Banho, Creche, Hotel sem pacote)
+            const standaloneItems: any[] = []
+
             if (statementModules.banho) includedNames.push('Banho e Tosa')
             if (statementModules.creche) includedNames.push('Creche')
             if (statementModules.hotel) includedNames.push('Hospedagem')
 
-            // 2. Pedidos Avulsos / Pet Shop
+            appts.forEach((a: any) => {
+                // Se pertence a um pacote e o módulo de pacotes está ativo, já foi para a seção do pacote!
+                if (a.package_credit_id && statementModules.packages) return
+
+                const serv = Array.isArray(a.services) ? a.services[0] : a.services
+                const cat = Array.isArray(serv?.service_categories) ? serv?.service_categories[0] : serv?.service_categories
+                const catName = (cat?.name || serv?.category || serv?.name || '').toLowerCase()
+
+                let itemType: 'Banho e Tosa' | 'Creche' | 'Hospedagem' = 'Banho e Tosa'
+                if (catName.includes('banho') || catName.includes('tosa')) itemType = 'Banho e Tosa'
+                else if (catName.includes('creche')) itemType = 'Creche'
+                else if (catName.includes('hospedagem') || catName.includes('hotel')) itemType = 'Hospedagem'
+
+                const isBanhoSelected = itemType === 'Banho e Tosa' && statementModules.banho
+                const isCrecheSelected = itemType === 'Creche' && statementModules.creche
+                const isHotelSelected = itemType === 'Hospedagem' && statementModules.hotel
+
+                if (isBanhoSelected || isCrecheSelected || isHotelSelected) {
+                    const details: string[] = []
+                    if (a.has_taxi && a.taxi_fee) details.push(`+ Táxi Dog (R$ ${Number(a.taxi_fee).toFixed(2).replace('.', ',')})`)
+                    if (a.has_extras && a.extras_fee) details.push(`+ Extra (R$ ${Number(a.extras_fee).toFixed(2).replace('.', ',')})`)
+                    if (a.notes && a.notes.trim()) details.push(`Obs: ${a.notes.trim()}`)
+
+                    const rawPrice = a.package_credit_id ? 0 : (a.final_price ?? a.calculated_price ?? serv?.base_price ?? 0)
+
+                    standaloneItems.push({
+                        id: a.id,
+                        date: a.scheduled_at,
+                        type: itemType,
+                        description: serv?.name || itemType,
+                        status: a.status,
+                        amount: Number(rawPrice) || 0,
+                        paymentStatus: a.package_credit_id ? 'paid' : (a.payment_status || 'pending'),
+                        details
+                    })
+                }
+            })
+
+            // 4. Pedidos Avulsos / Pet Shop
             if (statementModules.petshop) {
                 includedNames.push('Pet Shop')
                 const { data: sales, error: salesError } = await supabase
@@ -477,7 +573,7 @@ function PetsContent() {
                         const details: string[] = []
                         if (s.description && s.description.trim()) details.push(s.description.trim())
 
-                        items.push({
+                        standaloneItems.push({
                             id: s.id,
                             date: s.created_at,
                             type: 'Pet Shop' as const,
@@ -491,51 +587,7 @@ function PetsContent() {
                 }
             }
 
-            // 3. Pacotes de Serviços
-            if (statementModules.packages) {
-                includedNames.push('Pacotes')
-                const { data: pkgs, error: pkgError } = await supabase
-                    .from('customer_packages')
-                    .select('id, total_paid, calculated_price, payment_status, discount_percent, purchased_at, payment_due_date, period_label, service_packages(name)')
-                    .eq('pet_id', selectedPet.id)
-                    .eq('org_id', profile.org_id)
-                    .or(`purchased_at.gte.${statementStartDate}T00:00:00,payment_due_date.gte.${statementStartDate}`)
-                    .order('purchased_at', { ascending: false })
-
-                if (pkgError) {
-                    console.error('Erro ao buscar pacotes do pet:', pkgError)
-                } else if (pkgs) {
-                    pkgs.forEach((p: any) => {
-                        const pkgDate = p.payment_due_date || p.purchased_at
-                        if (!pkgDate) return
-
-                        const dStr = pkgDate.split('T')[0]
-                        if (dStr < statementStartDate || dStr > statementEndDate) return
-
-                        const pkgName = (p.service_packages as any)?.name || 'Pacote de Serviços'
-                        const details: string[] = []
-                        if (p.period_label) details.push(`Referência: ${p.period_label}`)
-                        if (p.discount_percent && p.discount_percent > 0) details.push(`Desconto: ${p.discount_percent}%`)
-
-                        const pkgAmount = p.discount_percent === 100
-                            ? 0
-                            : (p.total_paid != null && (p.total_paid as any) !== '' ? Number(p.total_paid) : Number(p.calculated_price || 0))
-
-                        items.push({
-                            id: p.id,
-                            date: pkgDate,
-                            type: 'Pacote' as const,
-                            description: pkgName,
-                            status: p.payment_status === 'paid' ? 'Pago' : 'Pendente',
-                            amount: pkgAmount,
-                            paymentStatus: p.payment_status || 'pending',
-                            details
-                        })
-                    })
-                }
-            }
-
-            if (items.length === 0) {
+            if (packagesList.length === 0 && standaloneItems.length === 0) {
                 const sFormatted = new Date(statementStartDate + 'T00:00:00').toLocaleDateString('pt-BR')
                 const eFormatted = new Date(statementEndDate + 'T00:00:00').toLocaleDateString('pt-BR')
                 alert(`Nenhum lançamento encontrado para os filtros selecionados no período de ${sFormatted} a ${eFormatted}.`)
@@ -554,7 +606,8 @@ function PetsContent() {
                 startDate: statementStartDate,
                 endDate: statementEndDate,
                 includedCategories: includedNames,
-                items
+                packages: packagesList,
+                standaloneItems
             })
         } catch (err: any) {
             console.error('Erro ao emitir extrato geral:', err)

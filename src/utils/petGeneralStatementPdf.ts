@@ -11,10 +11,34 @@ export interface GeneralStatementPetInfo {
     } | null
 }
 
-export interface GeneralStatementItem {
+export interface GeneralStatementSessionItem {
     id: string
     date: string // ISO ou YYYY-MM-DD
-    type: 'Banho e Tosa' | 'Creche' | 'Hospedagem' | 'Pet Shop' | 'Pacote' | 'Outro'
+    serviceName: string
+    sessionIndex?: number | null // ex: 1, 2...
+    status: string // 'done', 'scheduled', etc.
+    hasExtras: boolean
+    extrasDescription?: string // ex: "Hidratação de Pelos + Táxi Dog"
+    extrasAmount: number // valor cobrado pelo extra (R$)
+    extrasPaymentStatus?: string // 'paid', 'pending'
+    notes?: string
+}
+
+export interface GeneralStatementPackageItem {
+    id: string
+    name: string
+    date: string // purchased_at ou payment_due_date
+    amount: number // valor total do pacote
+    paymentStatus: string // 'paid', 'pending'
+    periodLabel?: string
+    discountPercent?: number
+    sessions: GeneralStatementSessionItem[]
+}
+
+export interface GeneralStatementStandaloneItem {
+    id: string
+    date: string // ISO ou YYYY-MM-DD
+    type: 'Banho e Tosa' | 'Creche' | 'Hospedagem' | 'Pet Shop' | 'Outro'
     description: string
     status: string
     amount: number
@@ -27,7 +51,8 @@ export interface ExportGeneralStatementOptions {
     startDate: string // YYYY-MM-DD
     endDate: string   // YYYY-MM-DD
     includedCategories: string[]
-    items: GeneralStatementItem[]
+    packages?: GeneralStatementPackageItem[]
+    standaloneItems?: GeneralStatementStandaloneItem[]
 }
 
 function translateStatus(status: string): string {
@@ -69,12 +94,24 @@ function formatCurrency(value: number): string {
     }).format(value)
 }
 
+function formatDateCol(dateStr: string): string {
+    try {
+        const dateObj = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T12:00:00')
+        const formattedDate = dateObj.toLocaleDateString('pt-BR')
+        const weekday = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase()
+        return `${formattedDate}\n(${weekday})`
+    } catch {
+        return dateStr
+    }
+}
+
 export function exportGeneralStatementPDF({
     pet,
     startDate,
     endDate,
     includedCategories = [],
-    items = []
+    packages = [],
+    standaloneItems = []
 }: ExportGeneralStatementOptions) {
     const doc = new jsPDF()
 
@@ -96,7 +133,7 @@ export function exportGeneralStatementPDF({
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     doc.setTextColor(230, 235, 245)
-    doc.text('Extrato Geral Unificado do Pet', 14, 19)
+    doc.text('Extrato Geral Consolidado do Pet', 14, 19)
 
     // Data de emissão no canto direito do cabeçalho
     const emissionDate = new Date().toLocaleDateString('pt-BR', {
@@ -147,7 +184,7 @@ export function exportGeneralStatementPDF({
 
     currentY += 32
 
-    // 3. Bloco de Resumo do Período, Filtros e Totais Financeiros
+    // 3. Bloco de Resumo Financeiro & Totais
     const startFormatted = startDate
         ? new Date(startDate + 'T00:00:00').toLocaleDateString('pt-BR')
         : 'Início'
@@ -155,19 +192,39 @@ export function exportGeneralStatementPDF({
         ? new Date(endDate + 'T00:00:00').toLocaleDateString('pt-BR')
         : 'Atual'
 
-    const totalCount = items.length
-    const totalAmount = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
-    const paidAmount = items
+    // Cálculos consolidados
+    const totalPackagesAmount = packages.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    const totalPackagesExtrasAmount = packages.reduce((sum, p) => {
+        return sum + p.sessions.reduce((sSum, sess) => sSum + (Number(sess.extrasAmount) || 0), 0)
+    }, 0)
+    const totalStandaloneAmount = standaloneItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+
+    const grandTotalAmount = totalPackagesAmount + totalPackagesExtrasAmount + totalStandaloneAmount
+
+    // Cálculo do total pago
+    const paidPackagesAmount = packages
+        .filter(p => ['paid', 'pago'].includes((p.paymentStatus || '').toLowerCase()))
+        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+
+    const paidPackagesExtrasAmount = packages.reduce((sum, p) => {
+        return sum + p.sessions
+            .filter(sess => ['paid', 'pago'].includes((sess.extrasPaymentStatus || '').toLowerCase()))
+            .reduce((sSum, sess) => sSum + (Number(sess.extrasAmount) || 0), 0)
+    }, 0)
+
+    const paidStandaloneAmount = standaloneItems
         .filter(item => ['paid', 'pago'].includes((item.paymentStatus || '').toLowerCase()))
         .reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
-    const pendingAmount = Math.max(0, totalAmount - paidAmount)
+
+    const grandPaidAmount = paidPackagesAmount + paidPackagesExtrasAmount + paidStandaloneAmount
+    const grandPendingAmount = Math.max(0, grandTotalAmount - grandPaidAmount)
 
     const catsText = includedCategories.length > 0 ? includedCategories.join(', ') : 'Todos os módulos'
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(8.5)
     const splitCats = doc.splitTextToSize(catsText, 150)
     const extraCatsHeight = (splitCats.length - 1) * 4.5
-    const cardHeight = 35 + extraCatsHeight
+    const cardHeight = 36 + extraCatsHeight
 
     doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
     doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
@@ -181,7 +238,7 @@ export function exportGeneralStatementPDF({
     doc.setFontSize(9)
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
 
-    // Linha 1: Período (esquerda) e VALOR TOTAL (direita)
+    // Linha 1: Período (esquerda) e VALOR TOTAL GERAL (direita)
     doc.setFont('helvetica', 'bold')
     doc.text('Período:', 18, currentY + 15)
     doc.setFont('helvetica', 'normal')
@@ -190,25 +247,33 @@ export function exportGeneralStatementPDF({
     doc.setFont('helvetica', 'bold')
     doc.text('VALOR TOTAL:', 115, currentY + 15)
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-    doc.text(formatCurrency(totalAmount), 143, currentY + 15)
+    doc.text(formatCurrency(grandTotalAmount), 143, currentY + 15)
 
-    // Linha 2: Quantidade de lançamentos (esquerda) e Status de pagamento (direita)
+    // Linha 2: Resumo quantitativo (esquerda) e Situação de pagamento (direita)
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
+    let countSummary = ''
+    if (packages.length > 0 && standaloneItems.length > 0) {
+        countSummary = `${packages.length} pacote(s) • ${standaloneItems.length} avulso(s)`
+    } else if (packages.length > 0) {
+        countSummary = `${packages.length} pacote(s)`
+    } else {
+        countSummary = `${standaloneItems.length} avulso(s)`
+    }
     doc.text('Lançamentos:', 18, currentY + 21)
     doc.setFont('helvetica', 'normal')
-    doc.text(`${totalCount} item(s)`, 44, currentY + 21)
+    doc.text(countSummary, 44, currentY + 21)
 
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(16, 185, 129) // Verde
-    doc.text(`Pago: ${formatCurrency(paidAmount)}`, 115, currentY + 21)
+    doc.text(`Pago: ${formatCurrency(grandPaidAmount)}`, 115, currentY + 21)
 
-    if (pendingAmount > 0) {
+    if (grandPendingAmount > 0) {
         doc.setTextColor(220, 38, 38) // Vermelho
-        doc.text(`A Pagar: ${formatCurrency(pendingAmount)}`, 155, currentY + 21)
+        doc.text(`A Pagar: ${formatCurrency(grandPendingAmount)}`, 155, currentY + 21)
     }
 
-    // Linha 3: Módulos Incluídos (linha dedicada com largura total)
+    // Linha 3: Módulos Incluídos
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
@@ -216,106 +281,267 @@ export function exportGeneralStatementPDF({
     doc.setFont('helvetica', 'normal')
     doc.text(splitCats, 35, currentY + 28)
 
-    currentY += cardHeight + 7
+    currentY += cardHeight + 8
 
-    // 4. Tabela de Lançamentos Detalhada
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(11)
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-    doc.text('LANÇAMENTOS DO EXTRATO', 14, currentY)
-    currentY += 4
+    // 4. SEÇÃO SUPERIOR: PACOTES DE SERVIÇOS & SESSÕES UTILIZADAS
+    if (packages.length > 0) {
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(11)
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+        doc.text('📦 PACOTES DE SERVIÇOS & SESSÕES UTILIZADAS', 14, currentY)
+        currentY += 6
 
-    // Ordenar cronologicamente decrescente (mais recente primeiro)
-    const sortedItems = [...items].sort((a, b) => {
-        return new Date(b.date).getTime() - new Date(a.date).getTime()
-    })
+        packages.forEach((pkg, index) => {
+            // Verificar espaço para o cabeçalho do pacote e a tabela
+            if (currentY > 240) {
+                doc.addPage()
+                currentY = 20
+            }
 
-    const tableRows = sortedItems.map(item => {
-        let dateCol = '-'
-        try {
-            const dateObj = new Date(item.date.includes('T') ? item.date : item.date + 'T12:00:00')
-            const formattedDate = dateObj.toLocaleDateString('pt-BR')
-            const weekday = dateObj.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '').toUpperCase()
-            dateCol = `${formattedDate}\n(${weekday})`
-        } catch {
-            dateCol = item.date
-        }
+            // Bloco de cabeçalho do Pacote Individual
+            const pkgDateFormatted = pkg.date
+                ? new Date(pkg.date.includes('T') ? pkg.date : pkg.date + 'T12:00:00').toLocaleDateString('pt-BR')
+                : '-'
+            const isPkgPaid = ['paid', 'pago'].includes((pkg.paymentStatus || '').toLowerCase())
 
-        let descCol = item.description
-        if (item.details && item.details.length > 0) {
-            descCol += '\n' + item.details.join('\n')
-        }
+            doc.setFillColor(235, 242, 250)
+            doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
+            doc.roundedRect(14, currentY, 182, 16, 2, 2, 'FD')
 
-        const statusLabel = translateStatus(item.status)
-        const paymentTag = item.paymentStatus === 'paid' ? ' [Pago]' : item.paymentStatus === 'pending' ? ' [A Receber]' : ''
-        const fullStatus = `${statusLabel}${paymentTag}`
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(9.5)
+            doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+            doc.text(`PACOTE ${index + 1}: ${pkg.name.toUpperCase()}`, 18, currentY + 6)
 
-        const amountFormatted = formatCurrency(item.amount)
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(8.5)
+            doc.setTextColor(textColor[0], textColor[1], textColor[2])
+            let pkgSub = `Data / Vencimento: ${pkgDateFormatted}`
+            if (pkg.periodLabel) pkgSub += ` • Ref: ${pkg.periodLabel}`
+            doc.text(pkgSub, 18, currentY + 12)
 
-        return [
-            dateCol,
-            item.type,
-            descCol,
-            fullStatus,
-            amountFormatted
-        ]
-    })
+            // Valor do pacote e status no lado direito
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(9)
+            doc.text(`Valor do Pacote: ${formatCurrency(pkg.amount)}`, 128, currentY + 6)
 
-    if (tableRows.length === 0) {
-        tableRows.push(['-', '-', 'Nenhum lançamento encontrado para os filtros selecionados', '-', formatCurrency(0)])
+            if (isPkgPaid) {
+                doc.setTextColor(16, 185, 129)
+                doc.text(`[PAGO]`, 185, currentY + 6, { align: 'right' })
+            } else {
+                doc.setTextColor(220, 38, 38)
+                doc.text(`[PENDENTE]`, 185, currentY + 6, { align: 'right' })
+            }
+
+            currentY += 19
+
+            // Tabela de Sessões Utilizadas do Pacote
+            const sessionRows: any[][] = []
+
+            if (pkg.sessions && pkg.sessions.length > 0) {
+                pkg.sessions.forEach(sess => {
+                    const dateCol = formatDateCol(sess.date)
+                    const sessionIdxLabel = sess.sessionIndex ? ` (Sessão ${sess.sessionIndex})` : ''
+                    const servLabel = `${sess.serviceName}${sessionIdxLabel}`
+                    const statusLabel = translateStatus(sess.status)
+
+                    let extraCol = '-'
+                    let extraAmountCol = '-'
+
+                    if (sess.hasExtras && sess.extrasAmount > 0) {
+                        const extraPayTag = sess.extrasPaymentStatus === 'paid' ? ' [Pago]' : ' [A Receber]'
+                        extraCol = `${sess.extrasDescription || 'Serviço Extra'}${extraPayTag}`
+                        extraAmountCol = formatCurrency(sess.extrasAmount)
+                    }
+
+                    sessionRows.push([
+                        dateCol,
+                        servLabel,
+                        statusLabel,
+                        'Incluso no Pacote', // NÃO mostra 0,00!
+                        extraCol,
+                        extraAmountCol
+                    ])
+                })
+            } else {
+                sessionRows.push([
+                    '-',
+                    'Nenhuma sessão utilizada neste período selecionado',
+                    '-',
+                    'Incluso no Pacote',
+                    '-',
+                    '-'
+                ])
+            }
+
+            const pkgTotalExtras = pkg.sessions.reduce((sum, s) => sum + (Number(s.extrasAmount) || 0), 0)
+            const pkgTotalCombined = pkg.amount + pkgTotalExtras
+
+            const footCols: any[] = [
+                'TOTAL DO PACOTE',
+                `Pacote: ${formatCurrency(pkg.amount)}`,
+                '',
+                '',
+                `Extras: ${formatCurrency(pkgTotalExtras)}`,
+                formatCurrency(pkgTotalCombined)
+            ]
+
+            autoTable(doc, {
+                startY: currentY,
+                head: [['Data', 'Serviço do Pacote', 'Status', 'Valor do Serviço', 'Serviço Extra / Táxi no Dia', 'Valor Extra (R$)']],
+                body: sessionRows,
+                foot: [footCols],
+                theme: 'striped',
+                headStyles: {
+                    fillColor: [55, 95, 140],
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    fontSize: 8,
+                    halign: 'left'
+                },
+                footStyles: {
+                    fillColor: [230, 238, 248],
+                    textColor: [43, 75, 111],
+                    fontStyle: 'bold',
+                    fontSize: 8.5,
+                    halign: 'left'
+                },
+                bodyStyles: {
+                    fontSize: 8,
+                    textColor: [40, 40, 40],
+                    cellPadding: 3
+                },
+                columnStyles: {
+                    0: { cellWidth: 24, fontStyle: 'bold' },
+                    1: { cellWidth: 42 },
+                    2: { cellWidth: 22 },
+                    3: { cellWidth: 26, fontStyle: 'italic', textColor: [100, 110, 120] },
+                    4: { cellWidth: 44 },
+                    5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
+                },
+                alternateRowStyles: {
+                    fillColor: [248, 250, 252]
+                },
+                didDrawPage: (data) => {
+                    const pageCount = (doc as any).internal.getNumberOfPages()
+                    doc.setFontSize(8)
+                    doc.setFont('helvetica', 'normal')
+                    doc.setTextColor(130, 140, 150)
+                    doc.text(
+                        `Sr Pet Clube — Extrato Geral • Página ${data.pageNumber} de ${pageCount}`,
+                        105,
+                        290,
+                        { align: 'center' }
+                    )
+                }
+            })
+
+            currentY = (doc as any).lastAutoTable.finalY + 8
+        })
     }
 
-    autoTable(doc, {
-        startY: currentY,
-        head: [['Data', 'Tipo', 'Descrição / Detalhes', 'Status', 'Valor (R$)']],
-        body: tableRows,
-        foot: [
-            ['TOTAL', '', `${totalCount} item(s) selecionado(s)`, '', formatCurrency(totalAmount)]
-        ],
-        theme: 'striped',
-        headStyles: {
-            fillColor: [43, 75, 111],
-            textColor: [255, 255, 255],
-            fontStyle: 'bold',
-            fontSize: 9,
-            halign: 'left'
-        },
-        footStyles: {
-            fillColor: [230, 235, 245],
-            textColor: [43, 75, 111],
-            fontStyle: 'bold',
-            fontSize: 10,
-            halign: 'left'
-        },
-        bodyStyles: {
-            fontSize: 8.5,
-            textColor: [40, 40, 40],
-            cellPadding: 3.5
-        },
-        columnStyles: {
-            0: { cellWidth: 26, fontStyle: 'bold' },
-            1: { cellWidth: 28 },
-            2: { cellWidth: 'auto' },
-            3: { cellWidth: 32 },
-            4: { cellWidth: 28, halign: 'right', fontStyle: 'bold' }
-        },
-        alternateRowStyles: {
-            fillColor: [248, 250, 252]
-        },
-        didDrawPage: (data) => {
-            // Rodapé com número da página
-            const pageCount = (doc as any).internal.getNumberOfPages()
-            doc.setFontSize(8)
-            doc.setFont('helvetica', 'normal')
-            doc.setTextColor(130, 140, 150)
-            doc.text(
-                `Sr Pet Clube — Extrato Geral • Página ${data.pageNumber} de ${pageCount}`,
-                105,
-                290,
-                { align: 'center' }
-            )
+    // 5. SEÇÃO DE ATENDIMENTOS E LANÇAMENTOS AVULSOS (SEM PACOTE)
+    if (standaloneItems.length > 0) {
+        if (currentY > 230) {
+            doc.addPage()
+            currentY = 20
         }
-    })
+
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(11)
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+        const sectionTitle = packages.length > 0
+            ? '🛒 ATENDIMENTOS E LANÇAMENTOS AVULSOS (SEM PACOTE)'
+            : '🛒 ATENDIMENTOS E LANÇAMENTOS AVULSOS'
+        doc.text(sectionTitle, 14, currentY)
+        currentY += 4
+
+        const sortedStandalone = [...standaloneItems].sort((a, b) => {
+            return new Date(b.date).getTime() - new Date(a.date).getTime()
+        })
+
+        const standaloneRows = sortedStandalone.map(item => {
+            const dateCol = formatDateCol(item.date)
+
+            let descCol = item.description
+            if (item.details && item.details.length > 0) {
+                descCol += '\n' + item.details.join('\n')
+            }
+
+            const statusLabel = translateStatus(item.status)
+            const paymentTag = item.paymentStatus === 'paid' ? ' [Pago]' : item.paymentStatus === 'pending' ? ' [A Receber]' : ''
+            const fullStatus = `${statusLabel}${paymentTag}`
+
+            return [
+                dateCol,
+                item.type,
+                descCol,
+                fullStatus,
+                formatCurrency(item.amount)
+            ]
+        })
+
+        autoTable(doc, {
+            startY: currentY,
+            head: [['Data', 'Tipo', 'Descrição / Detalhes', 'Status', 'Valor (R$)']],
+            body: standaloneRows,
+            foot: [
+                ['TOTAL AVULSOS', '', `${standaloneItems.length} item(s)`, '', formatCurrency(totalStandaloneAmount)]
+            ],
+            theme: 'striped',
+            headStyles: {
+                fillColor: [43, 75, 111],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 8.5,
+                halign: 'left'
+            },
+            footStyles: {
+                fillColor: [230, 235, 245],
+                textColor: [43, 75, 111],
+                fontStyle: 'bold',
+                fontSize: 9,
+                halign: 'left'
+            },
+            bodyStyles: {
+                fontSize: 8,
+                textColor: [40, 40, 40],
+                cellPadding: 3
+            },
+            columnStyles: {
+                0: { cellWidth: 26, fontStyle: 'bold' },
+                1: { cellWidth: 28 },
+                2: { cellWidth: 'auto' },
+                3: { cellWidth: 32 },
+                4: { cellWidth: 28, halign: 'right', fontStyle: 'bold' }
+            },
+            alternateRowStyles: {
+                fillColor: [248, 250, 252]
+            },
+            didDrawPage: (data) => {
+                const pageCount = (doc as any).internal.getNumberOfPages()
+                doc.setFontSize(8)
+                doc.setFont('helvetica', 'normal')
+                doc.setTextColor(130, 140, 150)
+                doc.text(
+                    `Sr Pet Clube — Extrato Geral • Página ${data.pageNumber} de ${pageCount}`,
+                    105,
+                    290,
+                    { align: 'center' }
+                )
+            }
+        })
+
+        currentY = (doc as any).lastAutoTable.finalY + 8
+    }
+
+    // Se não tiver nem pacotes nem avulsos
+    if (packages.length === 0 && standaloneItems.length === 0) {
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(10)
+        doc.setTextColor(120, 130, 140)
+        doc.text('Nenhum lançamento ou pacote encontrado para os filtros selecionados.', 14, currentY + 10)
+    }
 
     // Salvar e fazer download
     const cleanPetName = pet.name.toLowerCase().replace(/[^a-z0-9]/g, '_')
