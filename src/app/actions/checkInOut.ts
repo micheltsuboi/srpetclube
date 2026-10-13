@@ -27,11 +27,49 @@ export async function checkInAppointment(appointmentId: string) {
 
         revalidatePath('/owner/creche')
         revalidatePath('/owner/banho-tosa')
+        revalidatePath('/owner/hospedagem')
         revalidatePath('/owner/agenda')
         return { success: true, message: 'Check-in realizado com sucesso!' }
 
     } catch (error) {
         console.error('[Check-in] Unexpected error:', error)
+        return { success: false, message: 'Erro inesperado' }
+    }
+}
+
+/**
+ * Undo Check-in (revert arrival time)
+ */
+export async function undoCheckInAppointment(appointmentId: string) {
+    try {
+        const supabase = await createClient()
+
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+            return { success: false, message: 'Não autorizado.' }
+        }
+
+        const { error } = await supabase
+            .from('appointments')
+            .update({ 
+                actual_check_in: null,
+                status: 'pending'
+            })
+            .eq('id', appointmentId)
+
+        if (error) {
+            console.error('[Undo Check-in] Error:', error)
+            return { success: false, message: 'Erro ao desfazer entrada' }
+        }
+
+        revalidatePath('/owner/creche')
+        revalidatePath('/owner/banho-tosa')
+        revalidatePath('/owner/hospedagem')
+        revalidatePath('/owner/agenda')
+        return { success: true, message: 'Entrada desfeita com sucesso!' }
+
+    } catch (error) {
+        console.error('[Undo Check-in] Unexpected error:', error)
         return { success: false, message: 'Erro inesperado' }
     }
 }

@@ -524,10 +524,10 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
         return { message: 'Dados incompletos.', success: false }
     }
 
-    // 1. Fetch current appointment to get pet_id
+    // 1. Fetch current appointment to get pet_id and package link
     const { data: currentAppt } = await supabase
         .from('appointments')
-        .select('pet_id, service_id')
+        .select('pet_id, service_id, package_credit_id, package_slot_id, payment_status, has_extras, extras_fee')
         .eq('id', id)
         .single()
 
@@ -577,6 +577,12 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
         calculatedPrice = calculatedPrice * days
     }
 
+    const isPackageAppt = !!(currentAppt.package_credit_id || currentAppt.package_slot_id)
+    const finalCalcPrice = isPackageAppt ? 0 : calculatedPrice
+    const finalPriceToCharge = isPackageAppt
+        ? ((hasTaxi ? taxiFee : 0) + extrasFee)
+        : (calculatedPrice + (hasTaxi ? taxiFee : 0) + extrasFee)
+
     const updateData: any = {
         service_id: serviceId,
         service_category_id: serviceData?.category_id,
@@ -587,10 +593,23 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
         has_extras: hasExtras,
         extras_fee: extrasFee,
         extras: extrasList,
-        calculated_price: calculatedPrice,
-        final_price: calculatedPrice + (hasTaxi ? taxiFee : 0) + extrasFee, // Reset final price to new base price + taxi + extras
+        calculated_price: finalCalcPrice,
+        final_price: finalPriceToCharge,
         discount_percent: 0, // Reset discount when service changes
         discount: 0
+    }
+
+    // Se o serviço tiver extras ou taxas a cobrar, NÃO pode ficar como pago automaticamente!
+    // Deve ficar como 'pending' para que o staff ou admin marque como pago após o recebimento
+    if (hasExtras && extrasFee > 0) {
+        if (isPackageAppt || currentAppt.payment_status !== 'paid' || Number(currentAppt.extras_fee || 0) !== extrasFee) {
+            updateData.payment_status = 'pending'
+            updateData.payment_method = null
+            updateData.paid_at = null
+        }
+    } else if (isPackageAppt && !hasTaxi && extrasFee === 0) {
+        // Se for pacote puro sem nenhum extra ou táxi avulso, o agendamento em si não tem cobrança avulsa
+        updateData.payment_status = 'paid'
     }
 
     if (checkInDate) updateData.check_in_date = checkInDate

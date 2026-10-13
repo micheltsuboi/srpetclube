@@ -37,7 +37,8 @@ export default function FinanceiroPage() {
         return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
     })
     const [endDate, setEndDate] = useState(() => {
-        return new Date().toISOString().split('T')[0]
+        const d = new Date()
+        return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]
     })
 
     const [extractRecords, setExtractRecords] = useState<{
@@ -818,6 +819,65 @@ export default function FinanceiroPage() {
                             ))}
                         </select>
                     </div>
+                </div>
+                <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', marginTop: '0.5rem', flexWrap: 'wrap' }}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const d = new Date()
+                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0])
+                            setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0])
+                        }}
+                        style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        📅 Mês Atual (Completo)
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const d = new Date()
+                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0])
+                            setEndDate(d.toISOString().split('T')[0])
+                        }}
+                        style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        ⏱️ Mês Atual (Até Hoje)
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const d = new Date()
+                            setStartDate(new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString().split('T')[0])
+                            setEndDate(new Date(d.getFullYear(), d.getMonth(), 0).toISOString().split('T')[0])
+                        }}
+                        style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1px solid var(--border)',
+                            color: 'var(--text-secondary)',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            fontSize: '0.75rem',
+                            cursor: 'pointer'
+                        }}
+                    >
+                        ⏪ Mês Anterior
+                    </button>
                 </div>
             </div>
 

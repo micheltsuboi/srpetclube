@@ -652,17 +652,23 @@ function PetsContent() {
     const [searchTerm, setSearchTerm] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [petTab, setPetTab] = useState<'active' | 'inactive' | 'deceased'>('active')
+    const [speciesFilter, setSpeciesFilter] = useState<'all' | 'dog' | 'cat'>('all')
     const [counts, setCounts] = useState({ active: 0, inactive: 0, deceased: 0 })
 
     const displayedPets = useMemo(() => {
+        let list = pets
         if (petTab === 'deceased') {
-            return pets.filter(p => !!p.is_deceased)
+            list = list.filter(p => !!p.is_deceased)
+        } else if (petTab === 'inactive') {
+            list = list.filter(p => !p.is_deceased && p.is_active === false)
+        } else {
+            list = list.filter(p => !p.is_deceased && p.is_active !== false)
         }
-        if (petTab === 'inactive') {
-            return pets.filter(p => !p.is_deceased && p.is_active === false)
+        if (speciesFilter !== 'all') {
+            list = list.filter(p => p.species === speciesFilter)
         }
-        return pets.filter(p => !p.is_deceased && p.is_active !== false)
-    }, [pets, petTab])
+        return list
+    }, [pets, petTab, speciesFilter])
 
     // Debounce search term
     useEffect(() => {
@@ -753,6 +759,10 @@ function PetsContent() {
                 query = query.or('is_deceased.is.null,is_deceased.eq.false').or('is_active.is.null,is_active.eq.true')
             }
 
+            if (speciesFilter !== 'all') {
+                query = query.eq('species', speciesFilter)
+            }
+
             if (debouncedSearch) {
                 query = query.or(`name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%`)
             } else {
@@ -815,7 +825,7 @@ function PetsContent() {
         } finally {
             setLoading(false)
         }
-    }, [supabase, debouncedSearch, displayLimit, petTab])
+    }, [supabase, debouncedSearch, displayLimit, petTab, speciesFilter])
 
     // Buscar pacotes do pet quando o accordion muda ou o pet é selecionado
     const fetchPetPackageSummary = useCallback(async () => {
@@ -1359,21 +1369,86 @@ function PetsContent() {
                 </button>
             </div>
 
-            <div className={styles.actionGroup || ''} style={{ marginBottom: '1rem', width: '100%' }}>
-                <input
-                    type="text"
-                    placeholder={
-                        petTab === 'active' 
-                            ? "🔍 Buscar pet ativo por nome ou raça..." 
-                            : petTab === 'inactive'
-                            ? "🔍 Buscar pet inativo por nome ou raça..."
-                            : "🔍 Buscar no Memorial por nome ou raça..."
-                    }
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className={styles.input}
-                    style={{ width: '100%', maxWidth: '100%' }}
-                />
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', width: '100%' }}>
+                <div style={{ flex: '1 1 280px' }}>
+                    <input
+                        type="text"
+                        placeholder={
+                            petTab === 'active' 
+                                ? "🔍 Buscar pet ativo por nome ou raça..." 
+                                : petTab === 'inactive'
+                                ? "🔍 Buscar pet inativo por nome ou raça..."
+                                : "🔍 Buscar no Memorial por nome ou raça..."
+                        }
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className={styles.input}
+                        style={{ width: '100%' }}
+                    />
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.35rem', background: 'var(--bg-secondary)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border)', flexShrink: 0 }}>
+                    <button
+                        type="button"
+                        onClick={() => { setSpeciesFilter('all'); setDisplayLimit(50); }}
+                        style={{
+                            background: speciesFilter === 'all' ? 'var(--primary)' : 'transparent',
+                            color: speciesFilter === 'all' ? '#fff' : 'var(--text-secondary)',
+                            border: 'none',
+                            padding: '6px 14px',
+                            borderRadius: '6px',
+                            fontSize: '0.85rem',
+                            fontWeight: speciesFilter === 'all' ? 600 : 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem'
+                        }}
+                    >
+                        <span>🐾 Todos</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => { setSpeciesFilter('dog'); setDisplayLimit(50); }}
+                        style={{
+                            background: speciesFilter === 'dog' ? '#3b82f6' : 'transparent',
+                            color: speciesFilter === 'dog' ? '#fff' : 'var(--text-secondary)',
+                            border: 'none',
+                            padding: '6px 14px',
+                            borderRadius: '6px',
+                            fontSize: '0.85rem',
+                            fontWeight: speciesFilter === 'dog' ? 600 : 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem'
+                        }}
+                    >
+                        <span>🐶 Cães</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => { setSpeciesFilter('cat'); setDisplayLimit(50); }}
+                        style={{
+                            background: speciesFilter === 'cat' ? '#ec4899' : 'transparent',
+                            color: speciesFilter === 'cat' ? '#fff' : 'var(--text-secondary)',
+                            border: 'none',
+                            padding: '6px 14px',
+                            borderRadius: '6px',
+                            fontSize: '0.85rem',
+                            fontWeight: speciesFilter === 'cat' ? 600 : 500,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem'
+                        }}
+                    >
+                        <span>🐱 Gatos</span>
+                    </button>
+                </div>
             </div>
 
             <div className={styles.tableContainer}>
@@ -1497,10 +1572,22 @@ function PetsContent() {
             {showModal && (
                 <div className={styles.modalOverlay} onClick={handleCloseModal}>
                     <div className={styles.modal} onClick={e => e.stopPropagation()}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
-                            <h2 style={{ margin: 0 }}>
-                                {selectedPet ? `Ficha Pet: ${selectedPet.name}` : 'Novo Pet'}
-                            </h2>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem', borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                    {selectedPet ? `Ficha Pet: ${selectedPet.name}` : 'Novo Pet'}
+                                    {selectedPet && (
+                                        <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: '6px', background: selectedPet.species === 'cat' ? 'rgba(236, 72, 153, 0.2)' : 'rgba(59, 130, 246, 0.2)', color: selectedPet.species === 'cat' ? '#f472b6' : '#60a5fa', fontWeight: 600 }}>
+                                            {selectedPet.species === 'cat' ? '🐱 Gato' : '🐶 Cão'} • {selectedPet.breed || 'SRD'}
+                                        </span>
+                                    )}
+                                </h2>
+                                {selectedPet?.customers?.name && (
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                        Tutor(a): <strong style={{ color: 'var(--text-primary)' }}>{selectedPet.customers.name}</strong>
+                                    </span>
+                                )}
+                            </div>
                             <button onClick={handleCloseModal} style={{ background: 'none', border: 'none', fontSize: '2rem', lineHeight: '1rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                                 &times;
                             </button>

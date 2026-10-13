@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import styles from './page.module.css'
 import Link from 'next/link'
 import DateRangeFilter, { DateRange, getDateRange } from '@/components/DateRangeFilter'
-import { checkInAppointment, checkOutAppointment } from '@/app/actions/checkInOut'
+import { checkInAppointment, checkOutAppointment, undoCheckInAppointment } from '@/app/actions/checkInOut'
 import { deleteAppointment, updateAppointmentStatus } from '@/app/actions/appointment'
 import DailyReportModal from '@/components/DailyReportModal'
 import EditAppointmentModal from '@/components/EditAppointmentModal'
@@ -167,6 +167,16 @@ export default function CrechePage() {
         const result = await checkInAppointment(appointmentId)
         if (result.success) {
             alert(result.message)
+            fetchCrecheData()
+        } else {
+            alert(result.message)
+        }
+    }
+
+    const handleUndoCheckIn = async (appointmentId: string) => {
+        if (!confirm('Deseja realmente desfazer a entrada deste pet? O status voltará a ser pendente.')) return;
+        const result = await undoCheckInAppointment(appointmentId)
+        if (result.success) {
             fetchCrecheData()
         } else {
             alert(result.message)
@@ -496,14 +506,25 @@ export default function CrechePage() {
                                                 )}
                                             </>
                                         ) : !appt.actual_check_out ? (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleCheckOut(appt.id)
-                                                }}
-                                                style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#F97316', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
-                                                📤 Check-out (Saída)
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleCheckOut(appt.id)
+                                                    }}
+                                                    style={{ flex: 2, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#F97316', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
+                                                    📤 Check-out (Saída)
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleUndoCheckIn(appt.id)
+                                                    }}
+                                                    title="Desfazer entrada se o pet não veio ou foi marcada por engano"
+                                                    style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #94a3b8', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}>
+                                                    ↩️ Desfazer
+                                                </button>
+                                            </div>
                                         ) : null}
                                     </>
                                 ) : (

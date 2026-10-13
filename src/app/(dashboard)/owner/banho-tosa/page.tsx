@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import styles from '../creche/page.module.css'
 import Link from 'next/link'
 import DateRangeFilter, { DateRange, getDateRange } from '@/components/DateRangeFilter'
-import { checkInAppointment, checkOutAppointment } from '@/app/actions/checkInOut'
+import { checkInAppointment, checkOutAppointment, undoCheckInAppointment } from '@/app/actions/checkInOut'
 import { deleteAppointment, updateAppointmentStatus } from '@/app/actions/appointment'
 import DailyReportModal from '@/components/DailyReportModal'
 import PaymentControls from '@/components/PaymentControls'
@@ -218,6 +218,16 @@ export default function BanhoTosaPage() {
         const result = await checkInAppointment(appointmentId)
         if (result.success) {
             alert(result.message)
+            fetchBanhoTosaData()
+        } else {
+            alert(result.message)
+        }
+    }
+
+    const handleUndoCheckIn = async (appointmentId: string) => {
+        if (!confirm('Deseja realmente desfazer o início do atendimento? O status voltará a ser pendente.')) return;
+        const result = await undoCheckInAppointment(appointmentId)
+        if (result.success) {
             fetchBanhoTosaData()
         } else {
             alert(result.message)
@@ -537,14 +547,25 @@ export default function BanhoTosaPage() {
                                                 )}
                                             </>
                                         ) : !appt.actual_check_out ? (
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation()
-                                                    handleCheckOut(appt.id)
-                                                }}
-                                                style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#2563EB', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
-                                                ✅ Finalizar Atendimento
-                                            </button>
+                                            <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleCheckOut(appt.id)
+                                                    }}
+                                                    style={{ flex: 2, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#2563EB', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
+                                                    ✅ Finalizar Atendimento
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleUndoCheckIn(appt.id)
+                                                    }}
+                                                    title="Desfazer início se foi marcado por engano"
+                                                    style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: '1px solid #94a3b8', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}>
+                                                    ↩️ Desfazer
+                                                </button>
+                                            </div>
                                         ) : null}
                                     </>
                                 ) : (

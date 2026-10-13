@@ -183,8 +183,7 @@ export default function OwnerDashboard() {
                         services ( name, service_categories ( name ) )
                     `)
                     .eq('org_id', profile.org_id)
-                    .gte('scheduled_at', startOfCurrentMonth)
-                    .lte('scheduled_at', endOfCurrentMonth)
+                    .or(`and(scheduled_at.gte.${startOfCurrentMonth},scheduled_at.lte.${endOfCurrentMonth}),and(payment_status.eq.paid,paid_at.gte.${startOfCurrentMonth},paid_at.lte.${endOfCurrentMonth})`)
 
                 const { data: allPendingAppts } = await supabase
                     .from('appointments')
@@ -200,12 +199,10 @@ export default function OwnerDashboard() {
                 // Previous month paid appointments (for growth)
                 const { data: prevMonthAppts } = await supabase
                     .from('appointments')
-                    .select('final_price, calculated_price, payment_status, package_credit_id')
+                    .select('final_price, calculated_price, payment_status, package_credit_id, scheduled_at, paid_at')
                     .eq('org_id', profile.org_id)
-                    .gte('scheduled_at', startOfPreviousMonth)
-                    .lte('scheduled_at', endOfPreviousMonth)
+                    .or(`and(scheduled_at.gte.${startOfPreviousMonth},scheduled_at.lte.${endOfPreviousMonth}),and(payment_status.eq.paid,paid_at.gte.${startOfPreviousMonth},paid_at.lte.${endOfPreviousMonth})`)
 
-                
                 const { data: pendingSalesData } = await supabase
                     .from('petshop_sales')
                     .select('id, total_price, payment_status, created_at, description, pets ( name, customers ( name ) )')
@@ -220,7 +217,27 @@ export default function OwnerDashboard() {
                     .eq('payment_status', 'pending')
                     .order('purchased_at', { ascending: true })
 
-                const paidAppts = (currentMonthAppts || []).filter(a => a.payment_status === 'paid' && !(a as any).package_credit_id)
+                const filterByCurrentPeriod = (dateStr?: string | null) => {
+                    if (!dateStr) return false
+                    const d = new Date(dateStr)
+                    const start = new Date(startOfCurrentMonth + 'T00:00:00')
+                    const end = new Date(endOfCurrentMonth)
+                    return d >= start && d <= end
+                }
+
+                const filterByPrevPeriod = (dateStr?: string | null) => {
+                    if (!dateStr) return false
+                    const d = new Date(dateStr)
+                    const start = new Date(startOfPreviousMonth + 'T00:00:00')
+                    const end = new Date(endOfPreviousMonth)
+                    return d >= start && d <= end
+                }
+
+                const paidAppts = (currentMonthAppts || []).filter(a => 
+                    a.payment_status === 'paid' && 
+                    !(a as any).package_credit_id &&
+                    filterByCurrentPeriod(a.paid_at || a.scheduled_at)
+                )
                 const pendingAppts = (allPendingAppts || []).filter(a => !(a as any).package_credit_id && !['cancelled', 'canceled', 'no_show'].includes(a.status))
                 
                 const currentRevenue = paidAppts
@@ -236,7 +253,7 @@ export default function OwnerDashboard() {
                 const forecastPendingTotal = forecastAppts.reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
 
                 const prevRevenue = (prevMonthAppts || [])
-                    .filter(a => a.payment_status === 'paid' && !(a as any).package_credit_id)
+                    .filter(a => a.payment_status === 'paid' && !(a as any).package_credit_id && filterByPrevPeriod(a.paid_at || a.scheduled_at))
                     .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
 
                 const revenueGrowth = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 : 0
