@@ -134,6 +134,34 @@ export default function OwnerDashboard() {
         return false
     }
 
+    const getPackageEffectiveDate = (pkg: any): string => {
+        if (pkg.payment_due_date) return pkg.payment_due_date
+        if (pkg.package_schedule_slots && pkg.package_schedule_slots.length > 0) {
+            const sortedSlots = [...pkg.package_schedule_slots].sort((a: any, b: any) => (a.slot_date || '').localeCompare(b.slot_date || ''))
+            if (sortedSlots[0]?.slot_date) return sortedSlots[0].slot_date
+        }
+        return pkg.purchased_at ? pkg.purchased_at.split('T')[0] : ''
+    }
+
+    const isPackageRealized = (pkg: any): boolean => {
+        if (pkg.package_schedule_slots?.some((s: any) => s.status === 'done')) {
+            return true
+        }
+        const effectiveDateStr = getPackageEffectiveDate(pkg)
+        if (!effectiveDateStr) return true
+        
+        const effectiveDate = new Date(effectiveDateStr + 'T00:00:00')
+        const todayEnd = new Date()
+        todayEnd.setHours(23, 59, 59, 999)
+        return effectiveDate <= todayEnd
+    }
+
+    const getPackageAmount = (p: any): number => {
+        if (p.discount_percent === 100) return 0
+        if (p.total_paid != null && p.total_paid !== '') return Number(p.total_paid)
+        return Number(p.calculated_price || 0)
+    }
+
     
     useEffect(() => {
         if (isExtractModalOpen) {
@@ -205,14 +233,14 @@ export default function OwnerDashboard() {
 
                 const { data: pendingSalesData } = await supabase
                     .from('petshop_sales')
-                    .select('id, total_price, payment_status, created_at, description, pets ( name, customers ( name ) )')
+                    .select('id, product_name, total_price, payment_status, created_at, pets ( name, customers ( name ) )')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'pending')
                     .order('created_at', { ascending: true })
 
                 const { data: pendingPackagesData } = await supabase
                     .from('customer_packages')
-                    .select('id, total_paid, calculated_price, payment_status, purchased_at, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name )')
+                    .select('id, total_paid, calculated_price, payment_status, purchased_at, payment_due_date, period_label, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name ), package_schedule_slots ( slot_date, status )')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'pending')
                     .order('purchased_at', { ascending: true })
@@ -246,11 +274,15 @@ export default function OwnerDashboard() {
                 const realizedAppts = pendingAppts.filter(a => isApptRealized(a))
                 const forecastAppts = pendingAppts.filter(a => !isApptRealized(a))
 
+                const realizedPackages = (pendingPackagesData || []).filter(p => isPackageRealized(p))
+                const forecastPackages = (pendingPackagesData || []).filter(p => !isPackageRealized(p))
+
                 const realizedPendingTotal = realizedAppts.reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
                     + (pendingSalesData || []).reduce((sum, s) => sum + Number(s.total_price), 0)
-                    + (pendingPackagesData || []).reduce((sum, p) => sum + Number((p as any).discount_percent === 100 ? 0 : (p.total_paid != null && (p.total_paid as any) !== '' ? p.total_paid : (p.calculated_price || 0))), 0)
+                    + realizedPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
 
                 const forecastPendingTotal = forecastAppts.reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
+                    + forecastPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
 
                 const prevRevenue = (prevMonthAppts || [])
                     .filter(a => a.payment_status === 'paid' && !(a as any).package_credit_id && filterByPrevPeriod(a.paid_at || a.scheduled_at))
@@ -543,6 +575,25 @@ export default function OwnerDashboard() {
         setIsExtractModalOpen(true)
     }
 
+    const handleConfirmPayment = async (appointmentId: string) => {
+        try {
+            const { error } = await supabase
+                .from('appointments')
+                .update({
+                    payment_status: 'paid',
+                    paid_at: new Date().toISOString()
+                })
+                .eq('id', appointmentId)
+
+            if (error) throw error
+
+            alert('Pagamento confirmado com sucesso!')
+            window.location.reload()
+        } catch (error) {
+            console.error('Erro ao confirmar pagamento:', error)
+            alert('Erro ao confirmar pagamento.')
+        }
+    }
 
     const handleConfirmPetshopPayment = async (saleId: string, productName: string, price: number) => {
         if (confirm(`Confirmar pagamento de R$ ${price.toFixed(2).replace('.', ',')} para ${productName}?`)) {
@@ -571,6 +622,59 @@ export default function OwnerDashboard() {
                     alert(res.message)
                 }
             }
+        }
+    }
+
+    const handlePartialPayment = async (type: 'appointment' | 'sale' | 'package', id: string, currentAmount: number, description: string) => {
+        const amountStr = prompt(`Valor pendente atual: R$ ${currentAmount.toFixed(2).replace('.', ',')}\n\nQuanto o cliente deseja pagar agora?`)
+        if (!amountStr) return
+        const amountPaid = parseFloat(amountStr.replace(',', '.'))
+        if (isNaN(amountPaid) || amountPaid <= 0) {
+            alert('Valor inválido.')
+            return
+        }
+
+        if (amountPaid >= currentAmount) {
+            if (type === 'appointment') return handleConfirmPayment(id)
+            if (type === 'sale') return handleConfirmPetshopPayment(id, description, currentAmount)
+            if (type === 'package') return handleConfirmPackagePayment(id, description, currentAmount)
+        }
+
+        const paymentMethod = prompt('Qual a forma de pagamento? (pix, cash, credit, debit)', 'pix')
+        if (!paymentMethod) return
+
+        try {
+            const { data: { user } } = await supabase.auth.getUser()
+            const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user?.id).single()
+            if (!profile?.org_id) return
+
+            const res = await supabase.from('financial_transactions').insert({
+                org_id: profile.org_id,
+                type: 'income',
+                category: 'Pagamento Parcial',
+                amount: amountPaid,
+                description: `Pagamento parcial: ${description}`,
+                payment_method: paymentMethod,
+                date: new Date().toISOString()
+            })
+
+            if (res.error) throw res.error
+
+            const remaining = currentAmount - amountPaid
+
+            if (type === 'appointment') {
+                await supabase.from('appointments').update({ final_price: remaining }).eq('id', id)
+            } else if (type === 'sale') {
+                await supabase.from('petshop_sales').update({ total_price: remaining }).eq('id', id)
+            } else if (type === 'package') {
+                await supabase.from('customer_packages').update({ total_paid: remaining, calculated_price: remaining }).eq('id', id)
+            }
+
+            alert('Pagamento parcial registrado. O valor pendente foi atualizado!')
+            window.location.reload()
+        } catch (error) {
+            console.error('Erro no pagamento parcial:', error)
+            alert('Erro ao processar pagamento parcial.')
         }
     }
 
@@ -604,26 +708,6 @@ export default function OwnerDashboard() {
         }
     }
 
-    const handleConfirmPayment = async (appointmentId: string) => {
-        try {
-            const { error } = await supabase
-                .from('appointments')
-                .update({
-                    payment_status: 'paid',
-                    paid_at: new Date().toISOString()
-                })
-                .eq('id', appointmentId)
-
-            if (error) throw error
-
-            alert('Pagamento confirmado com sucesso!')
-            // Refresh data
-            window.location.reload()
-        } catch (error) {
-            console.error('Erro ao confirmar pagamento:', error)
-            alert('Erro ao confirmar pagamento.')
-        }
-    }
 
     const handleDeleteTransaction = async (txId: string) => {
         const tx = recentExpenses.find(t => t.id === txId) || extractRecords.transactions.find(t => t.id === txId)
@@ -1237,15 +1321,23 @@ export default function OwnerDashboard() {
         .filter(s => {
             if (!extractSearchTerm) return true
             const search = extractSearchTerm.toLowerCase()
-            return s.description?.toLowerCase().includes(search) || 
+            return (s.product_name || s.description || '')?.toLowerCase().includes(search) || 
                    s.pets?.name?.toLowerCase().includes(search) ||
                    s.pets?.customers?.name?.toLowerCase().includes(search)
         })
 
     // 3. Filtragem de Pacotes
-    const pkgsSource = extractRecords.type === 'pending' && pendingTab !== 'forecast'
+    let pkgsSource = extractRecords.type === 'pending'
         ? extractRecords.pendingPackages
         : []
+
+    if (extractRecords.type === 'pending') {
+        if (pendingTab === 'realized') {
+            pkgsSource = pkgsSource.filter(p => isPackageRealized(p))
+        } else if (pendingTab === 'forecast') {
+            pkgsSource = pkgsSource.filter(p => !isPackageRealized(p))
+        }
+    }
 
     const filteredPackages = pkgsSource
         .filter(p => {
@@ -1286,7 +1378,7 @@ export default function OwnerDashboard() {
             type: 'sale' as const,
             petName: sale.pets?.name || 'Avulso',
             customerName: sale.pets?.customers?.name || 'Sem tutor',
-            title: `🛍️ ${sale.description || 'Venda'} (${sale.pets?.customers?.name || 'Sem tutor'})`,
+            title: `🛍️ ${sale.product_name || 'Venda Petshop'} (${sale.pets?.customers?.name || 'Sem tutor'})`,
             date: sale.created_at,
             amount: sale.total_price,
             isRealized: true,
@@ -1295,15 +1387,17 @@ export default function OwnerDashboard() {
         ...filteredPackages.map(pkg => {
             const petName = pkg.pets?.name || 'Pet'
             const tutorName = pkg.pets?.customers?.name || pkg.customers?.name || 'Sem tutor'
+            const effectiveDate = getPackageEffectiveDate(pkg)
+            const isRealized = isPackageRealized(pkg)
             return {
                 id: pkg.id,
                 type: 'package' as const,
                 petName,
                 customerName: tutorName,
                 title: `${petName} (${tutorName}) • Pacote: ${pkg.service_packages?.name || 'Serviço'}`,
-                date: pkg.purchased_at,
-                amount: (pkg as any).discount_percent === 100 ? 0 : (pkg.total_paid != null && (pkg.total_paid as any) !== '' ? Number(pkg.total_paid) : Number(pkg.calculated_price || 0)),
-                isRealized: true,
+                date: effectiveDate || pkg.purchased_at,
+                amount: getPackageAmount(pkg),
+                isRealized,
                 raw: pkg
             }
         })
@@ -1364,7 +1458,7 @@ export default function OwnerDashboard() {
                     <div className={styles.extractInfo}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                             <strong>{item.title}</strong>
-                            {item.type === 'appointment' && (
+                            {(item.type === 'appointment' || item.type === 'package') && (
                                 item.isRealized ? (
                                     <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(230, 126, 34, 0.2)', color: '#e67e22', border: '1px solid rgba(230, 126, 34, 0.4)', fontWeight: 600 }}>
                                         ⚠️ Realizado
@@ -1387,8 +1481,8 @@ export default function OwnerDashboard() {
                             )}
                         </div>
                         <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
-                            {item.type === 'appointment' ? 'Agendado para: ' : 'Data: '}
-                            {new Date(item.date).toLocaleDateString('pt-BR')}
+                            {item.type === 'appointment' ? 'Agendado para: ' : (item.type === 'package' ? 'Previsão / Vencimento: ' : 'Data: ')}
+                            {item.date ? new Date(item.date.includes('T') ? item.date : item.date + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}
                         </span>
                     </div>
                     <div className={styles.extractActions}>
@@ -1397,28 +1491,55 @@ export default function OwnerDashboard() {
                         </span>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             {item.type === 'appointment' && (
-                                <button
-                                    className={styles.confirmPayBtn}
-                                    onClick={() => handleConfirmPayment(item.id)}
-                                >
-                                    Confirmar Pago
-                                </button>
+                                <>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        onClick={() => handleConfirmPayment(item.id)}
+                                    >
+                                        Confirmar Pago
+                                    </button>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        style={{ backgroundColor: '#f39c12' }}
+                                        onClick={() => handlePartialPayment('appointment', item.id, item.amount, item.title)}
+                                    >
+                                        Pagar Parcial
+                                    </button>
+                                </>
                             )}
                             {item.type === 'sale' && (
-                                <button
-                                    className={styles.confirmPayBtn}
-                                    onClick={() => handleConfirmPetshopPayment(item.id, item.raw.description || 'Venda', item.amount)}
-                                >
-                                    Confirmar Pago
-                                </button>
+                                <>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        onClick={() => handleConfirmPetshopPayment(item.id, item.raw.product_name || 'Venda', item.amount)}
+                                    >
+                                        Confirmar Pago
+                                    </button>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        style={{ backgroundColor: '#f39c12' }}
+                                        onClick={() => handlePartialPayment('sale', item.id, item.amount, item.title)}
+                                    >
+                                        Pagar Parcial
+                                    </button>
+                                </>
                             )}
                             {item.type === 'package' && (
-                                <button
-                                    className={styles.confirmPayBtn}
-                                    onClick={() => handleConfirmPackagePayment(item.id, item.raw.service_packages?.name || 'Pacote', item.amount)}
-                                >
-                                    Confirmar Pago
-                                </button>
+                                <>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        onClick={() => handleConfirmPackagePayment(item.id, item.raw.service_packages?.name || 'Pacote', item.amount)}
+                                    >
+                                        Confirmar Pago
+                                    </button>
+                                    <button
+                                        className={styles.confirmPayBtn}
+                                        style={{ backgroundColor: '#f39c12' }}
+                                        onClick={() => handlePartialPayment('package', item.id, item.amount, item.title)}
+                                    >
+                                        Pagar Parcial
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>
