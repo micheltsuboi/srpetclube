@@ -16,9 +16,11 @@ export interface GeneralStatementSessionItem {
     date: string // ISO ou YYYY-MM-DD
     serviceName: string
     sessionIndex?: number | null // ex: 1, 2...
+    totalSessions?: number | null // total de sessões do pacote
+    servicePrice?: number | null // valor unitário da sessão (já com desconto se houver)
     status: string // 'done', 'scheduled', etc.
     hasExtras: boolean
-    extrasDescription?: string // ex: "Hidratação de Pelos + Táxi Dog"
+    extrasDescription?: string // ex: "Tosa + Táxi Dog"
     extrasAmount: number // valor cobrado pelo extra (R$)
     extrasPaymentStatus?: string // 'paid', 'pending'
     notes?: string
@@ -28,7 +30,10 @@ export interface GeneralStatementPackageItem {
     id: string
     name: string
     date: string // purchased_at ou payment_due_date
-    amount: number // valor total do pacote
+    amount: number // valor total contratado do pacote
+    unitPrice?: number // valor unitário calculado de cada sessão
+    totalSessions?: number // total de sessões contratadas
+    realizedAmount?: number // valor proporcional das sessões realizadas
     paymentStatus: string // 'paid', 'pending'
     periodLabel?: string
     discountPercent?: number
@@ -56,42 +61,72 @@ export interface ExportGeneralStatementOptions {
 }
 
 function translateStatus(status: string): string {
-    const st = (status || '').toLowerCase()
+    const st = (status || '').toLowerCase().trim()
     switch (st) {
         case 'done':
         case 'concluido':
         case 'concluído':
         case 'realizado':
-            return 'Realizado'
+        case 'realizada':
+            return 'REALIZADA'
+        case 'scheduled':
+        case 'agendado':
+        case 'agendada':
+            return 'AGENDADA'
         case 'confirmed':
         case 'confirmado':
-            return 'Confirmado'
+        case 'confirmada':
+            return 'CONFIRMADA'
         case 'pending':
         case 'pendente':
-            return 'Pendente'
+            return 'PENDENTE'
         case 'in_progress':
         case 'em_andamento':
-            return 'Em Andamento'
+            return 'EM ANDAMENTO'
         case 'no_show':
         case 'falta':
-            return 'Falta'
+            return 'FALTA'
         case 'canceled':
         case 'cancelled':
         case 'cancelado':
-            return 'Cancelado'
+        case 'cancelada':
+            return 'CANCELADA'
         case 'paid':
         case 'pago':
-            return 'Pago'
+            return 'PAGO'
         default:
-            return status || '-'
+            return (status || '-').toUpperCase()
     }
+}
+
+function formatNumber(value: number): string {
+    return (Number(value) || 0).toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    })
 }
 
 function formatCurrency(value: number): string {
     return new Intl.NumberFormat('pt-BR', {
         style: 'currency',
         currency: 'BRL'
-    }).format(value)
+    }).format(Number(value) || 0)
+}
+
+function formatDateShort(dateStr: string): string {
+    try {
+        const clean = (dateStr || '').includes('T') ? dateStr.split('T')[0] : (dateStr || '')
+        const parts = clean.split('-')
+        if (parts.length === 3) {
+            return `${parts[2]}/${parts[1]}`
+        }
+        const d = new Date(dateStr)
+        const day = String(d.getDate()).padStart(2, '0')
+        const month = String(d.getMonth() + 1).padStart(2, '0')
+        return `${day}/${month}`
+    } catch {
+        return dateStr || '-'
+    }
 }
 
 function formatDateCol(dateStr: string): string {
@@ -192,19 +227,40 @@ export function exportGeneralStatementPDF({
         ? new Date(endDate + 'T00:00:00').toLocaleDateString('pt-BR')
         : 'Atual'
 
-    // Cálculos consolidados
-    const totalPackagesAmount = packages.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    const isRealizedStatus = (st: string) => ['done', 'concluido', 'concluído', 'realizado', 'realizada'].includes((st || '').toLowerCase().trim())
+
+    // Cálculos consolidados: somar valor realizado das sessões + extras + avulsos
+    const totalPackagesRealizedAmount = packages.reduce((sum, p) => {
+        if (p.realizedAmount != null) return sum + p.realizedAmount
+        const pUnitPrice = p.unitPrice != null
+            ? p.unitPrice
+            : (p.totalSessions && p.totalSessions > 0 ? p.amount / p.totalSessions : (p.sessions.length > 0 ? p.amount / p.sessions.length : p.amount))
+        const pRealized = p.sessions
+            .filter(s => isRealizedStatus(s.status))
+            .reduce((sSum, s) => sSum + (s.servicePrice ?? pUnitPrice), 0)
+        return sum + pRealized
+    }, 0)
+
     const totalPackagesExtrasAmount = packages.reduce((sum, p) => {
         return sum + p.sessions.reduce((sSum, sess) => sSum + (Number(sess.extrasAmount) || 0), 0)
     }, 0)
     const totalStandaloneAmount = standaloneItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
 
-    const grandTotalAmount = totalPackagesAmount + totalPackagesExtrasAmount + totalStandaloneAmount
+    const grandTotalAmount = totalPackagesRealizedAmount + totalPackagesExtrasAmount + totalStandaloneAmount
 
     // Cálculo do total pago
-    const paidPackagesAmount = packages
-        .filter(p => ['paid', 'pago'].includes((p.paymentStatus || '').toLowerCase()))
-        .reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+    const paidPackagesAmount = packages.reduce((sum, p) => {
+        const isPkgPaid = ['paid', 'pago'].includes((p.paymentStatus || '').toLowerCase())
+        if (!isPkgPaid) return sum
+        if (p.realizedAmount != null) return sum + p.realizedAmount
+        const pUnitPrice = p.unitPrice != null
+            ? p.unitPrice
+            : (p.totalSessions && p.totalSessions > 0 ? p.amount / p.totalSessions : (p.sessions.length > 0 ? p.amount / p.sessions.length : p.amount))
+        const pRealized = p.sessions
+            .filter(s => isRealizedStatus(s.status))
+            .reduce((sSum, s) => sSum + (s.servicePrice ?? pUnitPrice), 0)
+        return sum + pRealized
+    }, 0)
 
     const paidPackagesExtrasAmount = packages.reduce((sum, p) => {
         return sum + p.sessions
@@ -219,12 +275,7 @@ export function exportGeneralStatementPDF({
     const grandPaidAmount = paidPackagesAmount + paidPackagesExtrasAmount + paidStandaloneAmount
     const grandPendingAmount = Math.max(0, grandTotalAmount - grandPaidAmount)
 
-    const catsText = includedCategories.length > 0 ? includedCategories.join(', ') : 'Todos os módulos'
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    const splitCats = doc.splitTextToSize(catsText, 150)
-    const extraCatsHeight = (splitCats.length - 1) * 4.5
-    const cardHeight = 36 + extraCatsHeight
+    const cardHeight = 28
 
     doc.setFillColor(lightGray[0], lightGray[1], lightGray[2])
     doc.setDrawColor(borderGray[0], borderGray[1], borderGray[2])
@@ -238,20 +289,24 @@ export function exportGeneralStatementPDF({
     doc.setFontSize(9)
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
 
-    // Linha 1: Período (esquerda) e VALOR TOTAL GERAL (direita)
+    // Linha 1: Período (esquerda) e VALOR TOTAL (direita)
     doc.setFont('helvetica', 'bold')
     doc.text('Período:', 18, currentY + 15)
     doc.setFont('helvetica', 'normal')
     doc.text(`${startFormatted} a ${endFormatted}`, 34, currentY + 15)
 
     doc.setFont('helvetica', 'bold')
-    doc.text('VALOR TOTAL:', 115, currentY + 15)
+    doc.setFontSize(9.5)
     doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-    doc.text(formatCurrency(grandTotalAmount), 143, currentY + 15)
+    doc.text('VALOR TOTAL:', 110, currentY + 15)
+    doc.setFontSize(16)
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+    doc.text(formatNumber(grandTotalAmount), 142, currentY + 16)
 
     // Linha 2: Resumo quantitativo (esquerda) e Situação de pagamento (direita)
-    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
     doc.setTextColor(textColor[0], textColor[1], textColor[2])
+    doc.setFont('helvetica', 'bold')
     let countSummary = ''
     if (packages.length > 0 && standaloneItems.length > 0) {
         countSummary = `${packages.length} pacote(s) • ${standaloneItems.length} avulso(s)`
@@ -260,40 +315,30 @@ export function exportGeneralStatementPDF({
     } else {
         countSummary = `${standaloneItems.length} avulso(s)`
     }
-    doc.text('Lançamentos:', 18, currentY + 21)
+    doc.text('Lançamentos:', 18, currentY + 22)
     doc.setFont('helvetica', 'normal')
-    doc.text(countSummary, 44, currentY + 21)
+    doc.text(countSummary, 44, currentY + 22)
 
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(16, 185, 129) // Verde
-    doc.text(`Pago: ${formatCurrency(grandPaidAmount)}`, 115, currentY + 21)
+    doc.text(`Pago: ${formatCurrency(grandPaidAmount)}`, 110, currentY + 23)
 
-    if (grandPendingAmount > 0) {
-        doc.setTextColor(220, 38, 38) // Vermelho
-        doc.text(`A Pagar: ${formatCurrency(grandPendingAmount)}`, 155, currentY + 21)
-    }
+    doc.setTextColor(220, 38, 38) // Vermelho
+    doc.text(`A Pagar: ${formatNumber(grandPendingAmount)}`, 150, currentY + 23)
 
-    // Linha 3: Módulos Incluídos
-    doc.setTextColor(textColor[0], textColor[1], textColor[2])
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.text('Módulos:', 18, currentY + 28)
-    doc.setFont('helvetica', 'normal')
-    doc.text(splitCats, 35, currentY + 28)
-
-    currentY += cardHeight + 8
+    currentY += cardHeight + 10
 
     // 4. SEÇÃO SUPERIOR: PACOTES DE SERVIÇOS & SESSÕES UTILIZADAS
     if (packages.length > 0) {
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(11)
         doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-        doc.text('📦 PACOTES DE SERVIÇOS & SESSÕES UTILIZADAS', 14, currentY)
+        doc.text('P A C O T E S   D E   S E R V I Ç O S   &   S E S S Õ E S   U T I L I Z A D A S', 105, currentY, { align: 'center' })
         currentY += 6
 
         packages.forEach((pkg, index) => {
             // Verificar espaço para o cabeçalho do pacote e a tabela
-            if (currentY > 240) {
+            if (currentY > 235) {
                 doc.addPage()
                 currentY = 20
             }
@@ -302,63 +347,64 @@ export function exportGeneralStatementPDF({
             const pkgDateFormatted = pkg.date
                 ? new Date(pkg.date.includes('T') ? pkg.date : pkg.date + 'T12:00:00').toLocaleDateString('pt-BR')
                 : '-'
-            const isPkgPaid = ['paid', 'pago'].includes((pkg.paymentStatus || '').toLowerCase())
 
             doc.setFillColor(235, 242, 250)
             doc.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2])
-            doc.roundedRect(14, currentY, 182, 16, 2, 2, 'FD')
+            doc.roundedRect(14, currentY, 182, 14, 2, 2, 'FD')
 
             doc.setFont('helvetica', 'bold')
             doc.setFontSize(9.5)
             doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-            doc.text(`PACOTE ${index + 1}: ${pkg.name.toUpperCase()}`, 18, currentY + 6)
+            doc.text(`PACOTE ${index + 1}: ${pkg.name.toUpperCase()}`, 18, currentY + 5.5)
 
             doc.setFont('helvetica', 'normal')
-            doc.setFontSize(8.5)
+            doc.setFontSize(8)
             doc.setTextColor(textColor[0], textColor[1], textColor[2])
             let pkgSub = `Data / Vencimento: ${pkgDateFormatted}`
             if (pkg.periodLabel) pkgSub += ` • Ref: ${pkg.periodLabel}`
-            doc.text(pkgSub, 18, currentY + 12)
+            doc.text(pkgSub, 18, currentY + 11)
 
-            // Valor do pacote e status no lado direito
+            // Valor do pacote no lado direito
             doc.setFont('helvetica', 'bold')
             doc.setFontSize(9)
-            doc.text(`Valor do Pacote: ${formatCurrency(pkg.amount)}`, 128, currentY + 6)
+            doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+            doc.text('Valor do Pacote:', 150, currentY + 5.5)
+            doc.setFontSize(10.5)
+            doc.setTextColor(textColor[0], textColor[1], textColor[2])
+            doc.text(formatNumber(pkg.amount), 192, currentY + 5.5, { align: 'right' })
 
-            if (isPkgPaid) {
-                doc.setTextColor(16, 185, 129)
-                doc.text(`[PAGO]`, 185, currentY + 6, { align: 'right' })
-            } else {
-                doc.setTextColor(220, 38, 38)
-                doc.text(`[PENDENTE]`, 185, currentY + 6, { align: 'right' })
-            }
-
-            currentY += 19
+            currentY += 16
 
             // Tabela de Sessões Utilizadas do Pacote
             const sessionRows: any[][] = []
 
+            const unitPrice = pkg.unitPrice != null
+                ? pkg.unitPrice
+                : (pkg.totalSessions && pkg.totalSessions > 0
+                    ? pkg.amount / pkg.totalSessions
+                    : (pkg.sessions.length > 0 ? pkg.amount / pkg.sessions.length : pkg.amount))
+
             if (pkg.sessions && pkg.sessions.length > 0) {
                 pkg.sessions.forEach(sess => {
-                    const dateCol = formatDateCol(sess.date)
-                    const sessionIdxLabel = sess.sessionIndex ? ` (Sessão ${sess.sessionIndex})` : ''
-                    const servLabel = `${sess.serviceName}${sessionIdxLabel}`
+                    const dateCol = formatDateShort(sess.date)
+                    const servLabel = sess.serviceName
                     const statusLabel = translateStatus(sess.status)
+                    const servPrice = sess.servicePrice != null ? sess.servicePrice : unitPrice
+                    const priceCol = formatNumber(servPrice)
 
-                    let extraCol = '-'
-                    let extraAmountCol = '-'
+                    let extraCol = ''
+                    let extraAmountCol = ''
 
                     if (sess.hasExtras && sess.extrasAmount > 0) {
-                        const extraPayTag = sess.extrasPaymentStatus === 'paid' ? ' [Pago]' : ' [A Receber]'
-                        extraCol = `${sess.extrasDescription || 'Serviço Extra'}${extraPayTag}`
-                        extraAmountCol = formatCurrency(sess.extrasAmount)
+                        extraCol = (sess.extrasDescription || 'EXTRA').toUpperCase()
+                        extraAmountCol = formatNumber(sess.extrasAmount)
                     }
 
                     sessionRows.push([
                         dateCol,
                         servLabel,
                         statusLabel,
-                        'Incluso no Pacote', // NÃO mostra 0,00!
+                        priceCol,
                         extraCol,
                         extraAmountCol
                     ])
@@ -366,24 +412,27 @@ export function exportGeneralStatementPDF({
             } else {
                 sessionRows.push([
                     '-',
-                    'Nenhuma sessão utilizada neste período selecionado',
+                    'Nenhuma sessão registrada para este pacote',
                     '-',
-                    'Incluso no Pacote',
-                    '-',
-                    '-'
+                    formatNumber(unitPrice),
+                    '',
+                    ''
                 ])
             }
 
+            const pkgRealizedAmount = pkg.realizedAmount != null
+                ? pkg.realizedAmount
+                : pkg.sessions.filter(s => isRealizedStatus(s.status)).reduce((sum, s) => sum + (s.servicePrice ?? unitPrice), 0)
+
             const pkgTotalExtras = pkg.sessions.reduce((sum, s) => sum + (Number(s.extrasAmount) || 0), 0)
-            const pkgTotalCombined = pkg.amount + pkgTotalExtras
 
             const footCols: any[] = [
                 'TOTAL DO PACOTE',
-                `Pacote: ${formatCurrency(pkg.amount)}`,
+                `Pacote: R$ ${formatNumber(pkgRealizedAmount)}`,
                 '',
                 '',
-                `Extras: ${formatCurrency(pkgTotalExtras)}`,
-                formatCurrency(pkgTotalCombined)
+                `Extras: R$ ${formatNumber(pkgTotalExtras)}`,
+                ''
             ]
 
             autoTable(doc, {
@@ -393,7 +442,7 @@ export function exportGeneralStatementPDF({
                 foot: [footCols],
                 theme: 'striped',
                 headStyles: {
-                    fillColor: [55, 95, 140],
+                    fillColor: [43, 75, 111],
                     textColor: [255, 255, 255],
                     fontStyle: 'bold',
                     fontSize: 8,
@@ -412,11 +461,11 @@ export function exportGeneralStatementPDF({
                     cellPadding: 3
                 },
                 columnStyles: {
-                    0: { cellWidth: 24, fontStyle: 'bold' },
-                    1: { cellWidth: 42 },
-                    2: { cellWidth: 22 },
-                    3: { cellWidth: 26, fontStyle: 'italic', textColor: [100, 110, 120] },
-                    4: { cellWidth: 44 },
+                    0: { cellWidth: 20, fontStyle: 'bold' },
+                    1: { cellWidth: 42, fontStyle: 'bold' },
+                    2: { cellWidth: 26, fontStyle: 'bold' },
+                    3: { cellWidth: 26, halign: 'right', fontStyle: 'bold' },
+                    4: { cellWidth: 44, fontStyle: 'bold' },
                     5: { cellWidth: 24, halign: 'right', fontStyle: 'bold' }
                 },
                 alternateRowStyles: {
@@ -448,13 +497,13 @@ export function exportGeneralStatementPDF({
         }
 
         doc.setFont('helvetica', 'bold')
-        doc.setFontSize(11)
+        doc.setFontSize(10.5)
         doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
         const sectionTitle = packages.length > 0
-            ? '🛒 ATENDIMENTOS E LANÇAMENTOS AVULSOS (SEM PACOTE)'
-            : '🛒 ATENDIMENTOS E LANÇAMENTOS AVULSOS'
-        doc.text(sectionTitle, 14, currentY)
-        currentY += 4
+            ? 'A T E N D I M E N T O S   &   L A N Ç A M E N T O S   A V U L S O S'
+            : 'A T E N D I M E N T O S   &   L A N Ç A M E N T O S   A V U L S O S'
+        doc.text(sectionTitle, 105, currentY, { align: 'center' })
+        currentY += 5
 
         const sortedStandalone = [...standaloneItems].sort((a, b) => {
             return new Date(b.date).getTime() - new Date(a.date).getTime()

@@ -400,7 +400,7 @@ function PetsContent() {
                         id, scheduled_at, status, notes,
                         has_taxi, taxi_fee, has_extras, extras_fee, extras,
                         final_price, calculated_price, payment_status,
-                        package_credit_id, package_usage_index,
+                        package_credit_id, package_slot_id, package_usage_index,
                         check_in_date, check_out_date,
                         services (
                             id, name, base_price, category,
@@ -422,13 +422,20 @@ function PetsContent() {
 
             // 2. Pacotes de Serviços
             let packagesList: any[] = []
-            const usedPackageIds = appts.map(a => a.package_credit_id).filter(Boolean)
 
             if (statementModules.packages) {
                 includedNames.push('Pacotes')
                 const { data: pkgsData, error: pkgError } = await supabase
                     .from('customer_packages')
-                    .select('id, total_paid, calculated_price, payment_status, discount_percent, purchased_at, payment_due_date, period_label, service_packages(name)')
+                    .select(`
+                        id, total_paid, calculated_price, payment_status, discount_percent, purchased_at, payment_due_date, period_label,
+                        service_packages ( id, name, total_price ),
+                        package_credits ( id, total_quantity, used_quantity, remaining_quantity, services ( id, name ) ),
+                        package_schedule_slots (
+                            id, slot_date, slot_time, status, period_label, appointment_id,
+                            services ( id, name )
+                        )
+                    `)
                     .eq('pet_id', selectedPet.id)
                     .eq('org_id', profile.org_id)
                     .order('purchased_at', { ascending: false })
@@ -436,70 +443,262 @@ function PetsContent() {
                 if (pkgError) {
                     console.error('Erro ao buscar pacotes do pet:', pkgError)
                 } else if (pkgsData) {
-                    // Filtrar pacotes: se a data do pacote está dentro do período OU se o pacote teve sessão utilizada no período
-                    const relevantPkgs = pkgsData.filter(p => {
+                    // Buscar agendamentos vinculados a slots que possam estar fora do range padrão
+                    const allSlotApptIds = pkgsData.flatMap((p: any) => (p.package_schedule_slots || []).map((s: any) => s.appointment_id)).filter(Boolean)
+                    const missingApptIds = allSlotApptIds.filter((id: string) => !appts.some(a => a.id === id))
+
+                    if (missingApptIds.length > 0) {
+                        const { data: missingAppts } = await supabase
+                            .from('appointments')
+                            .select(`
+                                id, scheduled_at, status, notes,
+                                has_taxi, taxi_fee, has_extras, extras_fee, extras,
+                                final_price, calculated_price, payment_status,
+                                package_credit_id, package_slot_id, package_usage_index,
+                                check_in_date, check_out_date,
+                                services (
+                                    id, name, base_price, category,
+                                    service_categories ( id, name )
+                                )
+                            `)
+                            .in('id', missingApptIds)
+
+                        if (missingAppts && missingAppts.length > 0) {
+                            appts = [...appts, ...missingAppts]
+                        }
+                    }
+
+                    // Filtrar pacotes relevantes para o extrato
+                    const relevantPkgs = pkgsData.filter((p: any) => {
                         const pkgDate = p.payment_due_date || p.purchased_at
                         const dStr = pkgDate ? pkgDate.split('T')[0] : ''
                         const isInPeriod = dStr >= statementStartDate && dStr <= statementEndDate
-                        const hasUsageInPeriod = usedPackageIds.includes(p.id)
-                        return isInPeriod || hasUsageInPeriod
+
+                        const hasSlotInPeriod = (p.package_schedule_slots || []).some((s: any) => {
+                            const sDate = s.slot_date ? s.slot_date.split('T')[0] : ''
+                            return sDate >= statementStartDate && sDate <= statementEndDate
+                        })
+
+                        const pkgCreditIds = (p.package_credits || []).map((c: any) => c.id)
+                        const hasApptInPeriod = appts.some(a => {
+                            const aDate = a.scheduled_at ? a.scheduled_at.split('T')[0] : ''
+                            const inDate = aDate >= statementStartDate && aDate <= statementEndDate
+                            return inDate && (pkgCreditIds.includes(a.package_credit_id) || a.package_credit_id === p.id)
+                        })
+
+                        return isInPeriod || hasSlotInPeriod || hasApptInPeriod
                     })
 
-                    packagesList = relevantPkgs.map(p => {
+                    packagesList = relevantPkgs.map((p: any) => {
                         const pkgDate = p.payment_due_date || p.purchased_at
                         const pkgName = (p.service_packages as any)?.name || 'Pacote de Serviços'
+
+                        // 1. Valor contratado com desconto já deduzido
                         const pkgAmount = p.discount_percent === 100
                             ? 0
-                            : (p.total_paid != null && (p.total_paid as any) !== '' ? Number(p.total_paid) : Number(p.calculated_price || 0))
+                            : (p.total_paid != null && (p.total_paid as any) !== '' && Number(p.total_paid) > 0
+                                ? Number(p.total_paid)
+                                : Number(p.calculated_price || 0))
 
-                        // Filtrar agendamentos que pertencem a este pacote
-                        const pkgAppts = appts.filter(a => a.package_credit_id === p.id)
+                        // 2. Total de sessões contratadas
+                        const totalCreditsQty = (p.package_credits || []).reduce((sum: number, c: any) => sum + (Number(c.total_quantity) || 0), 0)
+                        const slotsCount = (p.package_schedule_slots || []).length
+                        const totalSessions = totalCreditsQty > 0 ? totalCreditsQty : (slotsCount > 0 ? slotsCount : 1)
 
-                        const sessions = pkgAppts.map(a => {
-                            const serv = Array.isArray(a.services) ? a.services[0] : a.services
-                            const servName = serv?.name || 'Sessão de Pacote'
+                        // 3. Valor unitário de cada sessão
+                        const unitPrice = totalSessions > 0 ? parseFloat((pkgAmount / totalSessions).toFixed(2)) : 0
 
-                            // Detalhes de Extras e Táxi
-                            const extraNames: string[] = []
-                            let extraTotalFee = 0
+                        // 4. Mapear sessões
+                        const sortedSlots = [...(p.package_schedule_slots || [])].sort((a: any, b: any) => {
+                            return (a.slot_date || '').localeCompare(b.slot_date || '')
+                        })
 
-                            if (a.has_extras && a.extras_fee) {
-                                extraTotalFee += Number(a.extras_fee)
-                                if (Array.isArray(a.extras) && a.extras.length > 0) {
-                                    a.extras.forEach((ext: any) => {
-                                        const extName = typeof ext === 'string' ? ext : ext.name || 'Extra'
-                                        const extPrice = typeof ext === 'object' && ext.price ? ` (R$ ${Number(ext.price).toFixed(2).replace('.', ',')})` : ''
-                                        extraNames.push(`${extName}${extPrice}`)
-                                    })
-                                } else {
-                                    extraNames.push(`Serviço Extra (R$ ${Number(a.extras_fee).toFixed(2).replace('.', ',')})`)
+                        const pkgCreditIds = (p.package_credits || []).map((c: any) => c.id)
+                        const slotApptIds = sortedSlots.map((s: any) => s.appointment_id).filter(Boolean)
+                        const slotIds = sortedSlots.map((s: any) => s.id)
+
+                        const sessions: any[] = []
+
+                        if (sortedSlots.length > 0) {
+                            sortedSlots.forEach((slot: any, idx: number) => {
+                                const linkedAppt = appts.find(a => a.id === slot.appointment_id || a.package_slot_id === slot.id)
+
+                                const rawServiceName = slot.services?.name || linkedAppt?.services?.name || pkgName || 'Sessão'
+
+                                let serviceDisplayName = rawServiceName
+                                const lowerName = rawServiceName.toLowerCase()
+                                if (lowerName.includes('creche') || lowerName.includes('aula')) {
+                                    serviceDisplayName = 'AULA'
+                                } else if (lowerName.includes('banho')) {
+                                    serviceDisplayName = 'Banho'
+                                } else if (lowerName.includes('tosa')) {
+                                    serviceDisplayName = 'Tosa'
+                                } else if (lowerName.includes('hotel') || lowerName.includes('hospedagem')) {
+                                    serviceDisplayName = 'Diária'
                                 }
-                            }
 
-                            if (a.has_taxi && a.taxi_fee) {
-                                extraTotalFee += Number(a.taxi_fee)
-                                extraNames.push(`Táxi Dog (R$ ${Number(a.taxi_fee).toFixed(2).replace('.', ',')})`)
-                            }
+                                const sessionIndex = idx + 1
+                                const formattedService = `${serviceDisplayName} ${sessionIndex}/${totalSessions}`
 
-                            return {
-                                id: a.id,
-                                date: a.scheduled_at,
-                                serviceName: servName,
-                                sessionIndex: a.package_usage_index,
-                                status: a.status,
-                                hasExtras: extraNames.length > 0,
-                                extrasDescription: extraNames.join(' + '),
-                                extrasAmount: extraTotalFee,
-                                extrasPaymentStatus: a.payment_status || 'pending',
-                                notes: a.notes
-                            }
-                        }).sort((s1, s2) => new Date(s1.date).getTime() - new Date(s2.date).getTime())
+                                const extraNames: string[] = []
+                                let extraTotalFee = 0
+
+                                if (linkedAppt?.has_extras && linkedAppt?.extras_fee) {
+                                    extraTotalFee += Number(linkedAppt.extras_fee)
+                                    if (Array.isArray(linkedAppt.extras) && linkedAppt.extras.length > 0) {
+                                        linkedAppt.extras.forEach((ext: any) => {
+                                            const extName = typeof ext === 'string' ? ext : ext.name || 'Extra'
+                                            extraNames.push(extName.toUpperCase())
+                                        })
+                                    } else {
+                                        extraNames.push('EXTRA')
+                                    }
+                                }
+
+                                if (linkedAppt?.has_taxi && linkedAppt?.taxi_fee) {
+                                    extraTotalFee += Number(linkedAppt.taxi_fee)
+                                    extraNames.push('TÁXI DOG')
+                                }
+
+                                const sessStatus = linkedAppt?.status || slot.status || 'scheduled'
+
+                                sessions.push({
+                                    id: slot.id,
+                                    date: slot.slot_date || linkedAppt?.scheduled_at || p.purchased_at,
+                                    serviceName: formattedService,
+                                    sessionIndex,
+                                    totalSessions,
+                                    servicePrice: unitPrice,
+                                    status: sessStatus,
+                                    hasExtras: extraNames.length > 0,
+                                    extrasDescription: extraNames.join(' + '),
+                                    extrasAmount: extraTotalFee,
+                                    extrasPaymentStatus: linkedAppt?.payment_status || 'pending',
+                                    notes: linkedAppt?.notes
+                                })
+                            })
+
+                            // Adicionar atendimentos do pacote que consumiram créditos mas não tinham slot registrado
+                            const unslottedAppts = appts.filter(a =>
+                                (pkgCreditIds.includes(a.package_credit_id) || a.package_credit_id === p.id) &&
+                                !slotApptIds.includes(a.id) &&
+                                !slotIds.includes(a.package_slot_id)
+                            )
+
+                            unslottedAppts.forEach((a: any, uIdx: number) => {
+                                const serv = Array.isArray(a.services) ? a.services[0] : a.services
+                                const rawServiceName = serv?.name || pkgName || 'Sessão'
+                                let serviceDisplayName = rawServiceName
+                                const lowerName = rawServiceName.toLowerCase()
+                                if (lowerName.includes('creche') || lowerName.includes('aula')) serviceDisplayName = 'AULA'
+                                else if (lowerName.includes('banho')) serviceDisplayName = 'Banho'
+                                else if (lowerName.includes('tosa')) serviceDisplayName = 'Tosa'
+
+                                const sessionIndex = sortedSlots.length + uIdx + 1
+                                const formattedService = `${serviceDisplayName} ${sessionIndex}/${totalSessions}`
+
+                                const extraNames: string[] = []
+                                let extraTotalFee = 0
+
+                                if (a.has_extras && a.extras_fee) {
+                                    extraTotalFee += Number(a.extras_fee)
+                                    if (Array.isArray(a.extras) && a.extras.length > 0) {
+                                        a.extras.forEach((ext: any) => {
+                                            const extName = typeof ext === 'string' ? ext : ext.name || 'Extra'
+                                            extraNames.push(extName.toUpperCase())
+                                        })
+                                    } else {
+                                        extraNames.push('EXTRA')
+                                    }
+                                }
+
+                                if (a.has_taxi && a.taxi_fee) {
+                                    extraTotalFee += Number(a.taxi_fee)
+                                    extraNames.push('TÁXI DOG')
+                                }
+
+                                sessions.push({
+                                    id: a.id,
+                                    date: a.scheduled_at,
+                                    serviceName: formattedService,
+                                    sessionIndex,
+                                    totalSessions,
+                                    servicePrice: unitPrice,
+                                    status: a.status,
+                                    hasExtras: extraNames.length > 0,
+                                    extrasDescription: extraNames.join(' + '),
+                                    extrasAmount: extraTotalFee,
+                                    extrasPaymentStatus: a.payment_status || 'pending',
+                                    notes: a.notes
+                                })
+                            })
+                        } else {
+                            // Fallback se não tiver slots gerados
+                            const pkgAppts = appts.filter(a => pkgCreditIds.includes(a.package_credit_id) || a.package_credit_id === p.id)
+                            pkgAppts.forEach((a: any, idx: number) => {
+                                const serv = Array.isArray(a.services) ? a.services[0] : a.services
+                                const rawServiceName = serv?.name || pkgName || 'Sessão'
+                                let serviceDisplayName = rawServiceName
+                                const lowerName = rawServiceName.toLowerCase()
+                                if (lowerName.includes('creche') || lowerName.includes('aula')) serviceDisplayName = 'AULA'
+                                else if (lowerName.includes('banho')) serviceDisplayName = 'Banho'
+                                else if (lowerName.includes('tosa')) serviceDisplayName = 'Tosa'
+
+                                const sessionIndex = a.package_usage_index || idx + 1
+                                const formattedService = `${serviceDisplayName} ${sessionIndex}/${totalSessions}`
+
+                                const extraNames: string[] = []
+                                let extraTotalFee = 0
+
+                                if (a.has_extras && a.extras_fee) {
+                                    extraTotalFee += Number(a.extras_fee)
+                                    if (Array.isArray(a.extras) && a.extras.length > 0) {
+                                        a.extras.forEach((ext: any) => {
+                                            const extName = typeof ext === 'string' ? ext : ext.name || 'Extra'
+                                            extraNames.push(extName.toUpperCase())
+                                        })
+                                    } else {
+                                        extraNames.push('EXTRA')
+                                    }
+                                }
+
+                                if (a.has_taxi && a.taxi_fee) {
+                                    extraTotalFee += Number(a.taxi_fee)
+                                    extraNames.push('TÁXI DOG')
+                                }
+
+                                sessions.push({
+                                    id: a.id,
+                                    date: a.scheduled_at,
+                                    serviceName: formattedService,
+                                    sessionIndex,
+                                    totalSessions,
+                                    servicePrice: unitPrice,
+                                    status: a.status,
+                                    hasExtras: extraNames.length > 0,
+                                    extrasDescription: extraNames.join(' + '),
+                                    extrasAmount: extraTotalFee,
+                                    extrasPaymentStatus: a.payment_status || 'pending',
+                                    notes: a.notes
+                                })
+                            })
+                        }
+
+                        // Ordenar sessões cronologicamente
+                        sessions.sort((s1, s2) => new Date(s1.date).getTime() - new Date(s2.date).getTime())
+
+                        const isRealizedStatus = (st: string) => ['done', 'concluido', 'concluído', 'realizado', 'realizada'].includes((st || '').toLowerCase().trim())
+                        const realizedCount = sessions.filter(s => isRealizedStatus(s.status)).length
+                        const realizedAmount = parseFloat((realizedCount * unitPrice).toFixed(2))
 
                         return {
                             id: p.id,
                             name: pkgName,
                             date: pkgDate,
                             amount: pkgAmount,
+                            unitPrice,
+                            totalSessions,
+                            realizedAmount,
                             paymentStatus: p.payment_status || 'pending',
                             periodLabel: p.period_label,
                             discountPercent: p.discount_percent,
@@ -518,7 +717,7 @@ function PetsContent() {
 
             appts.forEach((a: any) => {
                 // Se pertence a um pacote e o módulo de pacotes está ativo, já foi para a seção do pacote!
-                if (a.package_credit_id && statementModules.packages) return
+                if ((a.package_credit_id || a.package_slot_id) && statementModules.packages) return
 
                 const serv = Array.isArray(a.services) ? a.services[0] : a.services
                 const cat = Array.isArray(serv?.service_categories) ? serv?.service_categories[0] : serv?.service_categories
@@ -539,7 +738,7 @@ function PetsContent() {
                     if (a.has_extras && a.extras_fee) details.push(`+ Extra (R$ ${Number(a.extras_fee).toFixed(2).replace('.', ',')})`)
                     if (a.notes && a.notes.trim()) details.push(`Obs: ${a.notes.trim()}`)
 
-                    const rawPrice = a.package_credit_id ? 0 : (a.final_price ?? a.calculated_price ?? serv?.base_price ?? 0)
+                    const rawPrice = (a.package_credit_id || a.package_slot_id) ? 0 : (a.final_price ?? a.calculated_price ?? serv?.base_price ?? 0)
 
                     standaloneItems.push({
                         id: a.id,
@@ -548,7 +747,7 @@ function PetsContent() {
                         description: serv?.name || itemType,
                         status: a.status,
                         amount: Number(rawPrice) || 0,
-                        paymentStatus: a.package_credit_id ? 'paid' : (a.payment_status || 'pending'),
+                        paymentStatus: (a.package_credit_id || a.package_slot_id) ? 'paid' : (a.payment_status || 'pending'),
                         details
                     })
                 }
