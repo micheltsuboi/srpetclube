@@ -106,11 +106,18 @@ export default function PaymentControls({
     
     // Se for pacote, o basePrice real do pacote é o total dele menos o taxi de pacote (se houver)
     const packageEffectiveFee = packageHasTaxi ? packageTaxiFee : 0
-    const effectivePackageBase = isPackage && packageOriginalPrice
-        ? Math.max(0, packageOriginalPrice - packageEffectiveFee)
-        : (isPackage && packageTotal !== undefined 
-            ? Math.max(0, (packageTotal || 0) - packageEffectiveFee) 
-            : (calculatedPrice || 0))
+    let truePackageOriginal = packageOriginalPrice ?? null
+    if (isPackage && (!truePackageOriginal || truePackageOriginal <= 0)) {
+        const dPercent = Number(packageDiscountPercent || 0)
+        const curPkgTotal = Number(packageTotal || 0)
+        if (dPercent > 0 && dPercent < 100 && curPkgTotal > 0) {
+            truePackageOriginal = parseFloat((curPkgTotal / (1 - dPercent / 100)).toFixed(2))
+        } else if (curPkgTotal > 0) {
+            truePackageOriginal = curPkgTotal
+        }
+    }
+    const fullPkgBase = truePackageOriginal ?? (packageTotal || 0)
+    const effectivePackageBase = Math.max(0, fullPkgBase - packageEffectiveFee)
     const basePrice = isPackage ? effectivePackageBase : (calculatedPrice ?? 0)
 
     // Reset local state when props change
@@ -175,7 +182,7 @@ export default function PaymentControls({
         try {
             if (isPackage && customerPackageId) {
                 // Ao aplicar desconto no pacote, a base de cálculo é o preço original sem desconto
-                const effectiveBase = (packageOriginalPrice || (basePrice + packageEffectiveFee) || packageTotal || 0)
+                const effectiveBase = truePackageOriginal ?? (basePrice + packageEffectiveFee)
                 await applyPackageDiscount(customerPackageId, val, discountType, effectiveBase)
             } else {
                 await applyDiscount(appointmentId, val, discountType, basePrice)
@@ -259,10 +266,10 @@ export default function PaymentControls({
                     )}
                     
                     {/* Exibir Desconto Aplicado do Pacote */}
-                    {isPackage && ((packageDiscountPercent && packageDiscountPercent > 0) || (packageOriginalPrice && packageOriginalPrice > (packageTotal || 0))) ? (
+                    {isPackage && ((packageDiscountPercent && packageDiscountPercent > 0) || (fullPkgBase > (packageTotal || 0))) ? (
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#10b981', fontWeight: 600 }}>
                             <span>Desconto no Pacote {packageDiscountPercent ? `(${packageDiscountPercent}%)` : ''}:</span>
-                            <span>- R$ {(((packageOriginalPrice || (basePrice + packageEffectiveFee))) - (packageTotal || 0)).toFixed(2)}</span>
+                            <span>- R$ {Math.max(0, fullPkgBase - (packageTotal || 0)).toFixed(2)}</span>
                         </div>
                     ) : null}
 
@@ -347,6 +354,7 @@ export default function PaymentControls({
                                             value={discountValue}
                                             onChange={(e) => setDiscountValue(e.target.value)}
                                             min="0"
+                                            max={discountType === 'percent' ? 100 : (isPackage ? fullPkgBase : basePrice)}
                                             style={{
                                                 width: '80px',
                                                 padding: `6px 8px 6px ${discountType === 'fixed' ? '24px' : '8px'}`,

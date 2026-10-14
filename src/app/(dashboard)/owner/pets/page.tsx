@@ -2666,6 +2666,7 @@ function PetsContent() {
                                                                     is_expired: curr.is_expired,
                                                                     calculated_price: curr.calculated_price ?? 0,
                                                                     total_paid: curr.total_paid ?? 0,
+                                                                    original_price: curr.original_price ?? null,
                                                                     discount_percent: curr.discount_percent ?? 0,
                                                                     payment_status: curr.payment_status,
                                                                     payment_method: curr.payment_method,
@@ -2797,6 +2798,7 @@ function PetsContent() {
                                                                             customerPackageId={cpId}
                                                                             calculatedPrice={pkgGroup.calculated_price}
                                                                             totalPaid={pkgGroup.total_paid}
+                                                                            originalPrice={pkgGroup.original_price}
                                                                             discountPercent={pkgGroup.discount_percent}
                                                                             paymentStatus={pkgGroup.payment_status || 'pending'}
                                                                             paymentMethod={pkgGroup.payment_method || 'other'}

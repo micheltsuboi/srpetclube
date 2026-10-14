@@ -13,6 +13,7 @@ interface PackagePaymentControlsProps {
     paymentMethod: string | null
     hasTaxi?: boolean
     taxiFee?: number
+    originalPrice?: number | null
     onUpdate?: () => void
     compact?: boolean
     paidAt?: string | null
@@ -35,6 +36,7 @@ export default function PackagePaymentControls({
     paymentMethod,
     hasTaxi = false,
     taxiFee = 0,
+    originalPrice,
     onUpdate,
     compact = false,
     paidAt,
@@ -49,12 +51,25 @@ export default function PackagePaymentControls({
     const [loading, setLoading] = useState(false)
 
     const isPaid = paymentStatus === 'paid'
-    const basePrice = (calculatedPrice ?? 0) - (hasTaxi ? taxiFee : 0) // Preço do pacote sem o taxi
+
+    // Preço original imutável (catálogo + táxi ou reversão da fórmula de desconto)
+    let rawOriginal = originalPrice ?? null
+    if (!rawOriginal || rawOriginal <= 0) {
+        const currentPaid = totalPaid ?? calculatedPrice ?? 0
+        const dPercent = Number(discountPercent || 0)
+        if (dPercent > 0 && dPercent < 100 && currentPaid > 0) {
+            rawOriginal = parseFloat((currentPaid / (1 - dPercent / 100)).toFixed(2))
+        } else {
+            rawOriginal = (calculatedPrice ?? 0)
+        }
+    }
+    const fullOriginalBase = rawOriginal ?? 0
+    const packageOnlyBase = Math.max(0, fullOriginalBase - (hasTaxi ? taxiFee : 0))
     let displayPrice = totalPaid ?? calculatedPrice ?? 0
 
     // Corrige pacotes antigos onde o totalPaid foi salvo apenas com o valor base (sem o taxi)
-    if (hasTaxi && (!discountPercent || discountPercent === 0) && totalPaid === basePrice) {
-        displayPrice = basePrice + taxiFee
+    if (hasTaxi && (!discountPercent || discountPercent === 0) && totalPaid === packageOnlyBase) {
+        displayPrice = packageOnlyBase + taxiFee
     }
 
     useEffect(() => {
@@ -97,9 +112,7 @@ export default function PackagePaymentControls({
         if (isNaN(val) || val < 0) return
         setLoading(true)
         try {
-            // O desconto é aplicado sobre o preço base (sem taxi) ou sobre o total? 
-            // Geralmente sobre o serviço. Vamos manter coerência com o cálculo feito na venda.
-            await applyPackageDiscount(customerPackageId, val, discountType, basePrice + taxiFee)
+            await applyPackageDiscount(customerPackageId, val, discountType, fullOriginalBase)
             onUpdate?.()
         } finally {
             setLoading(false)
@@ -130,15 +143,22 @@ export default function PackagePaymentControls({
                 <div style={{ background: 'var(--bg-secondary)', padding: '1rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
                         <span>Valor do Pacote:</span>
-                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {basePrice.toFixed(2)}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>R$ {packageOnlyBase.toFixed(2)}</span>
                     </div>
 
                     {hasTaxi && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.85rem', fontSize: '0.9rem', color: 'var(--status-done)' }}>
                             <span>🚗 Adicional Taxi Dog:</span>
-                            <span style={{ fontWeight: 600 }}>R$ {taxiFee.toFixed(2)}</span>
+                            <span style={{ fontWeight: 600 }}>R$ {Number(taxiFee || 0).toFixed(2)}</span>
                         </div>
                     )}
+
+                    {discountPercent && discountPercent > 0 ? (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem', fontSize: '0.9rem', color: '#10b981', fontWeight: 600 }}>
+                            <span>Desconto no Pacote ({discountPercent}%):</span>
+                            <span>- R$ {Math.max(0, fullOriginalBase - displayPrice).toFixed(2)}</span>
+                        </div>
+                    ) : null}
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.85rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -175,7 +195,7 @@ export default function PackagePaymentControls({
                                     <input
                                         type="number" value={discountValue} disabled={isPaid}
                                         onChange={(e) => setDiscountValue(e.target.value)}
-                                        min="0" max={discountType === 'percent' ? 100 : basePrice + taxiFee}
+                                        min="0" max={discountType === 'percent' ? 100 : fullOriginalBase}
                                         style={{
                                             width: '80px', padding: `6px 8px 6px ${discountType === 'fixed' ? '24px' : '8px'}`,
                                             borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)', textAlign: 'right', fontSize: '0.85rem'

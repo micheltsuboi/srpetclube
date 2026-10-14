@@ -502,8 +502,40 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
     }
 }
 
-export async function applyPackageDiscount(id: string, value: number, type: 'percent' | 'fixed', basePrice: number) {
+export async function applyPackageDiscount(id: string, value: number, type: 'percent' | 'fixed', frontendBasePrice?: number) {
     const supabase = await createClient()
+
+    // 1. Buscar dados oficiais do pacote para obter o valor original sem desconto
+    const { data: cp, error: cpErr } = await supabase
+        .from('customer_packages')
+        .select(`
+            id, total_paid, calculated_price, discount_percent, has_taxi, taxi_fee,
+            service_packages ( total_price )
+        `)
+        .eq('id', id)
+        .single()
+
+    if (cpErr || !cp) {
+        return { message: 'Pacote não encontrado.', success: false }
+    }
+
+    // 2. Determinar o valor original BASE do pacote (template do catálogo + taxa de táxi)
+    const spCatalogPrice = Number((cp.service_packages as any)?.total_price || 0)
+    const taxiAddon = cp.has_taxi ? Number(cp.taxi_fee || 0) : 0
+    let trueOriginalBase = spCatalogPrice > 0 ? (spCatalogPrice + taxiAddon) : 0
+
+    // Se o pacote template não tiver total_price cadastrado, tentar recuperar o valor base antes do desconto atual
+    if (trueOriginalBase <= 0) {
+        const currentDiscount = Number(cp.discount_percent || 0)
+        const currentPrice = Number(cp.total_paid ?? cp.calculated_price ?? 0)
+        if (currentDiscount > 0 && currentDiscount < 100) {
+            trueOriginalBase = parseFloat((currentPrice / (1 - currentDiscount / 100)).toFixed(2))
+        } else if (frontendBasePrice && frontendBasePrice > 0) {
+            trueOriginalBase = frontendBasePrice
+        } else {
+            trueOriginalBase = currentPrice
+        }
+    }
 
     let finalPrice: number
     let discountPercent: number
@@ -511,12 +543,12 @@ export async function applyPackageDiscount(id: string, value: number, type: 'per
     if (type === 'percent') {
         if (value < 0 || value > 100) return { message: 'Desconto deve ser entre 0% e 100%.', success: false }
         discountPercent = value
-        const discountAmount = (basePrice * discountPercent) / 100
-        finalPrice = basePrice - discountAmount
+        const discountAmount = (trueOriginalBase * discountPercent) / 100
+        finalPrice = trueOriginalBase - discountAmount
     } else {
-        if (value < 0 || value > basePrice) return { message: 'Desconto não pode ser maior que o valor base.', success: false }
-        finalPrice = basePrice - value
-        discountPercent = basePrice > 0 ? (value / basePrice) * 100 : 0
+        if (value < 0 || value > trueOriginalBase) return { message: 'Desconto não pode ser maior que o valor base.', success: false }
+        finalPrice = trueOriginalBase - value
+        discountPercent = trueOriginalBase > 0 ? (value / trueOriginalBase) * 100 : 0
     }
 
     const { error } = await supabase
@@ -524,7 +556,7 @@ export async function applyPackageDiscount(id: string, value: number, type: 'per
         .update({
             discount_percent: parseFloat(discountPercent.toFixed(2)),
             total_paid: parseFloat(finalPrice.toFixed(2)),
-            calculated_price: parseFloat(finalPrice.toFixed(2))
+            calculated_price: parseFloat(trueOriginalBase.toFixed(2))
         })
         .eq('id', id)
 
@@ -628,7 +660,7 @@ export async function sellPackageToPet(
             package_id: packageId,
             org_id: profile.org_id,
             total_paid: totalPaid,
-            calculated_price: discountPercent === 100 ? 0 : (totalPaid != null ? totalPaid : ((packageData.total_price || 0) + (taxiFee || 0))),
+            calculated_price: ((packageData.total_price || 0) + (taxiFee || 0)) || totalPaid,
             discount_percent: discountPercent || 0,
             expires_at,
             preferred_weekdays: preferredWeekdays ?? null,
@@ -1162,11 +1194,14 @@ export async function getPetPackagesWithUsage(petId: string) {
 
     if (!summary || summary.length === 0) return []
 
-    // 1.1 Buscar period_label customizado de cada customer_package
+    // 1.1 Buscar period_label e preços oficiais de cada customer_package
     const cpIds = Array.from(new Set(summary.map((s: any) => s.customer_package_id)))
     const { data: cpRecords } = await supabase
         .from('customer_packages')
-        .select('id, period_label')
+        .select(`
+            id, period_label, calculated_price, total_paid, discount_percent, has_taxi, taxi_fee,
+            service_packages ( total_price )
+        `)
         .in('id', cpIds)
 
     const cpMap = new Map((cpRecords || []).map(r => [r.id, r]))
@@ -1290,8 +1325,24 @@ export async function getPetPackagesWithUsage(petId: string) {
             }
         }
 
+        // Preço base original do pacote (template de catálogo + táxi, ou reversão da fórmula de desconto)
+        const spCatalogPrice = Number((cp?.service_packages as any)?.total_price || 0)
+        const taxiAddon = cp?.has_taxi ? Number(cp?.taxi_fee || 0) : 0
+        let originalPrice = spCatalogPrice > 0 ? (spCatalogPrice + taxiAddon) : 0
+
+        if (originalPrice <= 0) {
+            const currentDiscount = Number(cp?.discount_percent ?? item.discount_percent ?? 0)
+            const currentPrice = Number(cp?.total_paid ?? item.total_paid ?? cp?.calculated_price ?? item.calculated_price ?? 0)
+            if (currentDiscount > 0 && currentDiscount < 100 && currentPrice > 0) {
+                originalPrice = parseFloat((currentPrice / (1 - currentDiscount / 100)).toFixed(2))
+            } else {
+                originalPrice = Number(cp?.calculated_price ?? item.calculated_price ?? currentPrice)
+            }
+        }
+
         return {
             ...item,
+            original_price: originalPrice,
             credit_id: credit?.id,
             appointments,
             package_extras: packageExtras,

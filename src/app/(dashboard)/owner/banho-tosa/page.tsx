@@ -421,12 +421,21 @@ export default function BanhoTosaPage() {
                                                 ? (appt.package_credits as any)?.customer_packages[0]
                                                 : (appt.package_credits as any)?.customer_packages;
                                             const isPackage = !!appt.package_credit_id;
-                                            const cpBasePrice = Number(cp?.calculated_price || 0);
+                                            const cpCalcPrice = Number(cp?.calculated_price || 0);
                                             const cpDiscount = Number(cp?.discount_percent || 0);
                                             const cpTotalPaid = cp?.total_paid != null ? Number(cp.total_paid) : null;
-                                            const cpEffectiveTotal = cpTotalPaid !== null && (cpTotalPaid > 0 || cpDiscount > 0)
-                                                ? cpTotalPaid
-                                                : (cpDiscount > 0 && cpBasePrice > 0 ? Number((cpBasePrice * (1 - cpDiscount / 100)).toFixed(2)) : cpBasePrice);
+
+                                            // Determinar preço original imutável do pacote
+                                            let cpTrueOriginal = cpCalcPrice;
+                                            if (cpTotalPaid !== null && cpCalcPrice > 0 && cpTotalPaid > 0 && cpCalcPrice > cpTotalPaid) {
+                                                cpTrueOriginal = cpCalcPrice;
+                                            } else if (cpDiscount > 0 && cpDiscount < 100) {
+                                                const paidOrCalc = cpTotalPaid ?? cpCalcPrice;
+                                                if (paidOrCalc > 0) {
+                                                    cpTrueOriginal = parseFloat((paidOrCalc / (1 - cpDiscount / 100)).toFixed(2));
+                                                }
+                                            }
+                                            const cpEffectiveTotal = cpTotalPaid !== null ? cpTotalPaid : (cpDiscount > 0 && cpTrueOriginal > 0 ? Number((cpTrueOriginal * (1 - cpDiscount / 100)).toFixed(2)) : cpTrueOriginal);
 
                                             return (
                                                 <PaymentControls
@@ -437,8 +446,8 @@ export default function BanhoTosaPage() {
                                                     discountPercent={isPackage ? (cp?.discount_percent ?? null) : appt.discount_percent}
                                                     paymentStatus={isPackage ? (cp?.payment_status || 'pending') : (appt.payment_status || 'pending')}
                                                     paymentMethod={(cp?.payment_method || appt.payment_method) ?? null}
-                                                    packageTotal={cpEffectiveTotal || cpBasePrice || null}
-                                                    packageOriginalPrice={cpBasePrice || null}
+                                                    packageTotal={cpEffectiveTotal || cpTrueOriginal || null}
+                                                    packageOriginalPrice={cpTrueOriginal || null}
                                                     packageDiscountPercent={cp?.discount_percent ?? null}
                                                     packageMethod={cp?.payment_method ?? null}
                                                     packageDate={cp?.purchased_at ?? null}
