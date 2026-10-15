@@ -212,6 +212,7 @@ export default function AgendaPage() {
                     .from('services')
                     .select('id, name, duration_minutes, base_price, category_id, target_species, scheduling_rules, service_categories (id, name, color, icon)')
                     .eq('org_id', profile.org_id)
+                    .neq('is_active', false)
                     .order('name')
 
                 if (s) setServices(s as unknown as Service[])

@@ -107,7 +107,9 @@ export default function ServicesPage() {
             *,
             service_categories (*),
             pricing_matrix (*)
-        `).order('name')
+        `)
+        .neq('is_active', false)
+        .order('name')
 
         if (svcs) {
             const formatted: Service[] = svcs.map((s: any) => ({
@@ -130,7 +132,11 @@ export default function ServicesPage() {
 
     const handleDeleteService = async () => {
         if (!selectedService || !confirm('Tem certeza que deseja excluir este serviço?')) return
-        await deleteService(selectedService.id)
+        const res = await deleteService(selectedService.id)
+        if (!res.success) {
+            alert(res.message || 'Erro ao excluir serviço.')
+            return
+        }
         setShowModal(false)
         fetchData()
     }

@@ -75,41 +75,51 @@ export default function DashboardLayout({
     ]
 
     useEffect(() => {
+        let isMounted = true
         const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser()
-            if (user) {
+            try {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user || !isMounted) return
+
                 // Fetch profile
                 const { data: profile } = await supabase
                     .from('profiles')
                     .select('full_name, role, org_id, avatar_url, is_active, permissions')
                     .eq('id', user.id)
-                    .single()
+                    .maybeSingle()
+
+                if (!isMounted) return
 
                 if (profile) {
                     if (profile.is_active === false) {
                         await supabase.auth.signOut()
-                        // Use a short timeout to ensure state is cleared
                         setTimeout(() => {
                             router.push('/?error=Conta%20desativada')
                         }, 100)
                         return
                     }
 
+                    const roleRaw = (profile.role || '').toLowerCase()
+                    const mappedRole = (roleRaw === 'superadmin' || roleRaw === 'master_admin') ? 'Super Admin' :
+                        (roleRaw === 'admin' || roleRaw === 'owner') ? 'Administrador' :
+                        roleRaw === 'staff' ? 'Staff' :
+                        roleRaw === 'customer' ? 'Tutor' : 'Administrador'
+
                     setUser({
                         name: profile.full_name || user.email?.split('@')[0] || 'Usuário',
-                        role: profile.role === 'superadmin' ? 'Super Admin' :
-                            profile.role === 'admin' ? 'Administrador' :
-                                profile.role === 'staff' ? 'Staff' :
-                                    profile.role === 'customer' ? 'Tutor' : 'Usuário',
+                        role: mappedRole,
                         org_id: profile.org_id,
                         avatar_url: profile.avatar_url,
                         permissions: profile.permissions || []
                     })
                 }
+            } catch (err) {
+                console.error('Erro ao buscar perfil no layout:', err)
             }
         }
         getUser()
-    }, [supabase])
+        return () => { isMounted = false }
+    }, [pathname])
 
     const handleSignOut = async () => {
         await supabase.auth.signOut()
@@ -117,40 +127,25 @@ export default function DashboardLayout({
     }
 
     // Determine target navigation based on role AND current path to prevent confusion
-    let navigation = [...staffNavigation]
-
-    console.log('Layout logic - Current user role:', user?.role, 'Org:', user?.org_id, 'Path:', pathname)
-
     const isTutorRoute = pathname?.startsWith('/tutor')
-
-    // SaaS Master Admin: role is Super Admin AND has NO org_id
+    const isStaffRoute = pathname?.startsWith('/staff')
     const isSaaSMaster = user?.role === 'Super Admin' && !user?.org_id
 
+    let navigation: any[] = []
+
     if (isTutorRoute) {
-        console.log('Layout: Using Tutor Navigation')
-        navigation = tutorNavigation
-    } else if (isSaaSMaster && isMasterAdmin) {
-        console.log('Layout: Using Master Admin Navigation')
-        navigation = masterAdminNavigation
-    } else if (user?.role === 'Super Admin' && isOwner) {
-        console.log('Layout: Using Owner Navigation for Business Super Admin')
-        navigation = ownerNavigation
-    } else if (user?.role === 'Administrador' && isOwner) {
-        console.log('Layout: Using Owner Navigation')
-        navigation = ownerNavigation
-    } else if (user?.role === 'Staff' && (isOwner || pathname === '/staff')) {
-        console.log('Layout: Using Staff Navigation')
-        // Staff might access some /owner pages (like agenda) but should see staff menu
-        navigation = staffNavigation
+        navigation = [...tutorNavigation]
+    } else if (isMasterAdmin) {
+        navigation = isSaaSMaster ? [...masterAdminNavigation] : [...ownerNavigation]
+    } else if (isStaffRoute || user?.role === 'Staff') {
+        navigation = [...staffNavigation]
     } else {
-        // Fallback based on path if role mismatches or is loading
-        console.log('Layout: Using Fallback Navigation based on path')
-        navigation = isMasterAdmin ? (isSaaSMaster ? masterAdminNavigation : ownerNavigation) : (isOwner ? ownerNavigation : staffNavigation)
+        // Fallback e rota /owner (painel do admin): exibe todos os menus de administração
+        navigation = [...ownerNavigation]
     }
 
-    // Extra safety: Filter out 'Usuários' for Staff, and apply granular permissions
-    // Apply this AFTER determining the base navigation array
-    if (user?.role === 'Staff' || !user) {
+    // Apenas se o usuário logado for comprovadamente Staff, aplicar restrições granulares de permissão
+    if (user?.role === 'Staff') {
         const perms = user?.permissions || []
         navigation = navigation.filter((item: any) => {
             if (item.name === 'Dashboard') return true

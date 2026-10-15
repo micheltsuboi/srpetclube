@@ -162,6 +162,7 @@ export default function BanhoTosaPage() {
                     .from('services')
                     .select('id, name, base_price, service_categories(id, name)')
                     .eq('org_id', profile.org_id)
+                    .neq('is_active', false)
                     .order('name')
 
                 // Filter only Banho e Tosa services

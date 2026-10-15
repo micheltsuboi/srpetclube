@@ -178,10 +178,39 @@ export async function deleteService(id: string) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { message: 'Não autorizado.', success: false }
 
-    const { error } = await supabase.from('services').delete().eq('id', id)
-    if (error) return { message: error.message, success: false }
+    // 1. Tentar deletar diretamente caso o serviço não tenha vínculos históricos
+    const { error: directDeleteError } = await supabase.from('services').delete().eq('id', id)
+    if (!directDeleteError) {
+        revalidatePath('/owner/services')
+        revalidatePath('/owner/agenda')
+        revalidatePath('/owner/banho-tosa')
+        revalidatePath('/owner/creche')
+        revalidatePath('/owner/hospedagem')
+        revalidatePath('/owner/packages')
+        return { message: 'Serviço excluído com sucesso.', success: true }
+    }
+
+    // 2. Se houver dependências de histórico (ex: agendamentos anteriores ou pacotes),
+    // desativa o serviço (soft delete) para preservar a integridade do histórico financeiro e de atendimentos.
+    const { error: softDeleteError } = await supabase
+        .from('services')
+        .update({ is_active: false })
+        .eq('id', id)
+
+    if (softDeleteError) {
+        return { message: softDeleteError.message, success: false }
+    }
+
+    // Também desativa regras de precificação associadas
+    await supabase.from('pricing_matrix').update({ is_active: false }).eq('service_id', id)
+
     revalidatePath('/owner/services')
-    return { message: 'Serviço excluído.', success: true }
+    revalidatePath('/owner/agenda')
+    revalidatePath('/owner/banho-tosa')
+    revalidatePath('/owner/creche')
+    revalidatePath('/owner/hospedagem')
+    revalidatePath('/owner/packages')
+    return { message: 'Serviço removido do catálogo com sucesso.', success: true }
 }
 
 // Pricing Rules Actions

@@ -162,7 +162,10 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
                 .eq('org_id', profile.org_id)
                 .order('name')
 
-            if (data) setServices(data as any)
+            if (data) {
+                const filtered = data.filter((s: any) => s.is_active !== false || s.id === appointment.service_id)
+                setServices(filtered as any)
+            }
 
             const { data: prodData } = await supabase
                 .from('products')

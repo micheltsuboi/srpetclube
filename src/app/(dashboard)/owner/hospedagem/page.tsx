@@ -656,6 +656,7 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
                 .select('id, name, base_price, service_categories!inner(name)')
                 .eq('org_id', profile.org_id)
                 .eq('service_categories.name', 'Hospedagem')
+                .neq('is_active', false)
                 .order('name')
             if (servicesData) setServices(servicesData)
         }

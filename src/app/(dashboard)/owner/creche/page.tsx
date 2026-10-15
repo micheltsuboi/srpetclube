@@ -640,6 +640,7 @@ function NewCrecheAppointmentModal({ onClose, onSave }: { onClose: () => void, o
                 .select('id, name, base_price, service_categories!inner(name)')
                 .eq('org_id', profile.org_id)
                 .eq('service_categories.name', 'Creche')
+                .neq('is_active', false)
                 .order('name')
             if (servicesData) setServices(servicesData)
         }
