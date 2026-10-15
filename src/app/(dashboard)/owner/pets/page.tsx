@@ -377,6 +377,25 @@ function PetsContent() {
             return
         }
 
+        const sanitizeDateInput = (d: string) => {
+            if (!d) return ''
+            const parts = d.split('-')
+            if (parts.length === 3) {
+                const year = parseInt(parts[0], 10)
+                const month = parseInt(parts[1], 10)
+                let day = parseInt(parts[2], 10)
+                if (!isNaN(year) && !isNaN(month) && !isNaN(day)) {
+                    const lastDay = new Date(year, month, 0).getDate()
+                    if (day > lastDay) day = lastDay
+                    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+                }
+            }
+            return d
+        }
+
+        const cleanStartDate = sanitizeDateInput(statementStartDate)
+        const cleanEndDate = sanitizeDateInput(statementEndDate)
+
         setIsGeneratingGeneralStatement(true)
         try {
             const { data: { user } } = await supabase.auth.getUser()
@@ -409,8 +428,8 @@ function PetsContent() {
                     `)
                     .eq('pet_id', selectedPet.id)
                     .eq('org_id', profile.org_id)
-                    .gte('scheduled_at', `${statementStartDate}T00:00:00`)
-                    .lte('scheduled_at', `${statementEndDate}T23:59:59`)
+                    .gte('scheduled_at', `${cleanStartDate}T00:00:00`)
+                    .lte('scheduled_at', `${cleanEndDate}T23:59:59`)
                     .order('scheduled_at', { ascending: false })
 
                 if (apptError) {
@@ -472,17 +491,17 @@ function PetsContent() {
                     const relevantPkgs = pkgsData.filter((p: any) => {
                         const pkgDate = p.payment_due_date || p.purchased_at
                         const dStr = pkgDate ? pkgDate.split('T')[0] : ''
-                        const isInPeriod = dStr >= statementStartDate && dStr <= statementEndDate
+                        const isInPeriod = dStr >= cleanStartDate && dStr <= cleanEndDate
 
                         const hasSlotInPeriod = (p.package_schedule_slots || []).some((s: any) => {
                             const sDate = s.slot_date ? s.slot_date.split('T')[0] : ''
-                            return sDate >= statementStartDate && sDate <= statementEndDate
+                            return sDate >= cleanStartDate && sDate <= cleanEndDate
                         })
 
                         const pkgCreditIds = (p.package_credits || []).map((c: any) => c.id)
                         const hasApptInPeriod = appts.some(a => {
                             const aDate = a.scheduled_at ? a.scheduled_at.split('T')[0] : ''
-                            const inDate = aDate >= statementStartDate && aDate <= statementEndDate
+                            const inDate = aDate >= cleanStartDate && aDate <= cleanEndDate
                             return inDate && (pkgCreditIds.includes(a.package_credit_id) || a.package_credit_id === p.id)
                         })
 
@@ -758,23 +777,45 @@ function PetsContent() {
                 includedNames.push('Pet Shop')
                 const { data: sales, error: salesError } = await supabase
                     .from('petshop_sales')
-                    .select('id, product_name, total_price, payment_status, created_at, description')
+                    .select('id, product_name, quantity, unit_price, total_price, payment_status, payment_method, created_at, updated_at, financial_transactions(id, date, payment_method)')
                     .eq('pet_id', selectedPet.id)
                     .eq('org_id', profile.org_id)
-                    .gte('created_at', `${statementStartDate}T00:00:00`)
-                    .lte('created_at', `${statementEndDate}T23:59:59`)
                     .order('created_at', { ascending: false })
 
                 if (salesError) {
                     console.error('Erro ao buscar compras de petshop:', salesError)
                 } else if (sales) {
-                    sales.forEach((s: any) => {
+                    const relevantSales = sales.filter((s: any) => {
+                        const purchaseDate = s.created_at ? s.created_at.split('T')[0] : ''
+                        const paidDate = s.financial_transactions?.date
+                            ? s.financial_transactions.date.split('T')[0]
+                            : (s.payment_status === 'paid' && s.updated_at ? s.updated_at.split('T')[0] : '')
+
+                        const purchaseInPeriod = purchaseDate >= cleanStartDate && purchaseDate <= cleanEndDate
+                        const paymentInPeriod = paidDate ? (paidDate >= cleanStartDate && paidDate <= cleanEndDate) : false
+
+                        return purchaseInPeriod || paymentInPeriod
+                    })
+
+                    relevantSales.forEach((s: any) => {
                         const details: string[] = []
-                        if (s.description && s.description.trim()) details.push(s.description.trim())
+                        const paidDateRaw = s.financial_transactions?.date || (s.payment_status === 'paid' ? s.updated_at : null)
+                        const payMethod = (s.payment_method || s.financial_transactions?.payment_method || '').toUpperCase()
+
+                        if (s.quantity && s.quantity > 1) {
+                            details.push(`Qtd: ${s.quantity}x (Unitário: R$ ${Number(s.unit_price || 0).toFixed(2).replace('.', ',')})`)
+                        }
+                        if (s.payment_status === 'paid' && paidDateRaw) {
+                            const paidDateFormatted = new Date(paidDateRaw.includes('T') ? paidDateRaw : paidDateRaw + 'T12:00:00').toLocaleDateString('pt-BR')
+                            details.push(`Pago em: ${paidDateFormatted}${payMethod ? ` (${payMethod})` : ''}`)
+                        } else if (s.payment_status !== 'paid') {
+                            details.push('Pagamento: Pendente')
+                        }
 
                         standaloneItems.push({
                             id: s.id,
                             date: s.created_at,
+                            paidAt: paidDateRaw,
                             type: 'Pet Shop' as const,
                             description: s.product_name,
                             status: s.payment_status === 'paid' ? 'Pago' : 'Pendente',
@@ -787,8 +828,8 @@ function PetsContent() {
             }
 
             if (packagesList.length === 0 && standaloneItems.length === 0) {
-                const sFormatted = new Date(statementStartDate + 'T00:00:00').toLocaleDateString('pt-BR')
-                const eFormatted = new Date(statementEndDate + 'T00:00:00').toLocaleDateString('pt-BR')
+                const sFormatted = new Date(cleanStartDate + 'T00:00:00').toLocaleDateString('pt-BR')
+                const eFormatted = new Date(cleanEndDate + 'T00:00:00').toLocaleDateString('pt-BR')
                 alert(`Nenhum lançamento encontrado para os filtros selecionados no período de ${sFormatted} a ${eFormatted}.`)
                 setIsGeneratingGeneralStatement(false)
                 return
@@ -802,8 +843,8 @@ function PetsContent() {
                     species: selectedPet.species,
                     customers: selectedPet.customers
                 },
-                startDate: statementStartDate,
-                endDate: statementEndDate,
+                startDate: cleanStartDate,
+                endDate: cleanEndDate,
                 includedCategories: includedNames,
                 packages: packagesList,
                 standaloneItems
@@ -3467,7 +3508,29 @@ function PetsContent() {
                                                                     <div style={{ fontWeight: 600 }}>R$ {sale.total_price.toFixed(2)}</div>
                                                                 </div>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                                    <div style={{ fontSize: '0.85rem', color: '#64748b' }}>{new Date(sale.created_at).toLocaleDateString('pt-BR')} • {sale.payment_status === 'paid' ? 'Pago' : 'Pendente'}</div>
+                                                                    {(() => {
+                                                                        const createdDateStr = new Date(sale.created_at).toLocaleDateString('pt-BR')
+                                                                        const paidDateRaw = sale.financial_transactions?.date || (sale.payment_status === 'paid' ? sale.updated_at : null)
+                                                                        const paidDateStr = paidDateRaw
+                                                                            ? new Date(paidDateRaw.includes('T') ? paidDateRaw : paidDateRaw + 'T12:00:00').toLocaleDateString('pt-BR')
+                                                                            : null
+                                                                        const methodStr = (sale.payment_method || sale.financial_transactions?.payment_method || '').toUpperCase()
+
+                                                                        return (
+                                                                            <div style={{ fontSize: '0.85rem', color: '#64748b' }}>
+                                                                                <span>📅 Compra: {createdDateStr}</span>
+                                                                                {sale.payment_status === 'paid' ? (
+                                                                                    <span style={{ color: '#10B981', marginLeft: '0.5rem', fontWeight: 600 }}>
+                                                                                        • Pago em: {paidDateStr || createdDateStr} {methodStr ? `(${methodStr})` : ''}
+                                                                                    </span>
+                                                                                ) : (
+                                                                                    <span style={{ color: '#EF4444', marginLeft: '0.5rem', fontWeight: 600 }}>
+                                                                                        • Pagamento Pendente
+                                                                                    </span>
+                                                                                )}
+                                                                            </div>
+                                                                        )
+                                                                    })()}
                                                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                                         {sale.payment_status === 'pending' && (
                                                                             <button
@@ -3675,7 +3738,7 @@ function PetsContent() {
                                                                 checked={statementModules.petshop}
                                                                 onChange={e => setStatementModules(prev => ({ ...prev, petshop: e.target.checked }))}
                                                             />
-                                                            🛍️ Pedidos Avulsos / Pet Shop
+                                                            🛍️ Produtos / Pet Shop (Tapetes, etc.)
                                                         </label>
                                                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-primary)', padding: '0.4rem 0.6rem', background: 'var(--bg-tertiary)', borderRadius: '6px' }}>
                                                             <input

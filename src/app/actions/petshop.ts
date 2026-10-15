@@ -11,7 +11,7 @@ export async function getPetshopHistory(petId: string) {
 
         const { data, error } = await supabase
             .from('petshop_sales')
-            .select('id, product_name, quantity, total_price, payment_status, created_at')
+            .select('id, product_name, quantity, total_price, payment_status, payment_method, created_at, updated_at, financial_transactions(id, date, payment_method)')
             .eq('pet_id', petId)
             .order('created_at', { ascending: false })
 

@@ -43,6 +43,7 @@ export interface GeneralStatementPackageItem {
 export interface GeneralStatementStandaloneItem {
     id: string
     date: string // ISO ou YYYY-MM-DD
+    paidAt?: string | null // Data em que o pagamento foi liquidado
     type: 'Banho e Tosa' | 'Creche' | 'Hospedagem' | 'Pet Shop' | 'Outro'
     description: string
     status: string
@@ -229,37 +230,21 @@ export function exportGeneralStatementPDF({
 
     const isRealizedStatus = (st: string) => ['done', 'concluido', 'concluído', 'realizado', 'realizada'].includes((st || '').toLowerCase().trim())
 
-    // Cálculos consolidados: somar valor realizado das sessões + extras + avulsos
-    const totalPackagesRealizedAmount = packages.reduce((sum, p) => {
-        if (p.realizedAmount != null) return sum + p.realizedAmount
-        const pUnitPrice = p.unitPrice != null
-            ? p.unitPrice
-            : (p.totalSessions && p.totalSessions > 0 ? p.amount / p.totalSessions : (p.sessions.length > 0 ? p.amount / p.sessions.length : p.amount))
-        const pRealized = p.sessions
-            .filter(s => isRealizedStatus(s.status))
-            .reduce((sSum, s) => sSum + (s.servicePrice ?? pUnitPrice), 0)
-        return sum + pRealized
-    }, 0)
+    // Cálculos consolidados:
+    // 1. Pacotes: O valor do pacote no extrato é o valor integral contratado (pkg.amount)
+    const totalPackagesAmount = packages.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
 
     const totalPackagesExtrasAmount = packages.reduce((sum, p) => {
         return sum + p.sessions.reduce((sSum, sess) => sSum + (Number(sess.extrasAmount) || 0), 0)
     }, 0)
     const totalStandaloneAmount = standaloneItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
 
-    const grandTotalAmount = totalPackagesRealizedAmount + totalPackagesExtrasAmount + totalStandaloneAmount
+    const grandTotalAmount = totalPackagesAmount + totalPackagesExtrasAmount + totalStandaloneAmount
 
-    // Cálculo do total pago
+    // 2. Cálculo do total pago: Se o pacote foi pago, considera o valor contratado integral pago
     const paidPackagesAmount = packages.reduce((sum, p) => {
         const isPkgPaid = ['paid', 'pago'].includes((p.paymentStatus || '').toLowerCase())
-        if (!isPkgPaid) return sum
-        if (p.realizedAmount != null) return sum + p.realizedAmount
-        const pUnitPrice = p.unitPrice != null
-            ? p.unitPrice
-            : (p.totalSessions && p.totalSessions > 0 ? p.amount / p.totalSessions : (p.sessions.length > 0 ? p.amount / p.sessions.length : p.amount))
-        const pRealized = p.sessions
-            .filter(s => isRealizedStatus(s.status))
-            .reduce((sSum, s) => sSum + (s.servicePrice ?? pUnitPrice), 0)
-        return sum + pRealized
+        return sum + (isPkgPaid ? (Number(p.amount) || 0) : 0)
     }, 0)
 
     const paidPackagesExtrasAmount = packages.reduce((sum, p) => {
@@ -420,16 +405,14 @@ export function exportGeneralStatementPDF({
                 ])
             }
 
-            const pkgRealizedAmount = pkg.realizedAmount != null
-                ? pkg.realizedAmount
-                : pkg.sessions.filter(s => isRealizedStatus(s.status)).reduce((sum, s) => sum + (s.servicePrice ?? unitPrice), 0)
-
+            const isPkgPaid = ['paid', 'pago'].includes((pkg.paymentStatus || '').toLowerCase())
+            const pkgRealizedAmount = pkg.sessions.filter(s => isRealizedStatus(s.status)).reduce((sum, s) => sum + (s.servicePrice ?? unitPrice), 0)
             const pkgTotalExtras = pkg.sessions.reduce((sum, s) => sum + (Number(s.extrasAmount) || 0), 0)
 
             const footCols: any[] = [
                 'TOTAL DO PACOTE',
-                `Pacote: R$ ${formatNumber(pkgRealizedAmount)}`,
-                '',
+                `Pacote: R$ ${formatNumber(pkg.amount)} ${isPkgPaid ? '[PAGO]' : '[A PAGAR]'}`,
+                `Utilizado: R$ ${formatNumber(pkgRealizedAmount)}`,
                 '',
                 `Extras: R$ ${formatNumber(pkgTotalExtras)}`,
                 ''
@@ -518,7 +501,17 @@ export function exportGeneralStatementPDF({
             }
 
             const statusLabel = translateStatus(item.status)
-            const paymentTag = item.paymentStatus === 'paid' ? ' [Pago]' : item.paymentStatus === 'pending' ? ' [A Receber]' : ''
+            let paymentTag = ''
+            if (item.paymentStatus === 'paid') {
+                if (item.paidAt) {
+                    const pDate = formatDateShort(item.paidAt)
+                    paymentTag = ` [Pago em ${pDate}]`
+                } else {
+                    paymentTag = ' [Pago]'
+                }
+            } else if (item.paymentStatus === 'pending') {
+                paymentTag = ' [A Receber]'
+            }
             const fullStatus = `${statusLabel}${paymentTag}`
 
             return [
