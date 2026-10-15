@@ -356,6 +356,7 @@ export default function UsuariosPage() {
                                         >
                                             <option value="staff">Staff (Operacional)</option>
                                             <option value="admin">Administrador</option>
+                                            <option value="superadmin">Super Admin</option>
                                         </select>
                                     </div>
                                 </div>
@@ -496,6 +497,7 @@ export default function UsuariosPage() {
                                     >
                                         <option value="staff">Staff (Operacional)</option>
                                         <option value="admin">Administrador</option>
+                                        <option value="superadmin">Super Admin</option>
                                     </select>
                                 </div>
 

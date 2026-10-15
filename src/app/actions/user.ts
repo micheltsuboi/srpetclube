@@ -78,7 +78,7 @@ export async function createUser(prevState: CreateUserState, formData: FormData)
         id: newUser.user.id,
         email: email,
         full_name: fullName,
-        role: role as 'admin' | 'staff' | 'customer',
+        role: role as 'superadmin' | 'admin' | 'staff' | 'customer',
         org_id: profile.org_id,
         work_schedule: workSchedule,
         permissions: permissions,
@@ -150,12 +150,17 @@ export async function updateUser(prevState: any, formData: FormData) {
         return { message: 'Formato de horário ou permissões inválido.', success: false }
     }
 
+    // Prevenir auto-rebaixamento: o próprio usuário administrador não pode rebaixar a si mesmo para staff
+    if (user.id === userId && role === 'staff') {
+        return { message: 'Você não pode rebaixar seu próprio usuário para Staff.', success: false }
+    }
+
     // 3. Update Profile with Admin Client
     const supabaseAdmin = createAdminClient()
 
     const updateData: any = {
         full_name: fullName,
-        role: role as 'admin' | 'staff' | 'customer',
+        role: role as 'superadmin' | 'admin' | 'staff' | 'customer',
         is_active: isActive,
         birth_date: birthDate
     }

@@ -129,6 +129,7 @@ export default function DashboardLayout({
     // Determine target navigation based on role AND current path to prevent confusion
     const isTutorRoute = pathname?.startsWith('/tutor')
     const isStaffRoute = pathname?.startsWith('/staff')
+    const isOwnerRoute = pathname?.startsWith('/owner')
     const isSaaSMaster = user?.role === 'Super Admin' && !user?.org_id
 
     let navigation: any[] = []
@@ -137,11 +138,26 @@ export default function DashboardLayout({
         navigation = [...tutorNavigation]
     } else if (isMasterAdmin) {
         navigation = isSaaSMaster ? [...masterAdminNavigation] : [...ownerNavigation]
-    } else if (isStaffRoute || user?.role === 'Staff') {
+    } else if (isStaffRoute) {
         navigation = [...staffNavigation]
+    } else if (isOwnerRoute) {
+        // Rota /owner é a área de gestão.
+        // Se o usuário logado for Staff, usa staffNavigation (filtrada por suas permissões)
+        // Se for Super Admin, Administrador ou ainda estiver carregando perfil, mantém ownerNavigation completo!
+        if (user?.role === 'Staff') {
+            navigation = [...staffNavigation]
+        } else {
+            navigation = [...ownerNavigation]
+        }
     } else {
-        // Fallback e rota /owner (painel do admin): exibe todos os menus de administração
-        navigation = [...ownerNavigation]
+        // Fallback para outras rotas
+        if (user?.role === 'Staff') {
+            navigation = [...staffNavigation]
+        } else if (user?.role === 'Tutor') {
+            navigation = [...tutorNavigation]
+        } else {
+            navigation = [...ownerNavigation]
+        }
     }
 
     // Apenas se o usuário logado for comprovadamente Staff, aplicar restrições granulares de permissão
