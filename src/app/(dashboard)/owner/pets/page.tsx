@@ -1001,26 +1001,45 @@ function PetsContent() {
                 if (blks) setScheduleBlocks(blks)
             }
 
-            // 1. Fetch Counts para as abas (mantém os números sempre 100% exatos em tempo real)
+            // 1. Fetch Counts para as abas (mantém os números sempre 100% exatos em tempo real, inclusive durante a busca)
             try {
+                let activeQ = supabase
+                    .from('pets')
+                    .select('id, customers!inner(org_id)', { count: 'exact', head: true })
+                    .eq('customers.org_id', profile.org_id)
+                    .or('is_deceased.is.null,is_deceased.eq.false')
+                    .or('is_active.is.null,is_active.eq.true')
+
+                let inactiveQ = supabase
+                    .from('pets')
+                    .select('id, customers!inner(org_id)', { count: 'exact', head: true })
+                    .eq('customers.org_id', profile.org_id)
+                    .or('is_deceased.is.null,is_deceased.eq.false')
+                    .eq('is_active', false)
+
+                let deceasedQ = supabase
+                    .from('pets')
+                    .select('id, customers!inner(org_id)', { count: 'exact', head: true })
+                    .eq('customers.org_id', profile.org_id)
+                    .eq('is_deceased', true)
+
+                if (speciesFilter !== 'all') {
+                    activeQ = activeQ.eq('species', speciesFilter)
+                    inactiveQ = inactiveQ.eq('species', speciesFilter)
+                    deceasedQ = deceasedQ.eq('species', speciesFilter)
+                }
+
+                if (debouncedSearch) {
+                    const searchFilter = `name.ilike.%${debouncedSearch}%,breed.ilike.%${debouncedSearch}%`
+                    activeQ = activeQ.or(searchFilter)
+                    inactiveQ = inactiveQ.or(searchFilter)
+                    deceasedQ = deceasedQ.or(searchFilter)
+                }
+
                 const [activeCountRes, inactiveCountRes, deceasedCountRes] = await Promise.all([
-                    supabase
-                        .from('pets')
-                        .select('id, customers!inner(org_id)', { count: 'exact', head: true })
-                        .eq('customers.org_id', profile.org_id)
-                        .or('is_deceased.is.null,is_deceased.eq.false')
-                        .or('is_active.is.null,is_active.eq.true'),
-                    supabase
-                        .from('pets')
-                        .select('id, customers!inner(org_id)', { count: 'exact', head: true })
-                        .eq('customers.org_id', profile.org_id)
-                        .or('is_deceased.is.null,is_deceased.eq.false')
-                        .eq('is_active', false),
-                    supabase
-                        .from('pets')
-                        .select('id, customers!inner(org_id)', { count: 'exact', head: true })
-                        .eq('customers.org_id', profile.org_id)
-                        .eq('is_deceased', true)
+                    activeQ,
+                    inactiveQ,
+                    deceasedQ
                 ])
 
                 setCounts({
@@ -1611,7 +1630,7 @@ function PetsContent() {
                 >
                     <span>🐾 Pets Ativos</span>
                     <span style={{ fontSize: '0.75rem', background: petTab === 'active' ? 'var(--primary)' : 'rgba(255,255,255,0.08)', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>
-                        {debouncedSearch && petTab === 'active' ? displayedPets.length : counts.active}
+                        {counts.active}
                     </span>
                 </button>
                 <button
@@ -1634,7 +1653,7 @@ function PetsContent() {
                 >
                     <span>⏸️ Inativos</span>
                     <span style={{ fontSize: '0.75rem', background: petTab === 'inactive' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(255,255,255,0.08)', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>
-                        {debouncedSearch && petTab === 'inactive' ? displayedPets.length : counts.inactive}
+                        {counts.inactive}
                     </span>
                 </button>
                 <button
@@ -1657,7 +1676,7 @@ function PetsContent() {
                 >
                     <span>🖤 Memorial (Falecidos)</span>
                     <span style={{ fontSize: '0.75rem', background: petTab === 'deceased' ? 'rgba(148, 163, 184, 0.3)' : 'rgba(255,255,255,0.08)', color: 'white', padding: '2px 8px', borderRadius: '10px' }}>
-                        {debouncedSearch && petTab === 'deceased' ? displayedPets.length : counts.deceased}
+                        {counts.deceased}
                     </span>
                 </button>
             </div>

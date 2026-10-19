@@ -429,7 +429,7 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
     
     let realPaidAt: string | null = null
 
-    // Se estiver marcando como pago, precisamos registrar no financeiro
+    // Se estiver marcando como pago, precisamos registrar/atualizar no financeiro
     if (status === 'paid') {
         realPaidAt = paidAt 
             ? (paidAt.includes('T') ? paidAt : `${paidAt}T12:00:00`)
@@ -438,7 +438,7 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
         const { data: pkg, error: pkgError } = await supabase
             .from('customer_packages')
             .select(`
-                id, total_paid, calculated_price, purchased_at, payment_method,
+                id, total_paid, calculated_price, discount_percent, purchased_at, payment_method,
                 service_packages(name), 
                 pets(name),
                 customers(name)
@@ -457,21 +457,43 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
             const { data: existing } = await supabase
                 .from('financial_transactions')
                 .select('id')
-                .eq('description', `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`)
+                .like('description', `%${pkg.id}%`)
                 .limit(1)
 
-            if (amount > 0 && (!existing || existing.length === 0)) {
-                await addFinancialTransaction({
-                    type: 'income',
-                    category: 'Pacotes',
-                    name: `Venda de Pacote: ${packageName}`,
-                    amount: amount,
-                    date: realPaidAt,
-                    payment_method: method || pkg.payment_method || 'other',
-                    description: `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`
-                })
+            if (amount > 0) {
+                if (!existing || existing.length === 0) {
+                    await addFinancialTransaction({
+                        type: 'income',
+                        category: 'Pacotes',
+                        name: `Venda de Pacote: ${packageName}`,
+                        amount: amount,
+                        date: realPaidAt,
+                        payment_method: method || pkg.payment_method || 'other',
+                        description: `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`
+                    })
+                } else {
+                    await supabase
+                        .from('financial_transactions')
+                        .update({
+                            amount: amount,
+                            date: realPaidAt,
+                            payment_method: method || pkg.payment_method || 'other'
+                        })
+                        .eq('id', existing[0].id)
+                }
+            } else if (existing && existing.length > 0) {
+                await supabase
+                    .from('financial_transactions')
+                    .delete()
+                    .eq('id', existing[0].id)
             }
         }
+    } else if (status === 'pending') {
+        // Se desfez o pagamento do pacote, remover a transação financeira vinculada
+        await supabase
+            .from('financial_transactions')
+            .delete()
+            .like('description', `%${id}%`)
     }
 
     const updatePayload: Record<string, any> = { 
@@ -551,16 +573,31 @@ export async function applyPackageDiscount(id: string, value: number, type: 'per
         discountPercent = trueOriginalBase > 0 ? (value / trueOriginalBase) * 100 : 0
     }
 
+    const roundedFinalPrice = parseFloat(finalPrice.toFixed(2))
+
     const { error } = await supabase
         .from('customer_packages')
         .update({
             discount_percent: parseFloat(discountPercent.toFixed(2)),
-            total_paid: parseFloat(finalPrice.toFixed(2)),
+            total_paid: roundedFinalPrice,
             calculated_price: parseFloat(trueOriginalBase.toFixed(2))
         })
         .eq('id', id)
 
     if (error) return { message: error.message, success: false }
+
+    // Sincronizar transação financeira vinculada caso o pacote já esteja pago
+    if (roundedFinalPrice > 0) {
+        await supabase
+            .from('financial_transactions')
+            .update({ amount: roundedFinalPrice })
+            .like('description', `%${id}%`)
+    } else {
+        await supabase
+            .from('financial_transactions')
+            .delete()
+            .like('description', `%${id}%`)
+    }
 
     revalidatePath('/owner/pets')
     revalidatePath('/owner/packages')
@@ -569,6 +606,7 @@ export async function applyPackageDiscount(id: string, value: number, type: 'per
     revalidatePath('/owner/creche')
     revalidatePath('/owner/hospedagem')
     revalidatePath('/owner')
+    revalidatePath('/owner/financeiro')
     return { success: true, message: 'Desconto aplicado com sucesso!' }
 }
 

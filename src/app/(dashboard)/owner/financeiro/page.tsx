@@ -74,6 +74,20 @@ export default function FinanceiroPage() {
     const [pendingSortDirection, setPendingSortDirection] = useState<'asc' | 'desc'>('asc')
     const [applyPeriodFilterToPending, setApplyPeriodFilterToPending] = useState(false)
 
+    const isBillableAppt = (a: any): boolean => {
+        if (['cancelled', 'canceled', 'no_show'].includes(a.status)) return false
+        if (!a.package_credit_id) return true
+        return Number(a.extras_fee || 0) > 0
+    }
+
+    const getApptAmount = (a: any): number => {
+        if (a.discount_percent === 100) return 0
+        if (a.package_credit_id) {
+            return Number(a.extras_fee || 0)
+        }
+        return Number(a.final_price ?? a.calculated_price ?? 0)
+    }
+
     const fetchFinancials = useCallback(async () => {
         try {
             setLoading(true)
@@ -97,23 +111,21 @@ export default function FinanceiroPage() {
                 sessionStorage.setItem('last_recurring_sync', today)
             }
 
-            // 2. Fetch data for Chart (Last 6 months)
+            // 2. Fetch data for Chart (Last 6 months) and Selected Period (Espelhado 100% com /owner)
             const sixMonthsAgo = new Date()
             sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5)
             sixMonthsAgo.setDate(1)
             const chartStart = sixMonthsAgo.toISOString().split('T')[0] + 'T00:00:00Z'
 
-            // 2. Fetch data for Summary and Categories (Selected Period)
-            // We fetch a bit more for the previous month to calculate growth
             const prevMonthDate = new Date(startDate)
             prevMonthDate.setMonth(prevMonthDate.getMonth() - 1)
             const fetchStart = prevMonthDate < sixMonthsAgo ? prevMonthDate.toISOString() : chartStart
 
-            const [apptsResponse, txsResponse, pendingSalesResponse, pendingPackagesResponse, allPendingApptsResponse] = await Promise.all([
+            const [periodApptsResponse, chartApptsResponse, txsResponse, pendingSalesResponse, pendingPackagesResponse, allPendingApptsResponse] = await Promise.all([
                 supabase
                     .from('appointments')
                     .select(`
-                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
+                        id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id,
                         pets ( name, customers ( name ) ),
                         services (
                             name,
@@ -121,13 +133,25 @@ export default function FinanceiroPage() {
                         )
                     `)
                     .eq('org_id', profile.org_id)
+                    .not('status', 'in', '("cancelled","canceled","no_show")')
+                    .or(`and(scheduled_at.gte.${startDate}T00:00:00,scheduled_at.lte.${endDate}T23:59:59Z),and(payment_status.eq.paid,paid_at.gte.${startDate}T00:00:00,paid_at.lte.${endDate}T23:59:59Z)`)
+                    .order('scheduled_at', { ascending: true })
+                    .limit(5000),
+                supabase
+                    .from('appointments')
+                    .select('id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id')
+                    .eq('org_id', profile.org_id)
+                    .eq('payment_status', 'paid')
+                    .not('status', 'in', '("cancelled","canceled","no_show")')
                     .or(`scheduled_at.gte.${fetchStart},paid_at.gte.${fetchStart}`)
-                    .order('scheduled_at', { ascending: true }),
+                    .limit(5000),
                 supabase
                     .from('financial_transactions')
                     .select('*')
                     .eq('org_id', profile.org_id)
-                    .gte('date', fetchStart),
+                    .gte('date', fetchStart)
+                    .order('date', { ascending: false })
+                    .limit(5000),
                 supabase
                     .from('petshop_sales')
                     .select('id, product_name, total_price, payment_status, created_at, pets ( name, customers ( name ) )')
@@ -136,14 +160,15 @@ export default function FinanceiroPage() {
                     .order('created_at', { ascending: true }),
                 supabase
                     .from('customer_packages')
-                    .select('id, total_paid, calculated_price, payment_status, purchased_at, payment_due_date, period_label, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name ), package_schedule_slots ( slot_date, status )')
+                    .select('id, total_paid, calculated_price, discount_percent, payment_status, is_active, purchased_at, payment_due_date, period_label, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name ), package_schedule_slots ( slot_date, status )')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'pending')
+                    .or('is_active.is.null,is_active.eq.true')
                     .order('purchased_at', { ascending: true }),
                 supabase
                     .from('appointments')
                     .select(`
-                        id, status, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
+                        id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id,
                         pets ( name, customers ( name ) ),
                         services ( name, service_categories ( name ) )
                     `)
@@ -151,18 +176,21 @@ export default function FinanceiroPage() {
                     .neq('payment_status', 'paid')
                     .not('status', 'in', '("cancelled","canceled","no_show")')
                     .order('scheduled_at', { ascending: true })
+                    .limit(5000)
             ])
 
-            if (apptsResponse.error) throw apptsResponse.error
+            if (periodApptsResponse.error) throw periodApptsResponse.error
+            if (chartApptsResponse.error) throw chartApptsResponse.error
             if (txsResponse.error) throw txsResponse.error
             if (pendingSalesResponse.error) throw pendingSalesResponse.error
             if (pendingPackagesResponse.error) throw pendingPackagesResponse.error
 
-            const appointments = (apptsResponse.data || []).filter((a: any) => !a.package_credit_id)
+            const periodAppointments = (periodApptsResponse.data || []).filter((a: any) => isBillableAppt(a))
+            const chartAppointments = (chartApptsResponse.data || []).filter((a: any) => isBillableAppt(a))
             const transactions = txsResponse.data || []
             const pendingSales = (pendingSalesResponse.data || [])
             const pendingPackages = (pendingPackagesResponse.data || [])
-            const allPendingAppts = (allPendingApptsResponse.data || []).filter((a: any) => !a.package_credit_id && !['cancelled', 'canceled', 'no_show'].includes(a.status))
+            const allPendingAppts = (allPendingApptsResponse.data || []).filter((a: any) => isBillableAppt(a))
 
 
             // --- Process Monthly Chart Data (Last 6 Months) ---
@@ -174,14 +202,17 @@ export default function FinanceiroPage() {
                 monthMap.set(monthKey, { month: monthKey, revenue: 0, expenses: 0, profit: 0 })
             }
 
-            // Add Appointments to Chart
-            appointments.forEach(appt => {
-                const dateAt = appt.payment_status === 'paid' ? appt.paid_at! : appt.scheduled_at
-                const date = new Date(dateAt)
-                const monthKey = date.toLocaleString('pt-BR', { month: 'short' })
-                if (monthMap.has(monthKey) && appt.payment_status === 'paid') {
-                    const data = monthMap.get(monthKey)!
-                    data.revenue += (appt.final_price ?? appt.calculated_price ?? 0)
+            // Add Paid Appointments to Chart
+            chartAppointments.forEach(appt => {
+                if (appt.payment_status === 'paid') {
+                    const dateAt = appt.paid_at || appt.scheduled_at
+                    const date = new Date(dateAt)
+                    const monthKey = date.toLocaleString('pt-BR', { month: 'short' })
+                    if (monthMap.has(monthKey)) {
+                        const data = monthMap.get(monthKey)!
+                        data.revenue += getApptAmount(appt)
+                        data.profit = data.revenue - data.expenses
+                    }
                 }
             })
 
@@ -191,23 +222,23 @@ export default function FinanceiroPage() {
                 const monthKey = date.toLocaleString('pt-BR', { month: 'short' })
                 const data = monthMap.get(monthKey)
                 if (data) {
-                    if (t.type === 'income') data.revenue += t.amount
-                    else data.expenses += t.amount
+                    if (t.type === 'income') data.revenue += Number(t.amount || 0)
+                    else data.expenses += Number(t.amount || 0)
                     data.profit = data.revenue - data.expenses
                 }
             })
             setMonthlyData(Array.from(monthMap.values()))
 
             // --- Process Summary and Categories (filtered by startDate/endDate) ---
-            const filterByPeriod = (dateStr: string) => {
+            const filterByPeriod = (dateStr?: string | null) => {
+                if (!dateStr) return false
                 const d = new Date(dateStr)
-                // Usamos 12:00:00 para garantir que a comparação seja segura contra timezone shifts
                 const start = new Date(startDate + 'T00:00:00')
-                const end = new Date(endDate + 'T23:59:59')
+                const end = new Date(endDate + 'T23:59:59.999')
                 return d >= start && d <= end
             }
 
-            const activeAppts = appointments.filter(a => filterByPeriod(a.payment_status === 'paid' ? a.paid_at! : a.scheduled_at))
+            const activeAppts = periodAppointments.filter(a => filterByPeriod(a.payment_status === 'paid' ? (a.paid_at || a.scheduled_at) : a.scheduled_at))
             const activeTxs = transactions.filter(t => filterByPeriod(t.date))
 
             const catMap = new Map<string, CategoryRevenue>()
@@ -217,7 +248,7 @@ export default function FinanceiroPage() {
             activeAppts.forEach(a => {
                 if (a.payment_status === 'paid') {
                     const catName = (a.services as any)?.service_categories?.name || 'Serviços'
-                    const amount = a.final_price ?? a.calculated_price ?? 0
+                    const amount = getApptAmount(a)
                     const current = catMap.get(catName) || { name: catName, revenue: 0, count: 0, percentage: 0 }
                     current.revenue += amount
                     current.count += 1
@@ -229,11 +260,12 @@ export default function FinanceiroPage() {
             activeTxs.forEach(t => {
                 if (t.type === 'income') {
                     const catName = t.category || 'Outros'
+                    const amount = Number(t.amount || 0)
                     const current = catMap.get(catName) || { name: catName, revenue: 0, count: 0, percentage: 0 }
-                    current.revenue += t.amount
+                    current.revenue += amount
                     current.count += 1
                     catMap.set(catName, current)
-                    totalRev += t.amount
+                    totalRev += amount
                 }
             })
 
@@ -508,14 +540,14 @@ export default function FinanceiroPage() {
 
     const activeRevenue = extractRecords.appointments
         .filter(a => a.payment_status === 'paid' && (selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory))
-        .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0) +
+        .reduce((sum, a) => sum + getApptAmount(a), 0) +
         extractRecords.transactions
             .filter(t => t.type === 'income' && (selectedCategory === 'all' || t.category === selectedCategory))
-            .reduce((sum, t) => sum + t.amount, 0)
+            .reduce((sum, t) => sum + Number(t.amount || 0), 0)
 
     const activeExpenses = extractRecords.transactions
         .filter(t => t.type === 'expense' && (selectedCategory === 'all' || t.category === selectedCategory))
-        .reduce((sum, t) => sum + t.amount, 0)
+        .reduce((sum, t) => sum + Number(t.amount || 0), 0)
 
     const activeProfit = activeRevenue - activeExpenses
 
@@ -563,10 +595,10 @@ export default function FinanceiroPage() {
     const realizedPendingTotal = extractRecords.allPendingAppts
         .filter(a => isApptRealized(a))
         .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
-        .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
+        .reduce((sum, a) => sum + getApptAmount(a), 0)
         + extractRecords.pendingSales
             .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
-            .reduce((sum, s) => sum + s.total_price, 0)
+            .reduce((sum, s) => sum + Number(s.total_price || 0), 0)
         + extractRecords.pendingPackages
             .filter(p => isPackageRealized(p))
             .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
@@ -575,7 +607,7 @@ export default function FinanceiroPage() {
     const forecastPendingTotal = extractRecords.allPendingAppts
         .filter(a => !isApptRealized(a))
         .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
-        .reduce((sum, a) => sum + (a.final_price ?? a.calculated_price ?? 0), 0)
+        .reduce((sum, a) => sum + getApptAmount(a), 0)
         + extractRecords.pendingPackages
             .filter(p => !isPackageRealized(p))
             .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
@@ -611,11 +643,11 @@ export default function FinanceiroPage() {
                 .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
                 .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
                 .forEach(appt => {
-                    const dateVal = appt.payment_status === 'paid' ? appt.paid_at! : appt.scheduled_at;
+                    const dateVal = appt.payment_status === 'paid' ? (appt.paid_at || appt.scheduled_at) : appt.scheduled_at;
                     rows.push([
-                        `${appt.pets?.name || 'Pet'} • ${appt.services?.name || 'Serviço'}`,
+                        `${appt.pets?.name || 'Pet'} • ${appt.services?.name || 'Serviço'}${appt.package_credit_id ? ' (Adicional de Pacote)' : ''}`,
                         new Date(dateVal).toLocaleDateString('pt-BR'),
-                        (appt.final_price || appt.calculated_price || 0).toFixed(2).replace('.', ','),
+                        getApptAmount(appt).toFixed(2).replace('.', ','),
                         (appt.services as any)?.service_categories?.name || 'Serviços'
                     ])
                 })
@@ -698,11 +730,11 @@ export default function FinanceiroPage() {
                 .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
                 .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
                 .forEach(appt => {
-                    const dateVal = appt.payment_status === 'paid' ? appt.paid_at! : appt.scheduled_at;
+                    const dateVal = appt.payment_status === 'paid' ? (appt.paid_at || appt.scheduled_at) : appt.scheduled_at;
                     rows.push([
-                        `${appt.pets?.name || 'Pet'} • ${appt.services?.name || 'Serviço'}`,
+                        `${appt.pets?.name || 'Pet'} • ${appt.services?.name || 'Serviço'}${appt.package_credit_id ? ' (Adicional de Pacote)' : ''}`,
                         new Date(dateVal).toLocaleDateString('pt-BR'),
-                        formatCurrency(appt.final_price || appt.calculated_price || 0),
+                        formatCurrency(getApptAmount(appt)),
                         (appt.services as any)?.service_categories?.name || 'Serviços'
                     ])
                 })
@@ -1218,9 +1250,9 @@ export default function FinanceiroPage() {
             type: 'appointment' as const,
             petName: appt.pets?.name || 'Pet',
             customerName: appt.pets?.customers?.name || 'Sem tutor',
-            title: `${appt.pets?.name || 'Pet'} (${appt.pets?.customers?.name || 'Sem tutor'}) • ${appt.services?.name || 'Serviço'}`,
+            title: `${appt.pets?.name || 'Pet'} (${appt.pets?.customers?.name || 'Sem tutor'}) • ${appt.services?.name || 'Serviço'}${appt.package_credit_id ? ' (Adicional de Pacote)' : ''}`,
             date: appt.scheduled_at,
-            amount: appt.final_price || appt.calculated_price || 0,
+            amount: getApptAmount(appt),
             isRealized: isApptRealized(appt),
             raw: appt
         })),
@@ -1231,7 +1263,7 @@ export default function FinanceiroPage() {
             customerName: sale.pets?.customers?.name || 'Sem tutor',
             title: `${sale.pets?.name || 'Avulso'} (${sale.pets?.customers?.name || 'Sem tutor'}) • ${sale.product_name}`,
             date: sale.created_at,
-            amount: sale.total_price,
+            amount: Number(sale.total_price || 0),
             isRealized: true,
             raw: sale
         })),
@@ -1268,8 +1300,8 @@ export default function FinanceiroPage() {
 
     const totalFiltered = extractRecords.type === 'pending'
         ? pendingItems.reduce((acc, item) => acc + item.amount, 0)
-        : filteredAppts.reduce((acc, a) => acc + (a.final_price || a.calculated_price || 0), 0) +
-          filteredTxs.reduce((acc, t) => acc + t.amount, 0)
+        : filteredAppts.reduce((acc, a) => acc + getApptAmount(a), 0) +
+          filteredTxs.reduce((acc, t) => acc + Number(t.amount || 0), 0)
 
     const isEmpty = extractRecords.type === 'pending'
         ? pendingItems.length === 0
@@ -1401,12 +1433,12 @@ export default function FinanceiroPage() {
             {extractRecords.type === 'revenue' && filteredAppts.map(appt => (
                 <div key={appt.id} className={styles.extractItem}>
                     <div className={styles.extractInfo}>
-                        <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}</strong>
+                        <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}{appt.package_credit_id ? ' (Adicional de Pacote)' : ''}</strong>
                         <span>{new Date(appt.paid_at || appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
                     </div>
                     <div className={styles.extractActions}>
                         <span className={styles.extractAmount}>
-                            {formatCurrency(appt.final_price || appt.calculated_price || 0)}
+                            {formatCurrency(getApptAmount(appt))}
                         </span>
                     </div>
                 </div>

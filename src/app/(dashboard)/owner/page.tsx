@@ -162,6 +162,20 @@ export default function OwnerDashboard() {
         return Number(p.calculated_price || 0)
     }
 
+    const isBillableAppt = (a: any): boolean => {
+        if (['cancelled', 'canceled', 'no_show'].includes(a.status)) return false
+        if (!a.package_credit_id) return true
+        return Number(a.extras_fee || 0) > 0
+    }
+
+    const getApptAmount = (a: any): number => {
+        if (a.discount_percent === 100) return 0
+        if (a.package_credit_id) {
+            return Number(a.extras_fee || 0)
+        }
+        return Number(a.final_price ?? a.calculated_price ?? 0)
+    }
+
     
     useEffect(() => {
         if (isExtractModalOpen) {
@@ -195,102 +209,7 @@ export default function OwnerDashboard() {
                     return
                 }
 
-                // 1. Fetch Financial Data from APPOINTMENTS
-                const now = new Date()
-                // Usando format YYYY-MM-DD para evitar problemas de fuso horário na busca do banco
-                const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-                const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0] + 'T23:59:59Z'
-                const startOfPreviousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0]
-                const endOfPreviousMonth = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0] + 'T23:59:59Z'
-
-                const { data: currentMonthAppts } = await supabase
-                    .from('appointments')
-                    .select(`
-                        id, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
-                        pets ( name, customers ( name ) ),
-                        services ( name, service_categories ( name ) )
-                    `)
-                    .eq('org_id', profile.org_id)
-                    .or(`and(scheduled_at.gte.${startOfCurrentMonth},scheduled_at.lte.${endOfCurrentMonth}),and(payment_status.eq.paid,paid_at.gte.${startOfCurrentMonth},paid_at.lte.${endOfCurrentMonth})`)
-
-                const { data: allPendingAppts } = await supabase
-                    .from('appointments')
-                    .select(`
-                        id, status, final_price, calculated_price, payment_status, scheduled_at, paid_at, package_credit_id,
-                        pets ( name, customers ( name ) ),
-                        services ( name, service_categories ( name ) )
-                    `)
-                    .eq('org_id', profile.org_id)
-                    .neq('payment_status', 'paid')
-                    .not('status', 'in', '("cancelled","canceled","no_show")')
-
-                // Previous month paid appointments (for growth)
-                const { data: prevMonthAppts } = await supabase
-                    .from('appointments')
-                    .select('final_price, calculated_price, payment_status, package_credit_id, scheduled_at, paid_at')
-                    .eq('org_id', profile.org_id)
-                    .or(`and(scheduled_at.gte.${startOfPreviousMonth},scheduled_at.lte.${endOfPreviousMonth}),and(payment_status.eq.paid,paid_at.gte.${startOfPreviousMonth},paid_at.lte.${endOfPreviousMonth})`)
-
-                const { data: pendingSalesData } = await supabase
-                    .from('petshop_sales')
-                    .select('id, product_name, total_price, payment_status, created_at, pets ( name, customers ( name ) )')
-                    .eq('org_id', profile.org_id)
-                    .eq('payment_status', 'pending')
-                    .order('created_at', { ascending: true })
-
-                const { data: pendingPackagesData } = await supabase
-                    .from('customer_packages')
-                    .select('id, total_paid, calculated_price, payment_status, purchased_at, payment_due_date, period_label, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name ), package_schedule_slots ( slot_date, status )')
-                    .eq('org_id', profile.org_id)
-                    .eq('payment_status', 'pending')
-                    .order('purchased_at', { ascending: true })
-
-                const filterByCurrentPeriod = (dateStr?: string | null) => {
-                    if (!dateStr) return false
-                    const d = new Date(dateStr)
-                    const start = new Date(startOfCurrentMonth + 'T00:00:00')
-                    const end = new Date(endOfCurrentMonth)
-                    return d >= start && d <= end
-                }
-
-                const filterByPrevPeriod = (dateStr?: string | null) => {
-                    if (!dateStr) return false
-                    const d = new Date(dateStr)
-                    const start = new Date(startOfPreviousMonth + 'T00:00:00')
-                    const end = new Date(endOfPreviousMonth)
-                    return d >= start && d <= end
-                }
-
-                const paidAppts = (currentMonthAppts || []).filter(a => 
-                    a.payment_status === 'paid' && 
-                    !(a as any).package_credit_id &&
-                    filterByCurrentPeriod(a.paid_at || a.scheduled_at)
-                )
-                const pendingAppts = (allPendingAppts || []).filter(a => !(a as any).package_credit_id && !['cancelled', 'canceled', 'no_show'].includes(a.status))
-                
-                const currentRevenue = paidAppts
-                    .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
-
-                const realizedAppts = pendingAppts.filter(a => isApptRealized(a))
-                const forecastAppts = pendingAppts.filter(a => !isApptRealized(a))
-
-                const realizedPackages = (pendingPackagesData || []).filter(p => isPackageRealized(p))
-                const forecastPackages = (pendingPackagesData || []).filter(p => !isPackageRealized(p))
-
-                const realizedPendingTotal = realizedAppts.reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
-                    + (pendingSalesData || []).reduce((sum, s) => sum + Number(s.total_price), 0)
-                    + realizedPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
-
-                const forecastPendingTotal = forecastAppts.reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
-                    + forecastPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
-
-                const prevRevenue = (prevMonthAppts || [])
-                    .filter(a => a.payment_status === 'paid' && !(a as any).package_credit_id && filterByPrevPeriod(a.paid_at || a.scheduled_at))
-                    .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
-
-                const revenueGrowth = prevRevenue > 0 ? ((currentRevenue - prevRevenue) / prevRevenue) * 100 : 0
-
-                // 2. Process recurring expenses incrementally (throttled to once per session)
+                // 1. Process recurring expenses incrementally (throttled to once per session) BEFORE fetching transactions
                 const lastSync = sessionStorage.getItem('last_recurring_sync')
                 const today = new Date().toISOString().split('T')[0]
                 
@@ -299,46 +218,138 @@ export default function OwnerDashboard() {
                     sessionStorage.setItem('last_recurring_sync', today)
                 }
 
-                // 3. Fetch all financial transactions (income and expenses) for the month
-                const { data: transactions } = await supabase
-                    .from('financial_transactions')
-                    .select('*')
-                    .eq('org_id', profile.org_id)
-                    .gte('date', startOfCurrentMonth)
-                    .lte('date', endOfCurrentMonth)
+                // 2. Fetch Financial Data (Espelhado 100% com /owner/financeiro)
+                const now = new Date()
+                const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+                const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+                const prevStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0]
+                const prevEndDate = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0]
 
-                const incomeTxs = (transactions || []).filter(t => t.type === 'income')
-                const expenseTxs = (transactions || []).filter(t => t.type === 'expense')
+                const filterByPeriodRange = (dateStr: string | null | undefined, startStr: string, endStr: string) => {
+                    if (!dateStr) return false
+                    const d = new Date(dateStr)
+                    const start = new Date(startStr + 'T00:00:00')
+                    const end = new Date(endStr + 'T23:59:59.999')
+                    return d >= start && d <= end
+                }
 
-                const productRevenue = incomeTxs.reduce((sum, t) => sum + t.amount, 0)
-                const expenses = expenseTxs.reduce((sum, t) => sum + t.amount, 0)
+                const [
+                    currentMonthApptsRes,
+                    allPendingApptsRes,
+                    prevMonthApptsRes,
+                    pendingSalesRes,
+                    pendingPackagesRes,
+                    allTxsRes
+                ] = await Promise.all([
+                    supabase
+                        .from('appointments')
+                        .select(`
+                            id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id,
+                            pets ( name, customers ( name ) ),
+                            services ( name, service_categories ( name ) )
+                        `)
+                        .eq('org_id', profile.org_id)
+                        .not('status', 'in', '("cancelled","canceled","no_show")')
+                        .or(`and(scheduled_at.gte.${startDate}T00:00:00,scheduled_at.lte.${endDate}T23:59:59Z),and(payment_status.eq.paid,paid_at.gte.${startDate}T00:00:00,paid_at.lte.${endDate}T23:59:59Z)`)
+                        .limit(5000),
+                    supabase
+                        .from('appointments')
+                        .select(`
+                            id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id,
+                            pets ( name, customers ( name ) ),
+                            services ( name, service_categories ( name ) )
+                        `)
+                        .eq('org_id', profile.org_id)
+                        .neq('payment_status', 'paid')
+                        .not('status', 'in', '("cancelled","canceled","no_show")')
+                        .order('scheduled_at', { ascending: true })
+                        .limit(5000),
+                    supabase
+                        .from('appointments')
+                        .select('id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, package_credit_id, scheduled_at, paid_at')
+                        .eq('org_id', profile.org_id)
+                        .eq('payment_status', 'paid')
+                        .not('status', 'in', '("cancelled","canceled","no_show")')
+                        .or(`and(scheduled_at.gte.${prevStartDate}T00:00:00,scheduled_at.lte.${prevEndDate}T23:59:59Z),and(payment_status.eq.paid,paid_at.gte.${prevStartDate}T00:00:00,paid_at.lte.${prevEndDate}T23:59:59Z)`)
+                        .limit(5000),
+                    supabase
+                        .from('petshop_sales')
+                        .select('id, product_name, total_price, payment_status, created_at, pets ( name, customers ( name ) )')
+                        .eq('org_id', profile.org_id)
+                        .eq('payment_status', 'pending')
+                        .order('created_at', { ascending: true }),
+                    supabase
+                        .from('customer_packages')
+                        .select('id, total_paid, calculated_price, discount_percent, payment_status, is_active, purchased_at, payment_due_date, period_label, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name ), package_schedule_slots ( slot_date, status )')
+                        .eq('org_id', profile.org_id)
+                        .eq('payment_status', 'pending')
+                        .or('is_active.is.null,is_active.eq.true')
+                        .order('purchased_at', { ascending: true }),
+                    supabase
+                        .from('financial_transactions')
+                        .select('*')
+                        .eq('org_id', profile.org_id)
+                        .gte('date', `${prevStartDate}T00:00:00`)
+                        .order('date', { ascending: false })
+                        .limit(5000)
+                ])
 
-                const totalRevenue = currentRevenue + productRevenue
+                const currentMonthAppts = currentMonthApptsRes.data || []
+                const allPendingAppts = allPendingApptsRes.data || []
+                const prevMonthAppts = prevMonthApptsRes.data || []
+                const pendingSalesData = pendingSalesRes.data || []
+                const pendingPackagesData = pendingPackagesRes.data || []
+                const allTxs = allTxsRes.data || []
 
-                // Get recent 5 expenses for the new section
-                const { data: recentExp } = await supabase
-                    .from('financial_transactions')
-                    .select('*')
-                    .eq('org_id', profile.org_id)
-                    .eq('type', 'expense')
-                    .gte('date', startOfCurrentMonth)
-                    .lte('date', endOfCurrentMonth)
-                    .order('date', { ascending: false })
-                    .limit(5)
+                const activeAppts = currentMonthAppts.filter(a =>
+                    isBillableAppt(a) &&
+                    filterByPeriodRange(a.payment_status === 'paid' ? (a.paid_at || a.scheduled_at) : a.scheduled_at, startDate, endDate)
+                )
+                const paidAppts = activeAppts.filter(a => a.payment_status === 'paid')
+                const pendingAppts = allPendingAppts.filter(a => isBillableAppt(a))
                 
-                setRecentExpenses(recentExp || [])
+                const currentApptRevenue = paidAppts.reduce((sum, a) => sum + getApptAmount(a), 0)
 
-                // Calculate Expense Growth
-                const { data: prevMonthTxs } = await supabase
-                    .from('financial_transactions')
-                    .select('amount')
-                    .eq('org_id', profile.org_id)
-                    .eq('type', 'expense')
-                    .gte('date', startOfPreviousMonth)
-                    .lte('date', endOfPreviousMonth)
-                
-                const prevExpenses = (prevMonthTxs || []).reduce((sum, t) => sum + t.amount, 0)
+                const realizedAppts = pendingAppts.filter(a => isApptRealized(a))
+                const forecastAppts = pendingAppts.filter(a => !isApptRealized(a))
+
+                const realizedPackages = pendingPackagesData.filter(p => isPackageRealized(p))
+                const forecastPackages = pendingPackagesData.filter(p => !isPackageRealized(p))
+
+                const realizedPendingTotal = realizedAppts.reduce((sum, a) => sum + getApptAmount(a), 0)
+                    + pendingSalesData.reduce((sum, s) => sum + Number(s.total_price || 0), 0)
+                    + realizedPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
+
+                const forecastPendingTotal = forecastAppts.reduce((sum, a) => sum + getApptAmount(a), 0)
+                    + forecastPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
+
+                const activeTxs = allTxs.filter(t => filterByPeriodRange(t.date, startDate, endDate))
+                const prevTxs = allTxs.filter(t => filterByPeriodRange(t.date, prevStartDate, prevEndDate))
+
+                const incomeTxs = activeTxs.filter(t => t.type === 'income')
+                const expenseTxs = activeTxs.filter(t => t.type === 'expense')
+
+                const productRevenue = incomeTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0)
+                const expenses = expenseTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0)
+
+                const totalRevenue = currentApptRevenue + productRevenue
+
+                // Previous month total revenue and expenses for growth comparison
+                const prevApptRevenue = prevMonthAppts
+                    .filter(a => a.payment_status === 'paid' && isBillableAppt(a) && filterByPeriodRange(a.paid_at || a.scheduled_at, prevStartDate, prevEndDate))
+                    .reduce((sum, a) => sum + getApptAmount(a), 0)
+                const prevTxIncome = prevTxs
+                    .filter(t => t.type === 'income')
+                    .reduce((sum, t) => sum + Number(t.amount || 0), 0)
+                const prevTotalRevenue = prevApptRevenue + prevTxIncome
+                const revenueGrowth = prevTotalRevenue > 0 ? ((totalRevenue - prevTotalRevenue) / prevTotalRevenue) * 100 : 0
+
+                const prevExpenses = prevTxs
+                    .filter(t => t.type === 'expense')
+                    .reduce((sum, t) => sum + Number(t.amount || 0), 0)
                 const expenseGrowth = prevExpenses > 0 ? ((expenses - prevExpenses) / prevExpenses) * 100 : 0
+
+                setRecentExpenses(expenseTxs.slice(0, 5))
 
                 setFinancials({
                     revenue: totalRevenue,
@@ -353,11 +364,11 @@ export default function OwnerDashboard() {
                 // Store records for extract
                 setExtractRecords({
                     type: null, // Keep null until a card is clicked
-                    appointments: (currentMonthAppts || []).filter(a => !(a as any).package_credit_id),
-                    transactions: transactions || [],
-                    allPending: (allPendingAppts || []).filter(a => !(a as any).package_credit_id),
-                    pendingSales: pendingSalesData || [],
-                    pendingPackages: pendingPackagesData || []
+                    appointments: activeAppts,
+                    transactions: activeTxs,
+                    allPending: pendingAppts,
+                    pendingSales: pendingSalesData,
+                    pendingPackages: pendingPackagesData
                 })
 
                 // 2. Fetch Operational Stats
@@ -779,7 +790,7 @@ export default function OwnerDashboard() {
         const monthCount = monthAppts.length
         const revenue = monthAppts
             .filter(a => a.payment_status === 'paid')
-            .reduce((sum, a) => sum + Number(a.final_price ?? a.calculated_price ?? 0), 0)
+            .reduce((sum, a) => sum + getApptAmount(a), 0)
 
         return { todayCount, monthCount, revenue }
     }
@@ -1367,9 +1378,9 @@ export default function OwnerDashboard() {
             type: 'appointment' as const,
             petName: appt.pets?.name || 'Pet',
             customerName: appt.pets?.customers?.name || 'Sem tutor',
-            title: `${appt.pets?.name || 'Pet'} (${appt.pets?.customers?.name || 'Sem tutor'}) • ${appt.services?.name || 'Serviço'}`,
+            title: `${appt.pets?.name || 'Pet'} (${appt.pets?.customers?.name || 'Sem tutor'}) • ${appt.services?.name || 'Serviço'}${appt.package_credit_id ? ' (Adicional de Pacote)' : ''}`,
             date: appt.scheduled_at,
-            amount: appt.final_price ?? appt.calculated_price ?? 0,
+            amount: getApptAmount(appt),
             isRealized: isApptRealized(appt),
             raw: appt
         })),
@@ -1380,7 +1391,7 @@ export default function OwnerDashboard() {
             customerName: sale.pets?.customers?.name || 'Sem tutor',
             title: `🛍️ ${sale.product_name || 'Venda Petshop'} (${sale.pets?.customers?.name || 'Sem tutor'})`,
             date: sale.created_at,
-            amount: sale.total_price,
+            amount: Number(sale.total_price || 0),
             isRealized: true,
             raw: sale
         })),
@@ -1417,8 +1428,8 @@ export default function OwnerDashboard() {
 
     const totalFiltered = extractRecords.type === 'pending'
         ? pendingItems.reduce((acc, item) => acc + item.amount, 0)
-        : filteredAppts.reduce((acc, a) => acc + (a.final_price ?? a.calculated_price ?? 0), 0) +
-          filteredTxs.reduce((acc, t) => acc + t.amount, 0)
+        : filteredAppts.reduce((acc, a) => acc + getApptAmount(a), 0) +
+          filteredTxs.reduce((acc, t) => acc + Number(t.amount || 0), 0)
 
     const isEmpty = extractRecords.type === 'pending'
         ? pendingItems.length === 0
@@ -1550,12 +1561,12 @@ export default function OwnerDashboard() {
             {extractRecords.type === 'revenue' && filteredAppts.map(appt => (
                 <div key={appt.id} className={styles.extractItem}>
                     <div className={styles.extractInfo}>
-                        <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}</strong>
-                        <span>{new Date(appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
+                        <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}{appt.package_credit_id ? ' (Adicional de Pacote)' : ''}</strong>
+                        <span>{new Date(appt.paid_at || appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
                     </div>
                     <div className={styles.extractActions}>
                         <span className={styles.extractAmount}>
-                            {formatCurrency(appt.final_price ?? appt.calculated_price ?? 0)}
+                            {formatCurrency(getApptAmount(appt))}
                         </span>
                     </div>
                 </div>
