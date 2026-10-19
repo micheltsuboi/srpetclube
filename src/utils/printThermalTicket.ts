@@ -162,6 +162,19 @@ function buildTicketHtml(appt: ThermalAppointment, pet: ThermalPet | null, custo
     const neighborhood = customer?.neighborhood || pet?.customers?.neighborhood || null
 
     const serviceName = appt.services?.name || 'Serviço'
+    const catRaw = (appt.services as any)?.service_categories || (appt as any).category
+    const catName = typeof catRaw === 'string' ? catRaw : ((Array.isArray(catRaw) ? catRaw[0]?.name : catRaw?.name) || '')
+    const combinedService = `${serviceName} ${catName}`.toLowerCase()
+
+    const isCreche = combinedService.includes('creche') || combinedService.includes('day care')
+    const isHospedagem = combinedService.includes('hospedagem') || combinedService.includes('hotel')
+    const isBanhoTosa = !isCreche && !isHospedagem
+
+    let subtitleHeader = 'FICHA DE ATENDIMENTO'
+    if (isCreche) subtitleHeader = 'FICHA DE CRECHE'
+    else if (isHospedagem) subtitleHeader = 'FICHA DE HOSPEDAGEM'
+    else if (isBanhoTosa) subtitleHeader = 'FICHA DE BANHO E TOSA'
+
     const scheduledDate = formatDate(appt.scheduled_at)
     const scheduledHour = formatTime(appt.scheduled_at)
     const ticketId = (appt.id || '').slice(0, 8).toUpperCase()
@@ -375,7 +388,7 @@ function buildTicketHtml(appt: ThermalAppointment, pet: ThermalPet | null, custo
         <!-- CABEÇALHO -->
         <div class="center">
             <div class="title">SR PET CLUBE</div>
-            <div class="subtitle">FICHA DE ATENDIMENTO</div>
+            <div class="subtitle">${subtitleHeader}</div>
             <div style="font-size: 9.5px; margin-top: 2px;">
                 ${scheduledDate} às ${scheduledHour} • #${ticketId}
             </div>
@@ -454,6 +467,16 @@ function buildTicketHtml(appt: ThermalAppointment, pet: ThermalPet | null, custo
                 <span class="label">Valor:</span>
                 <span class="value bold">${priceText}</span>
             </div>
+            ${(appt.check_in_date || appt.check_out_date) ? `
+                <div class="row" style="margin-top: 2px;">
+                    <span class="label">Check-in:</span>
+                    <span class="value bold">${formatDate(appt.check_in_date || appt.scheduled_at)}</span>
+                </div>
+                <div class="row">
+                    <span class="label">Check-out:</span>
+                    <span class="value bold">${formatDate(appt.check_out_date || '')}</span>
+                </div>
+            ` : ''}
             ${appt.has_taxi ? `
                 <div class="row">
                     <span class="label">Táxi Dog:</span>
@@ -479,45 +502,47 @@ function buildTicketHtml(appt: ThermalAppointment, pet: ThermalPet | null, custo
             </div>
         ` : ''}
 
-        <div class="divider"></div>
+        <!-- PREFERÊNCIAS ESTÉTICAS (EXCLUSIVO PARA BANHO E TOSA) -->
+        ${isBanhoTosa ? `
+            <div class="divider"></div>
+            <div class="section-header">PREFERÊNCIAS & CUIDADOS</div>
 
-        <!-- PREFERÊNCIAS & CUIDADOS -->
-        <div class="section-header">PREFERÊNCIAS & CUIDADOS</div>
-
-        <!-- DESTAQUE CORTE DE UNHA -->
-        <div class="box-warning" style="text-align: center;">
-            <div style="font-size: 10px; font-weight: 700; text-transform: uppercase;">CORTE DE UNHAS</div>
-            <div style="font-size: 12px; font-weight: 900; margin-top: 2px;">
-                ${nailInfo.requested ? `
-                    <span style="background: #000; color: #fff; padding: 1px 4px; border-radius: 2px;">[X] SIM - CORTAR UNHAS</span>
+            <!-- DESTAQUE CORTE DE UNHA -->
+            <div class="box-warning" style="text-align: center;">
+                <div style="font-size: 10px; font-weight: 700; text-transform: uppercase;">CORTE DE UNHAS</div>
+                <div style="font-size: 12px; font-weight: 900; margin-top: 2px;">
+                    ${nailInfo.requested ? `
+                        <span style="background: #000; color: #fff; padding: 1px 4px; border-radius: 2px;">[X] SIM - CORTAR UNHAS</span>
+                    ` : `
+                        <span>[ ] NÃO SOLICITADO</span>
+                    `}
+                </div>
+                ${nailInfo.reason ? `
+                    <div style="font-size: 9px; margin-top: 2px;">Origem: ${nailInfo.reason}</div>
                 ` : `
-                    <span>[ ] NÃO SOLICITADO</span>
+                    <div style="font-size: 8.5px; margin-top: 2px;">(Confirmar com tutor na entrada)</div>
                 `}
             </div>
-            ${nailInfo.reason ? `
-                <div style="font-size: 9px; margin-top: 2px;">Origem: ${nailInfo.reason}</div>
-            ` : `
-                <div style="font-size: 8.5px; margin-top: 2px;">(Confirmar com tutor na entrada)</div>
-            `}
-        </div>
 
-        <!-- PREFERÊNCIAS GERAIS -->
-        <div style="margin: 3px 0;">
-            <div class="checkbox-line">
-                <span class="box-square">${perfumeAllowed ? 'X' : '&nbsp;'}</span>
-                <span class="bold">Perfume:</span>&nbsp;${perfumeAllowed ? 'SIM (Autorizado)' : '🚫 NÃO USAR'}
+            <!-- PREFERÊNCIAS GERAIS (PERFUME E ADEREÇOS) -->
+            <div style="margin: 3px 0;">
+                <div class="checkbox-line">
+                    <span class="box-square">${perfumeAllowed ? 'X' : '&nbsp;'}</span>
+                    <span class="bold">Perfume:</span>&nbsp;${perfumeAllowed ? 'SIM (Autorizado)' : '🚫 NÃO USAR'}
+                </div>
+                <div class="checkbox-line">
+                    <span class="box-square">${accessoriesAllowed ? 'X' : '&nbsp;'}</span>
+                    <span class="bold">Laço / Adereço:</span>&nbsp;${accessoriesAllowed ? 'SIM (Autorizado)' : '🚫 NÃO COLOCAR'}
+                </div>
             </div>
-            <div class="checkbox-line">
-                <span class="box-square">${accessoriesAllowed ? 'X' : '&nbsp;'}</span>
-                <span class="bold">Laço / Adereço:</span>&nbsp;${accessoriesAllowed ? 'SIM (Autorizado)' : '🚫 NÃO COLOCAR'}
-            </div>
-        </div>
+        ` : ''}
 
-        <!-- ALERTAS DE SAÚDE / COMPORTAMENTO -->
-        ${pet?.allergies || pet?.medical_notes || pet?.special_care || pet?.temperament ? `
+        <!-- ALERTAS DE SAÚDE / COMPORTAMENTO / CUIDADOS -->
+        ${(pet?.allergies || pet?.medical_notes || pet?.special_care || pet?.temperament) ? `
+            <div class="divider"></div>
             <div class="box-warning" style="background: #ffffff;">
                 <div style="font-size: 10px; font-weight: 900; text-transform: uppercase; color: #000;">
-                    ⚠️ ATENÇÃO / CUIDADOS:
+                    ⚠️ CUIDADOS & COMPORTAMENTO:
                 </div>
                 ${pet?.temperament ? `
                     <div style="font-size: 10px; margin-top: 2px;">
@@ -536,14 +561,14 @@ function buildTicketHtml(appt: ThermalAppointment, pet: ThermalPet | null, custo
                 ` : ''}
                 ${pet?.medical_notes ? `
                     <div style="font-size: 10px; margin-top: 2px;">
-                        <strong>Saúde:</strong> ${pet.medical_notes}
+                        <strong>Saúde / Medicação:</strong> ${pet.medical_notes}
                     </div>
                 ` : ''}
             </div>
         ` : ''}
 
-        <!-- OBSERVAÇÕES DO AGENDAMENTO -->
-        ${appt.notes ? `
+        <!-- OBSERVAÇÕES DO AGENDAMENTO (SOMENTE SE HOUVER OBSERVAÇÃO SALVA) -->
+        ${appt.notes && appt.notes.trim() ? `
             <div class="divider"></div>
             <div style="margin: 3px 0;">
                 <span class="label">Observações:</span>
@@ -553,7 +578,7 @@ function buildTicketHtml(appt: ThermalAppointment, pet: ThermalPet | null, custo
             </div>
         ` : ''}
 
-        <!-- CHECKLIST OPERACIONAL -->
+        <!-- CHECKLIST OPERACIONAL (SOMENTE SE HOUVER ITENS CADASTRADOS) -->
         ${checklistItems.length > 0 ? `
             <div class="divider"></div>
             <div class="section-header">CHECKLIST DE EXECUÇÃO</div>
