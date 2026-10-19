@@ -12,6 +12,7 @@ import PaymentControls from '@/components/PaymentControls'
 import EditAppointmentModal from '@/components/EditAppointmentModal'
 import ServiceExecutionModal from '@/components/ServiceExecutionModal'
 import { createAppointment } from '@/app/actions/appointment'
+import { printThermalTicket } from '@/utils/printThermalTicket'
 
 interface Appointment {
     id: string
@@ -23,10 +24,29 @@ interface Appointment {
     actual_check_in: string | null
     actual_check_out: string | null
     pets: {
+        id?: string
         name: string
         species: string
         breed: string | null
-        customers: { name: string }
+        color?: string | null
+        size?: string | null
+        weight_kg?: number | null
+        birth_date?: string | null
+        perfume_allowed?: boolean
+        accessories_allowed?: boolean
+        special_care?: string | null
+        medical_notes?: string | null
+        allergies?: string | null
+        temperament?: string | null
+        customers: {
+            id?: string
+            name: string
+            phone_1?: string | null
+            phone_2?: string | null
+            address?: string | null
+            neighborhood?: string | null
+            city?: string | null
+        }
     }
     services: {
         name: string
@@ -134,7 +154,11 @@ export default function BanhoTosaPage() {
                             )
                         )
                     ),
-                    pets ( name, species, breed, customers ( name ) ),
+                    pets ( 
+                        id, name, species, breed, color, size, weight_kg, birth_date,
+                        perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, temperament,
+                        customers ( id, name, phone_1, phone_2, address, neighborhood, city )
+                    ),
                     services!inner ( 
                         name, 
                         base_price,
@@ -484,17 +508,16 @@ export default function BanhoTosaPage() {
                                         )}
                                     </div>
                                 </div>
-                                {viewMode === 'active' && (
-                                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0, marginLeft: '0.5rem' }}>
+                                    <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0, marginLeft: '0.5rem' }}>
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation()
-                                                setEditingAppointment(appt)
+                                                printThermalTicket(appt as any, supabase)
                                             }}
-                                            title="Editar Agendamento"
+                                            title="Imprimir Comanda Térmica (58mm)"
                                             style={{
-                                                background: 'rgba(255,255,255,0.1)',
-                                                border: 'none',
+                                                background: 'rgba(37, 99, 235, 0.15)',
+                                                border: '1px solid rgba(59, 130, 246, 0.3)',
                                                 borderRadius: '50%',
                                                 width: '32px',
                                                 height: '32px',
@@ -505,31 +528,55 @@ export default function BanhoTosaPage() {
                                                 fontSize: '1rem'
                                             }}
                                         >
-                                            ✏️
+                                            🖨️
                                         </button>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation()
-                                                handleDelete(appt.id)
-                                            }}
-                                            title="Excluir Agendamento"
-                                            style={{
-                                                background: 'rgba(239, 68, 68, 0.1)',
-                                                border: 'none',
-                                                borderRadius: '50%',
-                                                width: '32px',
-                                                height: '32px',
-                                                cursor: 'pointer',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                fontSize: '1rem'
-                                            }}
-                                        >
-                                            🗑️
-                                        </button>
+                                        {viewMode === 'active' && (
+                                            <>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setEditingAppointment(appt)
+                                                    }}
+                                                    title="Editar Agendamento"
+                                                    style={{
+                                                        background: 'rgba(255,255,255,0.1)',
+                                                        border: 'none',
+                                                        borderRadius: '50%',
+                                                        width: '32px',
+                                                        height: '32px',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: '1rem'
+                                                    }}
+                                                >
+                                                    ✏️
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        handleDelete(appt.id)
+                                                    }}
+                                                    title="Excluir Agendamento"
+                                                    style={{
+                                                        background: 'rgba(239, 68, 68, 0.1)',
+                                                        border: 'none',
+                                                        borderRadius: '50%',
+                                                        width: '32px',
+                                                        height: '32px',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontSize: '1rem'
+                                                    }}
+                                                >
+                                                    🗑️
+                                                </button>
+                                            </>
+                                        )}
                                     </div>
-                                )}
                             </div>
 
                             <div style={{ marginTop: '1rem', display: 'flex', gap: '0.5rem' }}>

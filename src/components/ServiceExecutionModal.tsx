@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { updateAppointmentStatus, updateChecklist, updatePetPreferences } from '@/app/actions/appointment'
 import { checkInAppointment, checkOutAppointment } from '@/app/actions/checkInOut'
 import { uploadReportPhoto, saveDailyReport, getDailyReport } from '@/app/actions/dailyReport'
+import { printThermalTicket } from '@/utils/printThermalTicket'
 
 interface ChecklistItem {
     text: string
@@ -183,7 +184,29 @@ export default function ServiceExecutionModal({ appointment, onClose, onSave }: 
                             {appointment.pets?.name} • {appointment.services?.name}
                         </p>
                     </div>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <button
+                            onClick={() => printThermalTicket(appointment as any)}
+                            title="Imprimir Comanda Térmica (58mm)"
+                            style={{
+                                background: '#2563eb',
+                                border: 'none',
+                                color: 'white',
+                                padding: '0.45rem 0.85rem',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                                fontSize: '0.85rem',
+                                fontWeight: 700,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }}
+                        >
+                            🖨️ Imprimir Ficha
+                        </button>
+                        <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#64748b', fontSize: '1.5rem', cursor: 'pointer' }}>×</button>
+                    </div>
                 </div>
 
                 {appointment.notes && (

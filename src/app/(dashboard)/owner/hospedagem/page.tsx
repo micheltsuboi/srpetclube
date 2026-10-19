@@ -11,6 +11,7 @@ import ServiceExecutionModal from '@/components/ServiceExecutionModal'
 import DailyReportModal from '@/components/DailyReportModal'
 import EditAppointmentModal from '@/components/EditAppointmentModal'
 import PaymentControls from '@/components/PaymentControls'
+import { printThermalTicket } from '@/utils/printThermalTicket'
 
 interface Appointment {
     id: string
@@ -124,7 +125,11 @@ export default function HospedagemPage() {
                             )
                         )
                     ),
-                    pets ( name, species, breed, customers ( name ) ),
+                    pets ( 
+                        id, name, species, breed, color, size, weight_kg, birth_date,
+                        perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, temperament, is_adapted,
+                        customers ( id, name, phone_1, phone_2, address, neighborhood, city )
+                    ),
                     services!inner ( 
                         name, 
                         base_price,
@@ -383,48 +388,70 @@ export default function HospedagemPage() {
                                             </div>
 
                                             {/* Action Buttons Row */}
-                                            {viewMode === 'active' && (
-                                                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            setEditingAppointment(appt)
-                                                        }}
-                                                        style={{
-                                                            background: 'rgba(255,255,255,0.1)',
-                                                            border: 'none',
-                                                            borderRadius: '4px',
-                                                            padding: '4px 8px',
-                                                            cursor: 'pointer',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            fontSize: '0.9rem',
-                                                            color: '#e2e8f0'
-                                                        }}
-                                                    >
-                                                        ✏️ Editar
-                                                    </button>
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation()
-                                                            handleDelete(appt.id)
-                                                        }}
-                                                        style={{
-                                                            background: 'rgba(239, 68, 68, 0.15)',
-                                                            border: 'none',
-                                                            borderRadius: '4px',
-                                                            padding: '4px 8px',
-                                                            cursor: 'pointer',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            fontSize: '0.9rem',
-                                                            color: '#fca5a5'
-                                                        }}
-                                                    >
-                                                        🗑️ Excluir
-                                                    </button>
-                                                </div>
-                                            )}
+                                            <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        printThermalTicket(appt as any, supabase)
+                                                    }}
+                                                    title="Imprimir Comanda Térmica (58mm)"
+                                                    style={{
+                                                        background: 'rgba(37, 99, 235, 0.2)',
+                                                        border: '1px solid rgba(59, 130, 246, 0.4)',
+                                                        borderRadius: '4px',
+                                                        padding: '4px 8px',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        fontSize: '0.9rem',
+                                                        color: '#93c5fd'
+                                                    }}
+                                                >
+                                                    🖨️ Imprimir
+                                                </button>
+                                                {viewMode === 'active' && (
+                                                    <>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                setEditingAppointment(appt)
+                                                            }}
+                                                            style={{
+                                                                background: 'rgba(255,255,255,0.1)',
+                                                                border: 'none',
+                                                                borderRadius: '4px',
+                                                                padding: '4px 8px',
+                                                                cursor: 'pointer',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                fontSize: '0.9rem',
+                                                                color: '#e2e8f0'
+                                                            }}
+                                                        >
+                                                            ✏️ Editar
+                                                        </button>
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                handleDelete(appt.id)
+                                                            }}
+                                                            style={{
+                                                                background: 'rgba(239, 68, 68, 0.15)',
+                                                                border: 'none',
+                                                                borderRadius: '4px',
+                                                                padding: '4px 8px',
+                                                                cursor: 'pointer',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                fontSize: '0.9rem',
+                                                                color: '#fca5a5'
+                                                            }}
+                                                        >
+                                                            🗑️ Excluir
+                                                        </button>
+                                                    </>
+                                                )}
+                                            </div>
                                             <span className={styles.tutorName} style={{ cursor: 'pointer' }} onClick={(e) => {
                                                 e.stopPropagation()
                                                 setSelectedAppointment(appt)

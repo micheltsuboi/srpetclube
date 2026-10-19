@@ -6,6 +6,7 @@ import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
 import TimeClock from '@/components/modules/TimeClock'
 import CreditAlerts from '@/components/modules/CreditAlerts'
+import { printThermalTicket } from '@/utils/printThermalTicket'
 
 type ServiceArea = 'all' | 'banho_tosa' | 'creche' | 'hotel'
 
@@ -18,6 +19,7 @@ interface PetToday {
     status: 'waiting' | 'in_progress' | 'done'
     checkedInAt: string | null
     ownerName: string
+    rawAppointment?: any
 }
 
 const areaLabels: Record<ServiceArea, string> = {
@@ -78,9 +80,11 @@ export default function StaffDashboard() {
                 const { data: appts, error: apptError } = await supabase
                     .from('appointments')
                     .select(`
-                        id, scheduled_at, status, check_in_date, check_out_date,
-                        pets ( id, name, breed, species, customers ( name ) ),
-                        services ( name, service_categories ( name ) )
+                        id, scheduled_at, status, check_in_date, check_out_date, notes, checklist,
+                        calculated_price, final_price, payment_status, payment_method, has_taxi, taxi_fee, has_extras, extras_fee, extras,
+                        package_credit_id, package_usage_index,
+                        pets ( id, name, breed, species, color, size, weight_kg, birth_date, perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, temperament, is_adapted, customers ( id, name, phone_1, phone_2, address, neighborhood, city ) ),
+                        services ( id, name, base_price, service_categories ( name, color, icon ) )
                     `)
                     .eq('org_id', profile.org_id)
                     // Match today's single-day spots OR multi-day checking where today is inside the range
@@ -108,7 +112,8 @@ export default function StaffDashboard() {
                             service: (a.services as any)?.name || '',
                             status: a.status === 'done' ? 'done' : a.status === 'in_progress' ? 'in_progress' : 'waiting',
                             checkedInAt: new Date(a.scheduled_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-                            ownerName: (a.pets as any)?.customers?.name || 'Cliente'
+                            ownerName: (a.pets as any)?.customers?.name || 'Cliente',
+                            rawAppointment: a
                         }
                     })
 
@@ -244,6 +249,31 @@ export default function StaffDashboard() {
                                     <span className={styles.ownerName}>{pet.ownerName}</span>
                                     {pet.checkedInAt && (
                                         <span className={styles.checkInTime}>Check-in: {pet.checkedInAt}</span>
+                                    )}
+                                    {pet.rawAppointment && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                printThermalTicket(pet.rawAppointment, supabase)
+                                            }}
+                                            title="Imprimir Comanda Térmica (58mm)"
+                                            style={{
+                                                background: 'rgba(37, 99, 235, 0.2)',
+                                                border: '1px solid rgba(59, 130, 246, 0.4)',
+                                                borderRadius: '4px',
+                                                padding: '3px 8px',
+                                                color: '#93c5fd',
+                                                cursor: 'pointer',
+                                                fontSize: '0.8rem',
+                                                fontWeight: 600,
+                                                marginTop: '4px',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}
+                                        >
+                                            🖨️ Ficha
+                                        </button>
                                     )}
                                 </div>
                             </div>

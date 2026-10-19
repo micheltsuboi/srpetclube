@@ -23,10 +23,17 @@ import DateRangeFilter, { DateRange, getDateRange } from '@/components/DateRange
 import PaymentControls from '@/components/PaymentControls'
 import EditAppointmentModal from '@/components/EditAppointmentModal'
 import BookingModal from '@/components/BookingModal'
-import { Package } from 'lucide-react'
+import { Package, Printer } from 'lucide-react'
+import { printThermalTicket } from '@/utils/printThermalTicket'
 
 interface Customer {
+    id?: string
     name: string
+    phone_1?: string | null
+    phone_2?: string | null
+    address?: string | null
+    neighborhood?: string | null
+    city?: string | null
 }
 
 interface Pet {
@@ -34,10 +41,17 @@ interface Pet {
     name: string
     species: string
     breed: string | null
+    color?: string | null
+    size?: string | null
+    weight_kg?: number | null
+    birth_date?: string | null
     customers: Customer | null
     perfume_allowed: boolean
     accessories_allowed: boolean
     special_care: string | null
+    medical_notes?: string | null
+    allergies?: string | null
+    temperament?: string | null
     is_adapted?: boolean
 }
 
@@ -301,9 +315,9 @@ export default function AgendaPage() {
                         )
                     ),
                     pets ( 
-                        name, species, breed, 
-                        perfume_allowed, accessories_allowed, special_care, is_adapted,
-                        customers ( name )
+                        id, name, species, breed, color, size, weight_kg, birth_date,
+                        perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, temperament, is_adapted,
+                        customers ( id, name, phone_1, phone_2, address, neighborhood, city )
                     ),
                     services ( 
                         name, duration_minutes, base_price, category_id,
@@ -356,9 +370,9 @@ export default function AgendaPage() {
                             )
                         ),
                         pets ( 
-                            name, species, breed, 
-                            perfume_allowed, accessories_allowed, special_care, is_adapted,
-                            customers ( name )
+                            id, name, species, breed, color, size, weight_kg, birth_date,
+                            perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, temperament, is_adapted,
+                            customers ( id, name, phone_1, phone_2, address, neighborhood, city )
                         ),
                         services ( 
                             name, duration_minutes, base_price, category_id,
@@ -649,6 +663,16 @@ export default function AgendaPage() {
                         <button className={styles.actionBtn} style={{ background: 'transparent', color: '#8B5CF6' }} onClick={(e) => { e.stopPropagation(); handleSmartAction(appt, 'undo_noshow') }}>Desfazer Falta ↩️</button>
                     )}
                     <div className={styles.cardTopActions}>
+                        <button
+                            className={styles.quickEditBtn}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                printThermalTicket(appt as any, supabase);
+                            }}
+                            title="Imprimir Comanda (58mm)"
+                        >
+                            🖨️
+                        </button>
                         <button className={styles.quickEditBtn} onClick={(e) => { e.stopPropagation(); setEditingAppointment(appt); }} title="Editar">✏️</button>
                         <button className={styles.quickDeleteBtn} onClick={(e) => { e.stopPropagation(); handleDelete(appt.id); }} title="Excluir">🗑️</button>
                     </div>
@@ -1003,6 +1027,14 @@ export default function AgendaPage() {
                         <div className={styles.modalHeader}>
                             <h2 className={styles.modalTitle}>Detalhes do Agendamento</h2>
                             <div className={styles.modalTools}>
+                                    <button
+                                        className={styles.editBtnSmall}
+                                        style={{ background: '#2563eb', color: '#fff', border: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}
+                                        onClick={() => printThermalTicket(selectedAppointment as any, supabase)}
+                                        title="Imprimir comanda térmica (58mm)"
+                                    >
+                                        <Printer size={14} /> Imprimir Ficha
+                                    </button>
                                     <button className={styles.editBtnSmall} onClick={() => {
                                         setEditingAppointment(selectedAppointment)
                                         setShowDetailModal(false)
