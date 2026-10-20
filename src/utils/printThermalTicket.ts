@@ -234,10 +234,56 @@ function buildTicketHtml(appt: ThermalAppointment, pet: ThermalPet | null, custo
     // Idade
     const ageText = calculateAge(pet?.birth_date)
 
+    // Status do agendamento
+    const getStatusText = (st?: string | null) => {
+        switch (st) {
+            case 'pending': return '⏳ Pendente'
+            case 'confirmed': return '✅ Confirmado'
+            case 'in_progress': return '🔥 Em Andamento'
+            case 'done': return '🏁 Finalizado'
+            case 'completed': return '✔️ Concluído'
+            case 'cancelled': return '❌ Cancelado'
+            case 'no_show': return '❌ Falta'
+            default: return st || 'Pendente'
+        }
+    }
+    const statusLabel = getStatusText(appt.status)
+
     // Checklist
     let checklistItems: string[] = []
     if (appt.checklist && Array.isArray(appt.checklist)) {
         checklistItems = appt.checklist.map((item: any) => item?.text || item?.label || item?.item || 'Item')
+    }
+
+    // Se não houver itens cadastrados no agendamento, gera checklist padrão operacional do serviço
+    if (checklistItems.length === 0) {
+        if (isBanhoTosa) {
+            checklistItems = [
+                'Recepção e Avaliação da pele/pelagem',
+                'Escovação prévia e Desembolo',
+                'Banho e Aplicação de Shampoo',
+                'Secagem e Soprador',
+                'Tosa / Higiênica / Acabamento',
+                'Limpeza de Ouvidos e Olhos',
+                'Finalização e Conferência geral'
+            ]
+        } else if (isCreche) {
+            checklistItems = [
+                'Triagem de entrada e pertences',
+                'Alimentação / Hidratação monitorada',
+                'Atividades e Socialização',
+                'Descanso e Relaxamento',
+                'Higienização para saída'
+            ]
+        } else if (isHospedagem) {
+            checklistItems = [
+                'Check-in e Conferência de pertences',
+                'Medicação / Dieta conforme tutor',
+                'Rotina de passeios e brincadeiras',
+                'Higienização do canil/gatil',
+                'Check-out e Devolução de itens'
+            ]
+        }
     }
 
     const printTimestamp = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
@@ -247,7 +293,7 @@ function buildTicketHtml(appt: ThermalAppointment, pet: ThermalPet | null, custo
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Comanda - ${petName}</title>
+    <title>Detalhes do Agendamento - ${petName}</title>
     <style>
         @page {
             size: 58mm auto;
@@ -263,360 +309,267 @@ function buildTicketHtml(appt: ThermalAppointment, pet: ThermalPet | null, custo
             padding: 0;
             background: #ffffff;
             color: #000000;
-            font-family: 'Courier New', Courier, monospace, monospace;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             font-size: 11px;
             line-height: 1.25;
-            font-weight: 500;
         }
         .ticket {
             width: 48mm;
             max-width: 48mm;
             margin: 0 auto;
-            padding: 2mm 0.5mm 10mm 0.5mm;
+            padding: 2mm 0.5mm 6mm 0.5mm;
         }
         .center {
             text-align: center;
         }
         .bold {
-            font-weight: 900;
+            font-weight: 800;
         }
-        .title {
-            font-size: 14px;
-            font-weight: 900;
-            letter-spacing: 0.5px;
-            margin: 0;
-        }
-        .subtitle {
-            font-size: 11px;
-            font-weight: 700;
-            margin-top: 2px;
-        }
-        .divider {
-            border-top: 1px dashed #000000;
-            margin: 4px 0;
-        }
-        .divider-double {
-            border-top: 2px solid #000000;
-            margin: 5px 0;
-        }
-        .row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            margin: 2px 0;
-        }
-        .label {
-            font-weight: 700;
-            text-transform: uppercase;
-            font-size: 10px;
-        }
-        .value {
-            font-weight: 600;
-            font-size: 11px;
-            text-align: right;
-        }
-        .pet-hero {
-            border: 1.5px solid #000000;
-            padding: 4px 2px;
-            margin: 4px 0;
+        .header {
             text-align: center;
-            border-radius: 2px;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 3px;
+            margin-bottom: 4px;
         }
-        .pet-name {
-            font-size: 16px;
-            font-weight: 900;
-            text-transform: uppercase;
+        .header-brand {
+            font-size: 11px;
+            font-weight: 700;
             letter-spacing: 0.5px;
-            line-height: 1.1;
-        }
-        .pet-meta {
-            font-size: 10px;
-            font-weight: 600;
-            margin-top: 2px;
-        }
-        .section-header {
-            font-size: 10.5px;
-            font-weight: 900;
             text-transform: uppercase;
+        }
+        .header-title {
+            font-size: 13px;
+            font-weight: 900;
+            margin-top: 1px;
+            text-transform: uppercase;
+            line-height: 1.15;
+        }
+        .header-badge {
+            font-size: 9px;
+            font-weight: 800;
             background: #000000;
             color: #ffffff;
-            padding: 1px 3px;
-            margin: 4px 0 3px 0;
-            text-align: center;
-            letter-spacing: 0.5px;
+            padding: 1px 4px;
+            border-radius: 2px;
+            display: inline-block;
+            margin-top: 2px;
         }
-        .box-warning {
-            border: 1.5px solid #000000;
-            padding: 3px;
-            margin: 3px 0;
+        .header-meta {
+            font-size: 9px;
+            font-weight: 600;
+            margin-top: 2px;
+        }
+        /* Cartão de campo estilo modal */
+        .field-card {
+            border: 1px solid #000000;
+            border-radius: 3px;
+            padding: 3px 4px;
+            margin: 2.5px 0;
+            background: #ffffff;
             font-size: 10.5px;
+            line-height: 1.25;
+            word-break: break-word;
+        }
+        .field-label {
+            font-weight: 900;
+            margin-right: 3px;
+        }
+        .field-value {
+            font-weight: 600;
+        }
+        /* Seções de checklist e preferências */
+        .box-section {
+            border: 1.5px solid #000000;
+            border-radius: 3px;
+            padding: 3px 4px;
+            margin: 4px 0;
             background: #ffffff;
         }
-        .checkbox-line {
-            display: flex;
-            align-items: center;
-            margin: 2px 0;
-            font-size: 11px;
+        .box-title {
+            font-size: 10.5px;
+            font-weight: 900;
+            text-transform: uppercase;
+            border-bottom: 1px solid #000000;
+            padding-bottom: 2px;
+            margin-bottom: 3px;
+            letter-spacing: 0.3px;
         }
-        .box-square {
+        .check-row {
+            display: flex;
+            align-items: flex-start;
+            margin: 2.5px 0;
+            font-size: 10px;
+            line-height: 1.2;
+        }
+        .check-square {
             display: inline-block;
             width: 11px;
             height: 11px;
             border: 1.5px solid #000000;
+            border-radius: 2px;
             margin-right: 4px;
-            vertical-align: middle;
+            margin-top: 0.5px;
             text-align: center;
             line-height: 9px;
             font-weight: 900;
+            font-size: 9px;
+            flex-shrink: 0;
+        }
+        .alert-highlight {
+            border: 1.5px solid #000000;
+            background: #f1f1f1;
+            padding: 3px 4px;
+            margin: 3px 0;
             font-size: 10px;
         }
-        .signature-line {
-            border-top: 1px solid #000000;
-            margin-top: 18px;
-            margin-bottom: 2px;
-        }
-        .footer-text {
-            font-size: 9px;
+        .footer {
+            font-size: 8.5px;
             text-align: center;
-            margin-top: 4px;
+            margin-top: 6px;
             line-height: 1.2;
+            border-top: 1px dashed #000000;
+            padding-top: 4px;
         }
     </style>
 </head>
 <body>
     <div class="ticket">
         <!-- CABEÇALHO -->
-        <div class="center">
-            <div class="title">SR PET CLUBE</div>
-            <div class="subtitle">${subtitleHeader}</div>
-            <div style="font-size: 9.5px; margin-top: 2px;">
-                ${scheduledDate} às ${scheduledHour} • #${ticketId}
+        <div class="header">
+            <div class="header-brand">SR PET CLUBE</div>
+            <div class="header-title">Detalhes do Agendamento</div>
+            <div class="header-badge">CONTROLE INTERNO</div>
+            <div class="header-meta">
+                #${ticketId} • Impresso em: ${printTimestamp}
             </div>
         </div>
 
-        <div class="divider-double"></div>
-
-        <!-- PET HERO -->
-        <div class="pet-hero">
-            <div class="pet-name">🐾 ${petName}</div>
-            <div class="pet-meta">
-                ${speciesLabel.toUpperCase()} • ${breedLabel}
-            </div>
-            ${pet?.size || pet?.weight_kg ? `
-                <div class="pet-meta">
-                    ${pet?.size ? `Porte: ${pet.size.toUpperCase()}` : ''} 
-                    ${pet?.weight_kg ? `• ${pet.weight_kg} kg` : ''}
-                </div>
-            ` : ''}
-            ${ageText || pet?.color ? `
-                <div class="pet-meta">
-                    ${ageText ? `Idade: ${ageText}` : ''} 
-                    ${pet?.color ? `• Cor: ${pet.color}` : ''}
-                </div>
-            ` : ''}
+        <!-- CAMPOS PRINCIPAIS ESTILO MODAL -->
+        <div class="field-card">
+            <span class="field-label">Pet:</span>
+            <span class="field-value">${petName} (${speciesLabel}${pet?.breed ? ` • ${breedLabel}` : ''}${pet?.size ? ` • Porte ${pet.size.toUpperCase()}` : ''}${pet?.weight_kg ? ` • ${pet.weight_kg}kg` : ''})</span>
         </div>
 
-        <!-- DADOS DO TUTOR -->
-        <div style="margin: 3px 0;">
-            <div class="row">
-                <span class="label">Tutor:</span>
-                <span class="value bold" style="text-align: left; max-width: 65%;">${customerName}</span>
-            </div>
-            ${phone1 ? `
-                <div class="row">
-                    <span class="label">Tel 1:</span>
-                    <span class="value bold">${phone1}</span>
-                </div>
-            ` : ''}
-            ${phone2 ? `
-                <div class="row">
-                    <span class="label">Tel 2:</span>
-                    <span class="value">${phone2}</span>
-                </div>
-            ` : ''}
-            ${appt.has_taxi && (address || neighborhood) ? `
-                <div class="row">
-                    <span class="label">Endereço:</span>
-                    <span class="value" style="text-align: left; max-width: 65%; font-size: 9.5px;">
-                        ${address || ''}${neighborhood ? ` - ${neighborhood}` : ''}
-                    </span>
-                </div>
-            ` : ''}
+        <div class="field-card">
+            <span class="field-label">Tutor:</span>
+            <span class="field-value">${customerName}${phone1 ? ` • Tel: ${phone1}` : ''}</span>
         </div>
 
-        <div class="divider"></div>
+        <div class="field-card">
+            <span class="field-label">Serviço:</span>
+            <span class="field-value bold">${serviceName}</span>
+            ${isPackage ? `<div style="font-size: 9.5px; font-weight: 800; margin-top: 1px;">⭐ ${packageBadge}</div>` : ''}
+        </div>
 
-        <!-- SERVIÇO CONTRATADO -->
-        <div class="section-header">SERVIÇO</div>
-        <div style="margin: 3px 0;">
-            <div style="font-size: 12px; font-weight: 900; text-transform: uppercase;">
-                ${serviceName}
-            </div>
-            ${isPackage ? `
-                <div style="font-size: 10.5px; font-weight: 800; margin-top: 1px;">
-                    ⭐ ${packageBadge}
+        <div class="field-card">
+            <span class="field-label">Valor:</span>
+            <span class="field-value bold">${priceText}</span>
+            <span style="font-size: 9px; margin-left: 4px;">(${payStatusText} - ${payMethodText})</span>
+        </div>
+
+        <div class="field-card">
+            <span class="field-label">Data:</span>
+            <span class="field-value">${scheduledDate}, ${scheduledHour}</span>
+        </div>
+
+        <div class="field-card">
+            <span class="field-label">Status:</span>
+            <span class="field-value bold">${statusLabel}</span>
+        </div>
+
+        ${appt.notes && appt.notes.trim() ? `
+        <div class="field-card" style="border: 1.5px dashed #000;">
+            <span class="field-label">Notas:</span>
+            <span class="field-value">${appt.notes}</span>
+        </div>
+        ` : ''}
+
+        ${extrasList.length > 0 ? `
+        <div class="field-card">
+            <span class="field-label">Extras:</span>
+            <span class="field-value">${extrasList.join(', ')}</span>
+        </div>
+        ` : ''}
+
+        <!-- CHECKLIST DE ATENDIMENTO -->
+        <div class="box-section">
+            <div class="box-title">Checklist de Atendimento</div>
+            ${checklistItems.map(item => `
+                <div class="check-row">
+                    <span class="check-square">&nbsp;</span>
+                    <span>${item}</span>
                 </div>
+            `).join('')}
+        </div>
+
+        <!-- PREFERÊNCIAS DO PET & CUIDADOS (COM OS CHECKS SOLICITADOS) -->
+        <div class="box-section">
+            <div class="box-title">Preferências do Pet</div>
+            
+            <div class="check-row">
+                <span class="check-square">${perfumeAllowed ? 'X' : '&nbsp;'}</span>
+                <span><strong>Perfume:</strong> ${perfumeAllowed ? 'SIM (Autorizado)' : '🚫 NÃO USAR'}</span>
+            </div>
+
+            <div class="check-row">
+                <span class="check-square">${accessoriesAllowed ? 'X' : '&nbsp;'}</span>
+                <span><strong>Acessórios/Laços:</strong> ${accessoriesAllowed ? 'SIM (Autorizado)' : '🚫 NÃO COLOCAR'}</span>
+            </div>
+
+            ${isBanhoTosa ? `
+            <div class="check-row">
+                <span class="check-square">${nailInfo.requested ? 'X' : '&nbsp;'}</span>
+                <span><strong>Corte de Unha:</strong> ${nailInfo.requested ? 'SIM (Solicitado)' : 'NÃO SOLICITADO'}</span>
+            </div>
             ` : ''}
-            <div class="row" style="margin-top: 3px;">
-                <span class="label">Pagamento:</span>
-                <span class="value bold" style="border: 1px solid #000; padding: 0 3px;">
-                    ${payStatusText} (${payMethodText})
+
+            <!-- ALERGIAS -->
+            <div class="check-row" style="margin-top: 3px;">
+                <span class="check-square">${pet?.allergies ? 'X' : '&nbsp;'}</span>
+                <span>
+                    <strong>Alergias?</strong> 
+                    ${pet?.allergies ? `<span style="background: #000; color: #fff; padding: 0 3px; font-weight: 800;">${pet.allergies.toUpperCase()}</span>` : 'Nenhuma relatada / Outras: _______'}
                 </span>
             </div>
-            <div class="row">
-                <span class="label">Valor:</span>
-                <span class="value bold">${priceText}</span>
-            </div>
-            ${(appt.check_in_date || appt.check_out_date) ? `
-                <div class="row" style="margin-top: 2px;">
-                    <span class="label">Check-in:</span>
-                    <span class="value bold">${formatDate(appt.check_in_date || appt.scheduled_at)}</span>
-                </div>
-                <div class="row">
-                    <span class="label">Check-out:</span>
-                    <span class="value bold">${formatDate(appt.check_out_date || '')}</span>
-                </div>
-            ` : ''}
-            ${appt.has_taxi ? `
-                <div class="row">
-                    <span class="label">Táxi Dog:</span>
-                    <span class="value bold">SIM ${appt.taxi_fee ? `(R$ ${Number(appt.taxi_fee).toFixed(2)})` : ''}</span>
-                </div>
-            ` : ''}
-        </div>
 
-        <!-- EXTRAS / ADICIONAIS -->
-        ${extrasList.length > 0 || appt.has_extras ? `
-            <div class="divider"></div>
-            <div class="section-header">SERVIÇOS EXTRAS</div>
-            <div style="margin: 2px 0;">
-                ${extrasList.map(e => `
-                    <div style="font-size: 10.5px; font-weight: 700;">+ ${e}</div>
-                `).join('')}
-                ${appt.extras_fee ? `
-                    <div class="row" style="margin-top: 2px;">
-                        <span class="label">Total Extras:</span>
-                        <span class="value bold">R$ ${Number(appt.extras_fee).toFixed(2)}</span>
-                    </div>
-                ` : ''}
-            </div>
-        ` : ''}
-
-        <!-- PREFERÊNCIAS ESTÉTICAS (EXCLUSIVO PARA BANHO E TOSA) -->
-        ${isBanhoTosa ? `
-            <div class="divider"></div>
-            <div class="section-header">PREFERÊNCIAS & CUIDADOS</div>
-
-            <!-- DESTAQUE CORTE DE UNHA -->
-            <div class="box-warning" style="text-align: center;">
-                <div style="font-size: 10px; font-weight: 700; text-transform: uppercase;">CORTE DE UNHAS</div>
-                <div style="font-size: 12px; font-weight: 900; margin-top: 2px;">
-                    ${nailInfo.requested ? `
-                        <span style="background: #000; color: #fff; padding: 1px 4px; border-radius: 2px;">[X] SIM - CORTAR UNHAS</span>
-                    ` : `
-                        <span>[ ] NÃO SOLICITADO</span>
-                    `}
-                </div>
-                ${nailInfo.reason ? `
-                    <div style="font-size: 9px; margin-top: 2px;">Origem: ${nailInfo.reason}</div>
-                ` : `
-                    <div style="font-size: 8.5px; margin-top: 2px;">(Confirmar com tutor na entrada)</div>
-                `}
-            </div>
-
-            <!-- PREFERÊNCIAS GERAIS (PERFUME E ADEREÇOS) -->
-            <div style="margin: 3px 0;">
-                <div class="checkbox-line">
-                    <span class="box-square">${perfumeAllowed ? 'X' : '&nbsp;'}</span>
-                    <span class="bold">Perfume:</span>&nbsp;${perfumeAllowed ? 'SIM (Autorizado)' : '🚫 NÃO USAR'}
-                </div>
-                <div class="checkbox-line">
-                    <span class="box-square">${accessoriesAllowed ? 'X' : '&nbsp;'}</span>
-                    <span class="bold">Laço / Adereço:</span>&nbsp;${accessoriesAllowed ? 'SIM (Autorizado)' : '🚫 NÃO COLOCAR'}
-                </div>
-            </div>
-        ` : ''}
-
-        <!-- ALERTAS DE SAÚDE / COMPORTAMENTO / CUIDADOS -->
-        ${(pet?.allergies || pet?.medical_notes || pet?.special_care || pet?.temperament) ? `
-            <div class="divider"></div>
-            <div class="box-warning" style="background: #ffffff;">
-                <div style="font-size: 10px; font-weight: 900; text-transform: uppercase; color: #000;">
-                    ⚠️ CUIDADOS & COMPORTAMENTO:
-                </div>
-                ${pet?.temperament ? `
-                    <div style="font-size: 10px; margin-top: 2px;">
-                        <strong>Temperamento:</strong> ${pet.temperament}
-                    </div>
-                ` : ''}
-                ${pet?.allergies ? `
-                    <div style="font-size: 10px; margin-top: 2px;">
-                        <strong>ALERGIA:</strong> ${pet.allergies}
-                    </div>
-                ` : ''}
-                ${pet?.special_care ? `
-                    <div style="font-size: 10px; margin-top: 2px;">
-                        <strong>Cuidados:</strong> ${pet.special_care}
-                    </div>
-                ` : ''}
-                ${pet?.medical_notes ? `
-                    <div style="font-size: 10px; margin-top: 2px;">
-                        <strong>Saúde / Medicação:</strong> ${pet.medical_notes}
-                    </div>
-                ` : ''}
-            </div>
-        ` : ''}
-
-        <!-- OBSERVAÇÕES DO AGENDAMENTO (SOMENTE SE HOUVER OBSERVAÇÃO SALVA) -->
-        ${appt.notes && appt.notes.trim() ? `
-            <div class="divider"></div>
-            <div style="margin: 3px 0;">
-                <span class="label">Observações:</span>
-                <div style="font-size: 10.5px; font-weight: 700; border: 1px dashed #000; padding: 3px; margin-top: 2px; word-break: break-word;">
-                    ${appt.notes}
-                </div>
-            </div>
-        ` : ''}
-
-        <!-- CHECKLIST OPERACIONAL (SOMENTE SE HOUVER ITENS CADASTRADOS) -->
-        ${checklistItems.length > 0 ? `
-            <div class="divider"></div>
-            <div class="section-header">CHECKLIST DE EXECUÇÃO</div>
-            <div style="margin: 3px 0;">
-                ${checklistItems.map(item => `
-                    <div class="checkbox-line">
-                        <span class="box-square">&nbsp;</span>
-                        <span style="font-size: 10px;">${item}</span>
-                    </div>
-                `).join('')}
-            </div>
-        ` : ''}
-
-        <div class="divider"></div>
-
-        <!-- CONTROLE OPERACIONAL -->
-        <div style="margin: 4px 0;">
-            <div class="row">
-                <span class="label">Profissional:</span>
-                <span class="value">________________</span>
-            </div>
-            <div class="row" style="margin-top: 4px;">
-                <span class="label">Início: __:__</span>
-                <span class="label">Término: __:__</span>
+            <!-- OUTROS -->
+            <div class="check-row" style="margin-top: 3px;">
+                <span class="check-square">${pet?.special_care ? 'X' : '&nbsp;'}</span>
+                <span>
+                    <strong>Outros:</strong> 
+                    ${pet?.special_care ? `<span>${pet.special_care}</span>` : '___________________________'}
+                </span>
             </div>
         </div>
 
-        <div class="signature-line"></div>
-        <div class="center" style="font-size: 9px; font-weight: 600;">
-            Assinatura do Tutor (Retirada)
+        <!-- ALERTAS EXTRAS DE SAÚDE OU COMPORTAMENTO -->
+        ${(pet?.temperament || pet?.medical_notes) ? `
+        <div class="alert-highlight">
+            <div style="font-weight: 900; text-transform: uppercase;">⚠️ CUIDADOS ADICIONAIS:</div>
+            ${pet?.temperament ? `<div><strong>Temperamento:</strong> ${pet.temperament}</div>` : ''}
+            ${pet?.medical_notes ? `<div><strong>Saúde/Medicamento:</strong> ${pet.medical_notes}</div>` : ''}
         </div>
+        ` : ''}
 
-        <div class="divider-double" style="margin-top: 6px;"></div>
+        <!-- CONTROLE OPERACIONAL DA EQUIPE -->
+        <div class="box-section">
+            <div class="box-title">Controle Operacional</div>
+            <div style="font-size: 10px; margin: 2px 0;">
+                <strong>Profissional:</strong> _______________________
+            </div>
+            <div style="font-size: 10px; margin: 3px 0; display: flex; justify-content: space-between;">
+                <span><strong>Início:</strong> __:__</span>
+                <span><strong>Término:</strong> __:__</span>
+            </div>
+            <div style="font-size: 9.5px; margin-top: 3px;">
+                <strong>Obs. Interna:</strong> ______________________
+            </div>
+        </div>
 
         <!-- RODAPÉ -->
-        <div class="footer-text">
-            <div>SR PET CLUBE • Cuidando com amor!</div>
-            <div>Impresso em: ${printTimestamp}</div>
+        <div class="footer">
+            <div>SR PET CLUBE • FICHA DE CONTROLE INTERNO</div>
+            <div>Uso exclusivo da equipe operacional</div>
         </div>
     </div>
 

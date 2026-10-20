@@ -639,7 +639,15 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
     return { message: 'Agendamento atualizado com sucesso!', success: true }
 }
 
-export async function updatePetPreferences(petId: string, prefs: { perfume_allowed?: boolean, accessories_allowed?: boolean }) {
+export async function updatePetPreferences(
+    petId: string,
+    prefs: {
+        perfume_allowed?: boolean
+        accessories_allowed?: boolean
+        allergies?: string | null
+        special_care?: string | null
+    }
+) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { message: 'Não autorizado.', success: false }
@@ -652,6 +660,9 @@ export async function updatePetPreferences(petId: string, prefs: { perfume_allow
     if (error) return { message: error.message, success: false }
 
     revalidatePath('/owner/agenda')
+    revalidatePath('/owner/banho-tosa')
+    revalidatePath('/owner/creche')
+    revalidatePath('/owner/hospedagem')
     return { message: 'Preferências atualizadas.', success: true }
 }
 

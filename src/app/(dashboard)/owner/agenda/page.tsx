@@ -197,6 +197,8 @@ export default function AgendaPage() {
 
     // Checklist State (Still needed for detail modal)
     const [currentChecklist, setCurrentChecklist] = useState<any[]>([])
+    const [petAllergies, setPetAllergies] = useState<string>('')
+    const [petSpecialCare, setPetSpecialCare] = useState<string>('')
 
     // Debug state change
     useEffect(() => {
@@ -431,6 +433,8 @@ export default function AgendaPage() {
         setSelectedAppointment(appt)
         setIsEditing(false)
         setCurrentChecklist(normalizeChecklist(appt.checklist as any[]))
+        setPetAllergies(appt.pets?.allergies || '')
+        setPetSpecialCare(appt.pets?.special_care || '')
         setShowDetailModal(true)
     }
 
@@ -1126,31 +1130,91 @@ export default function AgendaPage() {
                                 {/* Preferences Section */}
                                 <div className={styles.preferencesParams}>
                                     <h3>Preferências do Pet</h3>
-                                    <div className={styles.prefToggle}>
-                                        <label>
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedAppointment.pets?.perfume_allowed}
-                                                onChange={async () => {
-                                                    const val = !selectedAppointment.pets?.perfume_allowed
-                                                    await updatePetPreferences(selectedAppointment.pets!.id, { perfume_allowed: val })
-                                                    fetchData()
-                                                }}
-                                            /> Perfume
-                                        </label>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
+                                        <div className={styles.prefToggle}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedAppointment.pets?.perfume_allowed !== false}
+                                                    onChange={async () => {
+                                                        const val = !(selectedAppointment.pets?.perfume_allowed !== false)
+                                                        setSelectedAppointment({
+                                                            ...selectedAppointment,
+                                                            pets: { ...selectedAppointment.pets!, perfume_allowed: val }
+                                                        })
+                                                        await updatePetPreferences(selectedAppointment.pets!.id, { perfume_allowed: val })
+                                                        fetchData()
+                                                    }}
+                                                /> <span><strong>Perfume:</strong> {selectedAppointment.pets?.perfume_allowed !== false ? 'Permitido' : 'Não Permitido'}</span>
+                                            </label>
+                                        </div>
+                                        <div className={styles.prefToggle}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedAppointment.pets?.accessories_allowed !== false}
+                                                    onChange={async () => {
+                                                        const val = !(selectedAppointment.pets?.accessories_allowed !== false)
+                                                        setSelectedAppointment({
+                                                            ...selectedAppointment,
+                                                            pets: { ...selectedAppointment.pets!, accessories_allowed: val }
+                                                        })
+                                                        await updatePetPreferences(selectedAppointment.pets!.id, { accessories_allowed: val })
+                                                        fetchData()
+                                                    }}
+                                                /> <span><strong>Acessórios/Laços:</strong> {selectedAppointment.pets?.accessories_allowed !== false ? 'Permitido' : 'Não Permitido'}</span>
+                                            </label>
+                                        </div>
                                     </div>
-                                    <div className={styles.prefToggle}>
-                                        <label>
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedAppointment.pets?.accessories_allowed}
-                                                onChange={async () => {
-                                                    const val = !selectedAppointment.pets?.accessories_allowed
-                                                    await updatePetPreferences(selectedAppointment.pets!.id, { accessories_allowed: val })
-                                                    fetchData()
-                                                }}
-                                            /> Acessórios/Laços
+
+                                    {/* Alergias */}
+                                    <div style={{ marginTop: '0.75rem', background: 'rgba(255, 255, 255, 0.03)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 700, color: '#f59e0b', marginBottom: '0.35rem' }}>
+                                            ⚠️ Alergias?
                                         </label>
+                                        <input
+                                            type="text"
+                                            className={styles.input}
+                                            style={{ width: '100%', fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                                            value={petAllergies}
+                                            onChange={(e) => setPetAllergies(e.target.value)}
+                                            onBlur={async () => {
+                                                if (selectedAppointment.pets && petAllergies !== (selectedAppointment.pets.allergies || '')) {
+                                                    setSelectedAppointment({
+                                                        ...selectedAppointment,
+                                                        pets: { ...selectedAppointment.pets, allergies: petAllergies }
+                                                    })
+                                                    await updatePetPreferences(selectedAppointment.pets.id, { allergies: petAllergies })
+                                                    fetchData()
+                                                }
+                                            }}
+                                            placeholder="Possui alergias? Digite aqui (ou deixe em branco se não houver)..."
+                                        />
+                                    </div>
+
+                                    {/* Outros / Cuidados Especiais */}
+                                    <div style={{ marginTop: '0.75rem', background: 'rgba(255, 255, 255, 0.03)', padding: '0.75rem', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
+                                            📝 Outros (Cuidados ou Preferências):
+                                        </label>
+                                        <input
+                                            type="text"
+                                            className={styles.input}
+                                            style={{ width: '100%', fontSize: '0.85rem', padding: '0.5rem 0.75rem' }}
+                                            value={petSpecialCare}
+                                            onChange={(e) => setPetSpecialCare(e.target.value)}
+                                            onBlur={async () => {
+                                                if (selectedAppointment.pets && petSpecialCare !== (selectedAppointment.pets.special_care || '')) {
+                                                    setSelectedAppointment({
+                                                        ...selectedAppointment,
+                                                        pets: { ...selectedAppointment.pets, special_care: petSpecialCare }
+                                                    })
+                                                    await updatePetPreferences(selectedAppointment.pets.id, { special_care: petSpecialCare })
+                                                    fetchData()
+                                                }
+                                            }}
+                                            placeholder="Ex: Cuidado com patinha traseira, não usar secador muito quente..."
+                                        />
                                     </div>
                                 </div>
 
