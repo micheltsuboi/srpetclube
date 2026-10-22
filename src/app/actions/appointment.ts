@@ -64,8 +64,9 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
     const checkOutDate = formData.get('checkOutDate') as string
 
     // Taxi Dog Extract
-    const hasTaxi = formData.get('hasTaxi') === 'true'
-    const taxiFee = parseFloat(formData.get('taxiFee') as string || '0')
+    const rawTaxiFee = parseFloat(formData.get('taxiFee') as string || '0')
+    const hasTaxi = formData.get('hasTaxi') === 'true' || rawTaxiFee > 0
+    const taxiFee = rawTaxiFee
 
     // Extras Extract
     const extrasStr = formData.get('extras') as string || '[]'
@@ -506,8 +507,9 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
     const notes = formData.get('notes') as string
     const checkInDate = formData.get('checkInDate') as string
     const checkOutDate = formData.get('checkOutDate') as string
-    const hasTaxi = formData.get('hasTaxi') === 'true'
-    const taxiFee = parseFloat(formData.get('taxiFee') as string || '0')
+    const rawTaxiFee = parseFloat(formData.get('taxiFee') as string || '0')
+    const hasTaxi = formData.get('hasTaxi') === 'true' || rawTaxiFee > 0
+    const taxiFee = rawTaxiFee
 
     // Extras Extract
     const extrasStr = formData.get('extras') as string || '[]'
@@ -747,10 +749,10 @@ export async function applyDiscount(id: string, value: number, type: 'percent' |
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { message: 'Não autorizado.', success: false }
 
-    // Fetch current calculated_price
+    // Fetch current appointment with taxi and extras
     const { data: appt, error: fetchErr } = await supabase
         .from('appointments')
-        .select(`calculated_price, services(base_price)`)
+        .select(`calculated_price, has_taxi, taxi_fee, has_extras, extras_fee, services(base_price)`)
         .eq('id', id)
         .single()
 
@@ -759,7 +761,7 @@ export async function applyDiscount(id: string, value: number, type: 'percent' |
     const dbBasePrice = appt.calculated_price ?? (appt.services as any)?.base_price ?? 0
     const basePrice = frontendBasePrice ?? dbBasePrice
 
-    let finalPrice: number
+    let serviceFinalPrice: number
     let discountPercent: number
     let discountAmount: number
 
@@ -768,23 +770,30 @@ export async function applyDiscount(id: string, value: number, type: 'percent' |
             return { message: 'Desconto deve ser entre 0% e 100%.', success: false }
         }
         discountPercent = value
-        finalPrice = basePrice * (1 - discountPercent / 100)
-        discountAmount = basePrice - finalPrice
+        serviceFinalPrice = basePrice * (1 - discountPercent / 100)
+        discountAmount = basePrice - serviceFinalPrice
     } else {
         if (value < 0 || value > basePrice) {
             return { message: 'Desconto não pode ser maior que o valor base.', success: false }
         }
         discountAmount = value
-        finalPrice = basePrice - discountAmount
+        serviceFinalPrice = basePrice - discountAmount
         discountPercent = basePrice > 0 ? (discountAmount / basePrice) * 100 : 0
     }
+
+    const hasTaxiEffective = !!(appt.has_taxi || Number(appt.taxi_fee || 0) > 0)
+    const taxiAmount = hasTaxiEffective ? Number(appt.taxi_fee || 0) : 0
+    const extrasAmount = (appt.has_extras || Number(appt.extras_fee || 0) > 0) ? Number(appt.extras_fee || 0) : 0
+    const totalFinalPrice = parseFloat((serviceFinalPrice + taxiAmount + extrasAmount).toFixed(2))
 
     const { error } = await supabase
         .from('appointments')
         .update({
             discount_percent: parseFloat(discountPercent.toFixed(2)),
             discount: parseFloat(discountAmount.toFixed(2)),
-            final_price: parseFloat(finalPrice.toFixed(2))
+            final_price: totalFinalPrice,
+            has_taxi: hasTaxiEffective,
+            taxi_fee: taxiAmount
         })
         .eq('id', id)
 
@@ -797,5 +806,5 @@ export async function applyDiscount(id: string, value: number, type: 'percent' |
     revalidatePath('/owner')
 
     const displayValue = type === 'percent' ? `${value}%` : `R$ ${value.toFixed(2)}`
-    return { message: `Desconto de ${displayValue} aplicado! Valor final: R$ ${finalPrice.toFixed(2)}`, success: true }
+    return { message: `Desconto de ${displayValue} aplicado! Valor total a pagar: R$ ${totalFinalPrice.toFixed(2)}`, success: true }
 }

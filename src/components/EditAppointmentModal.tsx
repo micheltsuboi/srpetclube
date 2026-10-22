@@ -63,7 +63,7 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
     const [notes, setNotes] = useState(appointment.notes || '')
     const [checkInDate, setCheckInDate] = useState(appointment.check_in_date || appointment.scheduled_at.split('T')[0])
     const [checkOutDate, setCheckOutDate] = useState(appointment.check_out_date || '')
-    const [hasTaxi, setHasTaxi] = useState(appointment.has_taxi || false)
+    const [hasTaxi, setHasTaxi] = useState(appointment.has_taxi || Number(appointment.taxi_fee || 0) > 0)
     const [taxiFee, setTaxiFee] = useState(appointment.taxi_fee?.toString() || '0')
 
     // Extras States
@@ -190,7 +190,7 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
         formData.append('notes', notes)
         if (checkInDate) formData.append('checkInDate', checkInDate)
         if (checkOutDate) formData.append('checkOutDate', checkOutDate)
-        formData.append('hasTaxi', String(hasTaxi))
+        formData.append('hasTaxi', String(hasTaxi || parseFloat(taxiFee || '0') > 0))
         formData.append('taxiFee', taxiFee)
         formData.append('extras', JSON.stringify(extrasList))
 

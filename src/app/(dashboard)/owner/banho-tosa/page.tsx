@@ -467,7 +467,7 @@ export default function BanhoTosaPage() {
                                                     appointmentId={appt.id}
                                                     calculatedPrice={appt.calculated_price ?? appt.services?.base_price ?? null}
                                                     finalPrice={appt.final_price}
-                                                    taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
+                                                    taxiFee={(appt.has_taxi || Number(appt.taxi_fee || 0) > 0) ? Number(appt.taxi_fee || 0) : 0}
                                                     discountPercent={isPackage ? (cp?.discount_percent ?? null) : appt.discount_percent}
                                                     paymentStatus={isPackage ? (cp?.payment_status || 'pending') : (appt.payment_status || 'pending')}
                                                     paymentMethod={(cp?.payment_method || appt.payment_method) ?? null}

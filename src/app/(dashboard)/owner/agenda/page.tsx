@@ -626,7 +626,7 @@ export default function AgendaPage() {
                             appointmentId={appt.id}
                             calculatedPrice={appt.calculated_price ?? (appt.services as any)?.base_price ?? null}
                             finalPrice={appt.final_price ?? null}
-                            taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
+                            taxiFee={(appt.has_taxi || Number(appt.taxi_fee || 0) > 0) ? Number(appt.taxi_fee || 0) : 0}
                             discountPercent={isPackage ? (cp?.discount_percent ?? null) : (appt.discount_percent ?? null)}
                             paymentStatus={isPackage ? (cp?.payment_status || 'pending') : (appt.payment_status || 'pending')}
                             paymentMethod={(cp?.payment_method || appt.payment_method) ?? null}

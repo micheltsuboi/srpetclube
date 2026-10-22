@@ -100,9 +100,26 @@ export default function PaymentControls({
         : (typeof extras === 'string' ? JSON.parse(extras || '[]') : [])
 
     // For packages, use packageTotal if available, else fallback. For regular appointments, sum service + taxi + extras
+    const rawBasePrice = calculatedPrice ?? 0
+    const rawDiscount = (discountPercent && discountPercent > 0) ? (rawBasePrice * (discountPercent / 100)) : 0
+    const rawServiceDiscounted = Math.max(0, rawBasePrice - rawDiscount)
+    const expectedTotal = rawServiceDiscounted + effectiveTaxiFee + effectiveExtrasFee
+
+    // Se finalPrice gravado no banco estiver menor que expectedTotal e houver táxi/extras,
+    // significa que foi salvo apenas o serviço com desconto sem somar os adicionais.
+    const regularApptDisplayPrice = (() => {
+        if (finalPrice !== null && finalPrice !== undefined) {
+            if (expectedTotal > 0 && finalPrice < (expectedTotal - 0.05) && (effectiveTaxiFee > 0 || effectiveExtrasFee > 0)) {
+                return expectedTotal
+            }
+            return finalPrice
+        }
+        return expectedTotal
+    })()
+
     const displayPrice = isPackage && packageTotal !== undefined 
         ? (packageTotal || 0) 
-        : (finalPrice ?? ((calculatedPrice || 0) + effectiveTaxiFee + effectiveExtrasFee))
+        : regularApptDisplayPrice
     
     // Se for pacote, o basePrice real do pacote é o total dele menos o taxi de pacote (se houver)
     const packageEffectiveFee = packageHasTaxi ? packageTaxiFee : 0
@@ -275,9 +292,9 @@ export default function PaymentControls({
 
                     {/* Exibir Desconto Aplicado em Agendamento Avulso */}
                     {!isPackage && discountPercent && discountPercent > 0 ? (
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: 'var(--status-canceled)' }}>
-                            <span>Desconto aplicado:</span>
-                            <span>- R$ {((basePrice + effectiveTaxiFee + effectiveExtrasFee) - displayPrice).toFixed(2)}</span>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem', color: '#10b981', fontWeight: 600 }}>
+                            <span>Desconto aplicado ({discountPercent}%):</span>
+                            <span>- R$ {(rawDiscount || 0).toFixed(2)}</span>
                         </div>
                     ) : null}
 

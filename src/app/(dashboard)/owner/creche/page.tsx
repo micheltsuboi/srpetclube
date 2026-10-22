@@ -474,7 +474,7 @@ export default function CrechePage() {
                                                     appointmentId={appt.id}
                                                     calculatedPrice={(appt as any).calculated_price ?? (appt.services as any)?.base_price ?? null}
                                                     finalPrice={(appt as any).final_price}
-                                                    taxiFee={appt.has_taxi ? appt.taxi_fee : 0}
+                                                    taxiFee={(appt.has_taxi || Number(appt.taxi_fee || 0) > 0) ? Number(appt.taxi_fee || 0) : 0}
                                                     discountPercent={isPackage ? (cp?.discount_percent ?? null) : (appt as any).discount_percent}
                                                     paymentStatus={isPackage ? (cp?.payment_status || 'pending') : ((appt as any).payment_status || 'pending')}
                                                     paymentMethod={(cp?.payment_method || (appt as any).payment_method) ?? null}
