@@ -26,20 +26,44 @@ interface CategoryRevenue {
     percentage: number
 }
 
+function getCurrentMonthRange() {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = now.getMonth() // 0-indexed
+    const startStr = `${year}-${String(month + 1).padStart(2, '0')}-01`
+    const lastDay = new Date(year, month + 1, 0).getDate()
+    const endStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    return { startDate: startStr, endDate: endStr }
+}
+
+const getCleanDate = (dateStr?: string | null): string => {
+    if (!dateStr) return ''
+    if (dateStr.length >= 10 && dateStr.charAt(4) === '-' && dateStr.charAt(7) === '-') {
+        if (dateStr.includes('T')) {
+            const d = new Date(dateStr)
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const day = String(d.getDate()).padStart(2, '0')
+            return `${y}-${m}-${day}`
+        }
+        return dateStr.slice(0, 10)
+    }
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return ''
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+}
+
 export default function FinanceiroPage() {
     const supabase = createClient()
     const [period, setPeriod] = useState<'month' | 'year'>('month')
     const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([])
     const [categoryRevenue, setCategoryRevenue] = useState<CategoryRevenue[]>([])
     const [loading, setLoading] = useState(true)
-    const [startDate, setStartDate] = useState(() => {
-        const d = new Date()
-        return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]
-    })
-    const [endDate, setEndDate] = useState(() => {
-        const d = new Date()
-        return new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]
-    })
+    const [startDate, setStartDate] = useState(() => getCurrentMonthRange().startDate)
+    const [endDate, setEndDate] = useState(() => getCurrentMonthRange().endDate)
 
     const [extractRecords, setExtractRecords] = useState<{
         type: 'revenue' | 'expenses' | 'pending' | null;
@@ -72,21 +96,31 @@ export default function FinanceiroPage() {
     const [pendingTab, setPendingTab] = useState<'realized' | 'forecast' | 'all'>('realized')
     const [pendingSortField, setPendingSortField] = useState<'date' | 'name' | 'amount'>('date')
     const [pendingSortDirection, setPendingSortDirection] = useState<'asc' | 'desc'>('asc')
-    const [applyPeriodFilterToPending, setApplyPeriodFilterToPending] = useState(false)
+    const [applyPeriodFilterToPending, setApplyPeriodFilterToPending] = useState(true)
+
+    const isPackageAppt = (a: any): boolean => {
+        return !!(a.package_credit_id || a.package_slot_id)
+    }
 
     const isBillableAppt = (a: any): boolean => {
         if (['cancelled', 'canceled', 'no_show'].includes(a.status)) return false
-        if (!a.package_credit_id) return true
+        if (!isPackageAppt(a)) return true
         return Number(a.extras_fee || 0) > 0
     }
 
     const getApptAmount = (a: any): number => {
         if (a.discount_percent === 100) return 0
-        if (a.package_credit_id) {
+        if (isPackageAppt(a)) {
             return Number(a.extras_fee || 0)
         }
         return Number(a.final_price ?? a.calculated_price ?? 0)
     }
+
+    const filterByPeriod = useCallback((dateStr?: string | null) => {
+        const clean = getCleanDate(dateStr)
+        if (!clean) return false
+        return clean >= startDate && clean <= endDate
+    }, [startDate, endDate])
 
     const fetchFinancials = useCallback(async () => {
         try {
@@ -125,7 +159,7 @@ export default function FinanceiroPage() {
                 supabase
                     .from('appointments')
                     .select(`
-                        id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id,
+                        id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id, package_slot_id,
                         pets ( name, customers ( name ) ),
                         services (
                             name,
@@ -139,7 +173,7 @@ export default function FinanceiroPage() {
                     .limit(5000),
                 supabase
                     .from('appointments')
-                    .select('id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id')
+                    .select('id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id, package_slot_id')
                     .eq('org_id', profile.org_id)
                     .eq('payment_status', 'paid')
                     .not('status', 'in', '("cancelled","canceled","no_show")')
@@ -168,7 +202,7 @@ export default function FinanceiroPage() {
                 supabase
                     .from('appointments')
                     .select(`
-                        id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id,
+                        id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id, package_slot_id,
                         pets ( name, customers ( name ) ),
                         services ( name, service_categories ( name ) )
                     `)
@@ -230,14 +264,6 @@ export default function FinanceiroPage() {
             setMonthlyData(Array.from(monthMap.values()))
 
             // --- Process Summary and Categories (filtered by startDate/endDate) ---
-            const filterByPeriod = (dateStr?: string | null) => {
-                if (!dateStr) return false
-                const d = new Date(dateStr)
-                const start = new Date(startDate + 'T00:00:00')
-                const end = new Date(endDate + 'T23:59:59.999')
-                return d >= start && d <= end
-            }
-
             const activeAppts = periodAppointments.filter(a => filterByPeriod(a.payment_status === 'paid' ? (a.paid_at || a.scheduled_at) : a.scheduled_at))
             const activeTxs = transactions.filter(t => filterByPeriod(t.date))
 
@@ -292,7 +318,7 @@ export default function FinanceiroPage() {
         } finally {
             setLoading(false)
         }
-    }, [supabase, startDate, endDate])
+    }, [supabase, startDate, endDate, filterByPeriod])
 
     
     useEffect(() => {
@@ -592,7 +618,35 @@ export default function FinanceiroPage() {
         return Number(p.calculated_price || 0)
     }
 
-    const realizedPendingTotal = extractRecords.allPendingAppts
+    // Pendências filtradas pelo período selecionado (Mês Atual por padrão)
+    const periodRealizedPending = extractRecords.allPendingAppts
+        .filter(a => isApptRealized(a))
+        .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
+        .filter(a => filterByPeriod(a.scheduled_at))
+        .reduce((sum, a) => sum + getApptAmount(a), 0)
+        + extractRecords.pendingSales
+            .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
+            .filter(s => filterByPeriod(s.created_at))
+            .reduce((sum, s) => sum + Number(s.total_price || 0), 0)
+        + extractRecords.pendingPackages
+            .filter(p => isPackageRealized(p))
+            .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
+            .filter(p => filterByPeriod(getPackageEffectiveDate(p)))
+            .reduce((sum, p) => sum + getPackageAmount(p), 0)
+
+    const periodForecastPending = extractRecords.allPendingAppts
+        .filter(a => !isApptRealized(a))
+        .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
+        .filter(a => filterByPeriod(a.scheduled_at))
+        .reduce((sum, a) => sum + getApptAmount(a), 0)
+        + extractRecords.pendingPackages
+            .filter(p => !isPackageRealized(p))
+            .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
+            .filter(p => filterByPeriod(getPackageEffectiveDate(p)))
+            .reduce((sum, p) => sum + getPackageAmount(p), 0)
+
+    // Pendências gerais acumuladas (Histórico total)
+    const allTimeRealizedPending = extractRecords.allPendingAppts
         .filter(a => isApptRealized(a))
         .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
         .reduce((sum, a) => sum + getApptAmount(a), 0)
@@ -604,7 +658,7 @@ export default function FinanceiroPage() {
             .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
             .reduce((sum, p) => sum + getPackageAmount(p), 0)
 
-    const forecastPendingTotal = extractRecords.allPendingAppts
+    const allTimeForecastPending = extractRecords.allPendingAppts
         .filter(a => !isApptRealized(a))
         .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
         .reduce((sum, a) => sum + getApptAmount(a), 0)
@@ -613,6 +667,8 @@ export default function FinanceiroPage() {
             .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
             .reduce((sum, p) => sum + getPackageAmount(p), 0)
 
+    const realizedPendingTotal = applyPeriodFilterToPending ? periodRealizedPending : allTimeRealizedPending
+    const forecastPendingTotal = applyPeriodFilterToPending ? periodForecastPending : allTimeForecastPending
     const pendingTotal = realizedPendingTotal + forecastPendingTotal
 
     const revenueGrowth = previousMonthData.revenue > 0
@@ -856,9 +912,9 @@ export default function FinanceiroPage() {
                     <button
                         type="button"
                         onClick={() => {
-                            const d = new Date()
-                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0])
-                            setEndDate(new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0])
+                            const range = getCurrentMonthRange()
+                            setStartDate(range.startDate)
+                            setEndDate(range.endDate)
                         }}
                         style={{
                             background: 'rgba(255,255,255,0.06)',
@@ -875,9 +931,11 @@ export default function FinanceiroPage() {
                     <button
                         type="button"
                         onClick={() => {
-                            const d = new Date()
-                            setStartDate(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0])
-                            setEndDate(d.toISOString().split('T')[0])
+                            const range = getCurrentMonthRange()
+                            const now = new Date()
+                            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+                            setStartDate(range.startDate)
+                            setEndDate(todayStr)
                         }}
                         style={{
                             background: 'rgba(255,255,255,0.06)',
@@ -894,9 +952,14 @@ export default function FinanceiroPage() {
                     <button
                         type="button"
                         onClick={() => {
-                            const d = new Date()
-                            setStartDate(new Date(d.getFullYear(), d.getMonth() - 1, 1).toISOString().split('T')[0])
-                            setEndDate(new Date(d.getFullYear(), d.getMonth(), 0).toISOString().split('T')[0])
+                            const now = new Date()
+                            const prevYear = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear()
+                            const prevMonth = now.getMonth() === 0 ? 12 : now.getMonth()
+                            const startStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`
+                            const lastDay = new Date(prevYear, prevMonth, 0).getDate()
+                            const endStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+                            setStartDate(startStr)
+                            setEndDate(endStr)
                         }}
                         style={{
                             background: 'rgba(255,255,255,0.06)',
@@ -926,7 +989,9 @@ export default function FinanceiroPage() {
                         </span>
                     </div>
                     <span className={styles.cardValue}>{formatCurrency(activeRevenue)}</span>
-                    <span className={styles.cardLabel}>Faturamento</span>
+                    <span className={styles.cardLabel}>
+                        {startDate === getCurrentMonthRange().startDate && endDate === getCurrentMonthRange().endDate ? 'Faturamento (Mês Atual)' : 'Faturamento (Período)'}
+                    </span>
                 </div>
 
                 <div
@@ -967,11 +1032,18 @@ export default function FinanceiroPage() {
                     <div className={styles.cardHeader}>
                         <span className={styles.cardIcon}>⏳</span>
                     </div>
-                    <span className={styles.cardValue} style={{ color: '#f39c12' }}>{formatCurrency(realizedPendingTotal)}</span>
-                    <span className={styles.cardLabel}>A Receber (Realizados)</span>
-                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.35rem', display: 'block' }}>
-                        + {formatCurrency(forecastPendingTotal)} previstos futuros
+                    <span className={styles.cardValue} style={{ color: '#f39c12' }}>{formatCurrency(periodRealizedPending)}</span>
+                    <span className={styles.cardLabel}>
+                        {startDate === getCurrentMonthRange().startDate && endDate === getCurrentMonthRange().endDate ? 'A Receber (Mês Atual)' : 'A Receber (Período)'}
                     </span>
+                    <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.7)', marginTop: '0.35rem', display: 'block' }}>
+                        + {formatCurrency(periodForecastPending)} previstos no mês
+                    </span>
+                    {allTimeRealizedPending > periodRealizedPending && (
+                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', marginTop: '0.2rem', display: 'block' }}>
+                            (Total histórico acumulado: {formatCurrency(allTimeRealizedPending)})
+                        </span>
+                    )}
                 </div>
             </div>
 
@@ -1158,11 +1230,7 @@ export default function FinanceiroPage() {
         }
 
         if (applyPeriodFilterToPending) {
-            apptsSource = apptsSource.filter(a => {
-                if (!a.scheduled_at) return false
-                const d = a.scheduled_at.split('T')[0]
-                return d >= startDate && d <= endDate
-            })
+            apptsSource = apptsSource.filter(a => filterByPeriod(a.scheduled_at))
         }
     }
 
@@ -1182,11 +1250,7 @@ export default function FinanceiroPage() {
         : []
 
     if (extractRecords.type === 'pending' && applyPeriodFilterToPending) {
-        salesSource = salesSource.filter(s => {
-            if (!s.created_at) return false
-            const d = s.created_at.split('T')[0]
-            return d >= startDate && d <= endDate
-        })
+        salesSource = salesSource.filter(s => filterByPeriod(s.created_at))
     }
 
     const filteredSales = salesSource
@@ -1212,11 +1276,7 @@ export default function FinanceiroPage() {
         }
 
         if (applyPeriodFilterToPending) {
-            pkgsSource = pkgsSource.filter(p => {
-                const d = getPackageEffectiveDate(p)
-                if (!d) return false
-                return d >= startDate && d <= endDate
-            })
+            pkgsSource = pkgsSource.filter(p => filterByPeriod(getPackageEffectiveDate(p)))
         }
     }
 

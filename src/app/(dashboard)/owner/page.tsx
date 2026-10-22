@@ -53,9 +53,42 @@ const statusLabels: Record<string, string> = {
     done: 'Finalizado'
 }
 
+function getCurrentMonthRange() {
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = now.getMonth() // 0-indexed
+    const startStr = `${year}-${String(month + 1).padStart(2, '0')}-01`
+    const lastDay = new Date(year, month + 1, 0).getDate()
+    const endStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+    return { startDate: startStr, endDate: endStr }
+}
+
+const getCleanDate = (dateStr?: string | null): string => {
+    if (!dateStr) return ''
+    if (dateStr.length >= 10 && dateStr.charAt(4) === '-' && dateStr.charAt(7) === '-') {
+        if (dateStr.includes('T')) {
+            const d = new Date(dateStr)
+            const y = d.getFullYear()
+            const m = String(d.getMonth() + 1).padStart(2, '0')
+            const day = String(d.getDate()).padStart(2, '0')
+            return `${y}-${m}-${day}`
+        }
+        return dateStr.slice(0, 10)
+    }
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return ''
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+}
+
 export default function OwnerDashboard() {
     const supabase = createClient()
     const [selectedArea, setSelectedArea] = useState<ServiceArea>('all')
+    const [startDate, setStartDate] = useState(() => getCurrentMonthRange().startDate)
+    const [endDate, setEndDate] = useState(() => getCurrentMonthRange().endDate)
+    const [applyPeriodFilterToPending, setApplyPeriodFilterToPending] = useState(true)
     const [financials, setFinancials] = useState<FinancialMetrics>({
         revenue: 0,
         expenses: 0,
@@ -162,15 +195,19 @@ export default function OwnerDashboard() {
         return Number(p.calculated_price || 0)
     }
 
+    const isPackageAppt = (a: any): boolean => {
+        return !!(a.package_credit_id || a.package_slot_id)
+    }
+
     const isBillableAppt = (a: any): boolean => {
         if (['cancelled', 'canceled', 'no_show'].includes(a.status)) return false
-        if (!a.package_credit_id) return true
+        if (!isPackageAppt(a)) return true
         return Number(a.extras_fee || 0) > 0
     }
 
     const getApptAmount = (a: any): number => {
         if (a.discount_percent === 100) return 0
-        if (a.package_credit_id) {
+        if (isPackageAppt(a)) {
             return Number(a.extras_fee || 0)
         }
         return Number(a.final_price ?? a.calculated_price ?? 0)
@@ -220,17 +257,17 @@ export default function OwnerDashboard() {
 
                 // 2. Fetch Financial Data (Espelhado 100% com /owner/financeiro)
                 const now = new Date()
-                const startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-                const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
-                const prevStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0]
-                const prevEndDate = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0]
+                const startObj = new Date(startDate + 'T00:00:00')
+                const prevMonthYear = startObj.getMonth() === 0 ? startObj.getFullYear() - 1 : startObj.getFullYear()
+                const prevMonthIdx = startObj.getMonth() === 0 ? 11 : startObj.getMonth() - 1
+                const prevStartDate = `${prevMonthYear}-${String(prevMonthIdx + 1).padStart(2, '0')}-01`
+                const prevLastDay = new Date(prevMonthYear, prevMonthIdx + 1, 0).getDate()
+                const prevEndDate = `${prevMonthYear}-${String(prevMonthIdx + 1).padStart(2, '0')}-${String(prevLastDay).padStart(2, '0')}`
 
-                const filterByPeriodRange = (dateStr: string | null | undefined, startStr: string, endStr: string) => {
-                    if (!dateStr) return false
-                    const d = new Date(dateStr)
-                    const start = new Date(startStr + 'T00:00:00')
-                    const end = new Date(endStr + 'T23:59:59.999')
-                    return d >= start && d <= end
+                const filterByPeriod = (dateStr?: string | null) => {
+                    const clean = getCleanDate(dateStr)
+                    if (!clean) return false
+                    return clean >= startDate && clean <= endDate
                 }
 
                 const [
@@ -244,7 +281,7 @@ export default function OwnerDashboard() {
                     supabase
                         .from('appointments')
                         .select(`
-                            id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id,
+                            id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id, package_slot_id,
                             pets ( name, customers ( name ) ),
                             services ( name, service_categories ( name ) )
                         `)
@@ -255,7 +292,7 @@ export default function OwnerDashboard() {
                     supabase
                         .from('appointments')
                         .select(`
-                            id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, scheduled_at, paid_at, package_credit_id,
+                            id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, package_credit_id, package_slot_id, scheduled_at, paid_at,
                             pets ( name, customers ( name ) ),
                             services ( name, service_categories ( name ) )
                         `)
@@ -266,7 +303,7 @@ export default function OwnerDashboard() {
                         .limit(5000),
                     supabase
                         .from('appointments')
-                        .select('id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, package_credit_id, scheduled_at, paid_at')
+                        .select('id, status, final_price, calculated_price, discount_percent, extras_fee, payment_status, package_credit_id, package_slot_id, scheduled_at, paid_at')
                         .eq('org_id', profile.org_id)
                         .eq('payment_status', 'paid')
                         .not('status', 'in', '("cancelled","canceled","no_show")')
@@ -289,7 +326,7 @@ export default function OwnerDashboard() {
                         .from('financial_transactions')
                         .select('*')
                         .eq('org_id', profile.org_id)
-                        .gte('date', `${prevStartDate}T00:00:00`)
+                        .gte('date', `${prevStartDate < startDate ? prevStartDate : startDate}T00:00:00`)
                         .order('date', { ascending: false })
                         .limit(5000)
                 ])
@@ -303,28 +340,34 @@ export default function OwnerDashboard() {
 
                 const activeAppts = currentMonthAppts.filter(a =>
                     isBillableAppt(a) &&
-                    filterByPeriodRange(a.payment_status === 'paid' ? (a.paid_at || a.scheduled_at) : a.scheduled_at, startDate, endDate)
+                    filterByPeriod(a.payment_status === 'paid' ? (a.paid_at || a.scheduled_at) : a.scheduled_at)
                 )
                 const paidAppts = activeAppts.filter(a => a.payment_status === 'paid')
                 const pendingAppts = allPendingAppts.filter(a => isBillableAppt(a))
                 
                 const currentApptRevenue = paidAppts.reduce((sum, a) => sum + getApptAmount(a), 0)
 
-                const realizedAppts = pendingAppts.filter(a => isApptRealized(a))
-                const forecastAppts = pendingAppts.filter(a => !isApptRealized(a))
+                // Pendências do período (Mês Atual por padrão)
+                const periodRealizedAppts = pendingAppts.filter(a => isApptRealized(a) && filterByPeriod(a.scheduled_at))
+                const periodForecastAppts = pendingAppts.filter(a => !isApptRealized(a) && filterByPeriod(a.scheduled_at))
 
-                const realizedPackages = pendingPackagesData.filter(p => isPackageRealized(p))
-                const forecastPackages = pendingPackagesData.filter(p => !isPackageRealized(p))
+                const periodSales = pendingSalesData.filter(s => filterByPeriod(s.created_at))
 
-                const realizedPendingTotal = realizedAppts.reduce((sum, a) => sum + getApptAmount(a), 0)
-                    + pendingSalesData.reduce((sum, s) => sum + Number(s.total_price || 0), 0)
-                    + realizedPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
+                const periodRealizedPackages = pendingPackagesData.filter(p => isPackageRealized(p) && filterByPeriod(getPackageEffectiveDate(p)))
+                const periodForecastPackages = pendingPackagesData.filter(p => !isPackageRealized(p) && filterByPeriod(getPackageEffectiveDate(p)))
 
-                const forecastPendingTotal = forecastAppts.reduce((sum, a) => sum + getApptAmount(a), 0)
-                    + forecastPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
+                const periodRealizedPendingTotal = periodRealizedAppts.reduce((sum, a) => sum + getApptAmount(a), 0)
+                    + periodSales.reduce((sum, s) => sum + Number(s.total_price || 0), 0)
+                    + periodRealizedPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
 
-                const activeTxs = allTxs.filter(t => filterByPeriodRange(t.date, startDate, endDate))
-                const prevTxs = allTxs.filter(t => filterByPeriodRange(t.date, prevStartDate, prevEndDate))
+                const periodForecastPendingTotal = periodForecastAppts.reduce((sum, a) => sum + getApptAmount(a), 0)
+                    + periodForecastPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
+
+                const activeTxs = allTxs.filter(t => filterByPeriod(t.date))
+                const prevTxs = allTxs.filter(t => {
+                    const clean = getCleanDate(t.date)
+                    return clean >= prevStartDate && clean <= prevEndDate
+                })
 
                 const incomeTxs = activeTxs.filter(t => t.type === 'income')
                 const expenseTxs = activeTxs.filter(t => t.type === 'expense')
@@ -336,7 +379,7 @@ export default function OwnerDashboard() {
 
                 // Previous month total revenue and expenses for growth comparison
                 const prevApptRevenue = prevMonthAppts
-                    .filter(a => a.payment_status === 'paid' && isBillableAppt(a) && filterByPeriodRange(a.paid_at || a.scheduled_at, prevStartDate, prevEndDate))
+                    .filter(a => a.payment_status === 'paid' && isBillableAppt(a) && ((cleanDate) => cleanDate >= prevStartDate && cleanDate <= prevEndDate)(getCleanDate(a.paid_at || a.scheduled_at)))
                     .reduce((sum, a) => sum + getApptAmount(a), 0)
                 const prevTxIncome = prevTxs
                     .filter(t => t.type === 'income')
@@ -355,8 +398,8 @@ export default function OwnerDashboard() {
                     revenue: totalRevenue,
                     expenses,
                     profit: totalRevenue - expenses,
-                    pendingPayments: realizedPendingTotal,
-                    forecastPayments: forecastPendingTotal,
+                    pendingPayments: periodRealizedPendingTotal,
+                    forecastPayments: periodForecastPendingTotal,
                     monthlyGrowth: parseFloat(revenueGrowth.toFixed(1)),
                     expenseGrowth: parseFloat(expenseGrowth.toFixed(1))
                 })
@@ -579,7 +622,7 @@ export default function OwnerDashboard() {
         }
 
         fetchDashboardData()
-    }, [supabase])
+    }, [supabase, startDate, endDate])
 
     const handleOpenExtract = (type: 'revenue' | 'expenses' | 'pending') => {
         setExtractRecords(prev => ({ ...prev, type }))
@@ -891,7 +934,78 @@ export default function OwnerDashboard() {
             </div>
 
             {/* Financial Summary */}
-            <h2 className={styles.sectionTitle}>💰 Resumo Financeiro</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                <h2 className={styles.sectionTitle} style={{ margin: 0 }}>💰 Resumo Financeiro</h2>
+                <Link href="/owner/financeiro" style={{ fontSize: '0.85rem', color: '#c084fc', textDecoration: 'none', fontWeight: 600 }}>
+                    Controle Financeiro Completo →
+                </Link>
+            </div>
+
+            <div className={styles.financialFilterBar}>
+                <div className={styles.financialFilterControls}>
+                    <div className={styles.financialDateGroup}>
+                        <label>De:</label>
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={e => setStartDate(e.target.value)}
+                            className={styles.financialDateInput}
+                        />
+                    </div>
+                    <div className={styles.financialDateGroup}>
+                        <label>Até:</label>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={e => setEndDate(e.target.value)}
+                            className={styles.financialDateInput}
+                        />
+                    </div>
+                </div>
+                <div className={styles.financialQuickBtns}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const range = getCurrentMonthRange()
+                            setStartDate(range.startDate)
+                            setEndDate(range.endDate)
+                        }}
+                        className={styles.financialQuickBtn}
+                    >
+                        📅 Mês Atual (Completo)
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const range = getCurrentMonthRange()
+                            const now = new Date()
+                            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+                            setStartDate(range.startDate)
+                            setEndDate(todayStr)
+                        }}
+                        className={styles.financialQuickBtn}
+                    >
+                        ⏱️ Até Hoje
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            const startObj = new Date(startDate + 'T00:00:00')
+                            const prevYear = startObj.getMonth() === 0 ? startObj.getFullYear() - 1 : startObj.getFullYear()
+                            const prevMonth = startObj.getMonth() === 0 ? 11 : startObj.getMonth() - 1
+                            const pStart = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-01`
+                            const pLastDay = new Date(prevYear, prevMonth + 1, 0).getDate()
+                            const pEnd = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(pLastDay).padStart(2, '0')}`
+                            setStartDate(pStart)
+                            setEndDate(pEnd)
+                        }}
+                        className={styles.financialQuickBtn}
+                    >
+                        ⏪ Mês Anterior
+                    </button>
+                </div>
+            </div>
+
             <div className={styles.financialGrid}>
                 <div
                     className={`${styles.financialCard} ${styles.clickable}`}
@@ -900,7 +1014,9 @@ export default function OwnerDashboard() {
                     <div className={styles.cardIcon}>💰</div>
                     <div className={styles.cardContent}>
                         <span className={styles.cardValue}>{formatCurrency(financials.revenue)}</span>
-                        <span className={styles.cardLabel}>Faturamento do Mês</span>
+                        <span className={styles.cardLabel}>
+                            {startDate === getCurrentMonthRange().startDate && endDate === getCurrentMonthRange().endDate ? 'Faturamento (Mês Atual)' : 'Faturamento (Período)'}
+                        </span>
                     </div>
                     <span className={`${styles.growth} ${financials.monthlyGrowth >= 0 ? styles.positive : styles.negative}`}>
                         {financials.monthlyGrowth >= 0 ? '+' : ''}{financials.monthlyGrowth}%
@@ -913,7 +1029,9 @@ export default function OwnerDashboard() {
                     <div className={styles.cardIcon}>📉</div>
                     <div className={styles.cardContent}>
                         <span className={`${styles.cardValue} ${styles.expense}`}>{formatCurrency(financials.expenses)}</span>
-                        <span className={styles.cardLabel}>Despesas</span>
+                        <span className={styles.cardLabel}>
+                            {startDate === getCurrentMonthRange().startDate && endDate === getCurrentMonthRange().endDate ? 'Despesas (Mês Atual)' : 'Despesas (Período)'}
+                        </span>
                     </div>
                     <span className={`${styles.growth} ${financials.expenseGrowth <= 0 ? styles.positive : styles.negative}`}>
                         {financials.expenseGrowth >= 0 ? '+' : ''}{financials.expenseGrowth}%
@@ -938,9 +1056,11 @@ export default function OwnerDashboard() {
                     <div className={styles.cardIcon}>⏳</div>
                     <div className={styles.cardContent}>
                         <span className={styles.cardValue} style={{ color: '#f59e0b' }}>{formatCurrency(financials.pendingPayments)}</span>
-                        <span className={styles.cardLabel}>A Receber (Realizados)</span>
+                        <span className={styles.cardLabel}>
+                            {startDate === getCurrentMonthRange().startDate && endDate === getCurrentMonthRange().endDate ? 'A Receber (Mês Atual)' : 'A Receber (Período)'}
+                        </span>
                         <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.65)', marginTop: '0.2rem', display: 'block' }}>
-                            + {formatCurrency(financials.forecastPayments)} previstos futuros
+                            + {formatCurrency(financials.forecastPayments)} previstos no período
                         </span>
                     </div>
                 </div>
@@ -1296,11 +1416,27 @@ export default function OwnerDashboard() {
                                         {pendingSortDirection === 'asc' ? '⬆️ Ordem Crescente' : '⬇️ Ordem Decrescente'}
                                     </button>
                                 </div>
+
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', color: 'rgba(255,255,255,0.85)', userSelect: 'none', fontSize: '0.85rem' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={applyPeriodFilterToPending}
+                                        onChange={(e) => setApplyPeriodFilterToPending(e.target.checked)}
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                    <span>Filtrar pelo período selecionado ({startDate} até {endDate})</span>
+                                </label>
                             </div>
                         )}
 
                         <div className={styles.extractList}>
 {(() => {
+    const filterByPeriod = (dateStr?: string | null) => {
+        const clean = getCleanDate(dateStr)
+        if (!clean) return false
+        return clean >= startDate && clean <= endDate
+    }
+
     // 1. Filtragem de Agendamentos
     let apptsSource = extractRecords.type === 'revenue' 
         ? extractRecords.appointments.filter(a => a.payment_status === 'paid')
@@ -1311,6 +1447,10 @@ export default function OwnerDashboard() {
             apptsSource = apptsSource.filter(a => isApptRealized(a))
         } else if (pendingTab === 'forecast') {
             apptsSource = apptsSource.filter(a => !isApptRealized(a))
+        }
+
+        if (applyPeriodFilterToPending) {
+            apptsSource = apptsSource.filter(a => filterByPeriod(a.scheduled_at))
         }
     }
 
@@ -1324,9 +1464,13 @@ export default function OwnerDashboard() {
         })
 
     // 2. Filtragem de Vendas (Petshop)
-    const salesSource = extractRecords.type === 'pending' && pendingTab !== 'forecast'
+    let salesSource = extractRecords.type === 'pending' && pendingTab !== 'forecast'
         ? extractRecords.pendingSales
         : []
+
+    if (extractRecords.type === 'pending' && applyPeriodFilterToPending) {
+        salesSource = salesSource.filter(s => filterByPeriod(s.created_at))
+    }
 
     const filteredSales = salesSource
         .filter(s => {
@@ -1347,6 +1491,10 @@ export default function OwnerDashboard() {
             pkgsSource = pkgsSource.filter(p => isPackageRealized(p))
         } else if (pendingTab === 'forecast') {
             pkgsSource = pkgsSource.filter(p => !isPackageRealized(p))
+        }
+
+        if (applyPeriodFilterToPending) {
+            pkgsSource = pkgsSource.filter(p => filterByPeriod(getPackageEffectiveDate(p)))
         }
     }
 
