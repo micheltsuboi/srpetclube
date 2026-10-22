@@ -684,82 +684,195 @@ export default function FinanceiroPage() {
 
     const maxRevenue = Math.max(...monthlyData.map(d => d.revenue), 1)
 
+    const getTimeFromDate = (dateStr?: string | null): number => {
+        if (!dateStr) return 0
+        if (dateStr.includes('T')) return new Date(dateStr).getTime()
+        return new Date(`${dateStr}T12:00:00`).getTime()
+    }
+
+    const formatDateBR = (dateStr?: string | null): string => {
+        if (!dateStr) return '-'
+        if (dateStr.includes('T')) return new Date(dateStr).toLocaleDateString('pt-BR')
+        return new Date(`${dateStr}T12:00:00`).toLocaleDateString('pt-BR')
+    }
+
+    const getUnifiedExtractItems = () => {
+        if (!extractRecords.type) return []
+
+        const search = (extractSearchTerm || '').toLowerCase()
+        const rawItems: {
+            id: string;
+            title: string;
+            description?: string;
+            category: string;
+            rawDate: string;
+            amount: number;
+        }[] = []
+
+        if (extractRecords.type === 'expenses') {
+            extractRecords.transactions
+                .filter(t => t.type === 'expense')
+                .filter(t => selectedCategory === 'all' || t.category === selectedCategory)
+                .filter(t => {
+                    if (!search) return true
+                    return (t.name || '').toLowerCase().includes(search) ||
+                           (t.category || '').toLowerCase().includes(search) ||
+                           (t.description || '').toLowerCase().includes(search)
+                })
+                .forEach(tx => {
+                    rawItems.push({
+                        id: tx.id,
+                        title: tx.category || 'Despesa',
+                        description: tx.description || tx.name || '',
+                        category: tx.category || 'Outros',
+                        rawDate: tx.date,
+                        amount: Number(tx.amount || 0)
+                    })
+                })
+        } else if (extractRecords.type === 'revenue') {
+            // 1. Agendamentos Pagos
+            extractRecords.appointments
+                .filter(a => a.payment_status === 'paid')
+                .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
+                .filter(a => {
+                    if (!search) return true
+                    return (a.pets?.name || '').toLowerCase().includes(search) ||
+                           (a.services?.name || '').toLowerCase().includes(search) ||
+                           (a.pets?.customers?.name || '').toLowerCase().includes(search)
+                })
+                .forEach(appt => {
+                    const dateVal = appt.paid_at || appt.scheduled_at
+                    rawItems.push({
+                        id: appt.id,
+                        title: `${appt.pets?.name || 'Pet'} • ${appt.services?.name || 'Serviço'}${isPackageAppt(appt) ? ' (Adicional de Pacote)' : ''}`,
+                        description: (appt.pets as any)?.customers?.name ? `Tutor: ${(appt.pets as any).customers.name}` : '',
+                        category: (appt.services as any)?.service_categories?.name || 'Serviços',
+                        rawDate: dateVal,
+                        amount: getApptAmount(appt)
+                    })
+                })
+
+            // 2. Transações de Receita (Pacotes, Vendas, Parciais)
+            extractRecords.transactions
+                .filter(t => t.type === 'income')
+                .filter(t => selectedCategory === 'all' || t.category === selectedCategory)
+                .filter(t => {
+                    if (!search) return true
+                    return (t.name || '').toLowerCase().includes(search) ||
+                           (t.category || '').toLowerCase().includes(search) ||
+                           (t.description || '').toLowerCase().includes(search)
+                })
+                .forEach(tx => {
+                    rawItems.push({
+                        id: tx.id,
+                        title: tx.name ? `${tx.name}${tx.description ? ` - ${tx.description}` : ''}` : (tx.description || tx.category || 'Transação Avulsa'),
+                        description: tx.description || '',
+                        category: tx.category || 'Outros',
+                        rawDate: tx.date,
+                        amount: Number(tx.amount || 0)
+                    })
+                })
+        } else if (extractRecords.type === 'pending') {
+            // 1. Agendamentos Pendentes
+            extractRecords.allPendingAppts
+                .filter(a => a.payment_status !== 'paid')
+                .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
+                .filter(a => {
+                    if (!search) return true
+                    return (a.pets?.name || '').toLowerCase().includes(search) ||
+                           (a.services?.name || '').toLowerCase().includes(search) ||
+                           (a.pets?.customers?.name || '').toLowerCase().includes(search)
+                })
+                .forEach(appt => {
+                    rawItems.push({
+                        id: appt.id,
+                        title: `${appt.pets?.name || 'Pet'} • ${appt.services?.name || 'Serviço'}${isPackageAppt(appt) ? ' (Adicional de Pacote)' : ''}`,
+                        description: (appt.pets as any)?.customers?.name ? `Tutor: ${(appt.pets as any).customers.name}` : '',
+                        category: (appt.services as any)?.service_categories?.name || 'Serviços',
+                        rawDate: appt.scheduled_at,
+                        amount: getApptAmount(appt)
+                    })
+                })
+
+            // 2. Vendas Pendentes
+            extractRecords.pendingSales
+                .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
+                .filter(s => {
+                    if (!search) return true
+                    return (s.product_name || s.description || '').toLowerCase().includes(search) ||
+                           (s.pets?.name || '').toLowerCase().includes(search) ||
+                           (s.pets?.customers?.name || '').toLowerCase().includes(search)
+                })
+                .forEach(sale => {
+                    rawItems.push({
+                        id: sale.id,
+                        title: `${sale.pets?.name || 'Avulso'} • ${sale.product_name}`,
+                        description: sale.pets?.customers?.name ? `Tutor: ${sale.pets.customers.name}` : '',
+                        category: 'Venda Produto',
+                        rawDate: sale.created_at,
+                        amount: Number(sale.total_price || 0)
+                    })
+                })
+
+            // 3. Pacotes Pendentes
+            extractRecords.pendingPackages
+                .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
+                .filter(p => {
+                    if (!search) return true
+                    return (p.service_packages?.name || '').toLowerCase().includes(search) ||
+                           (p.pets?.name || '').toLowerCase().includes(search) ||
+                           (p.pets?.customers?.name || '').toLowerCase().includes(search) ||
+                           (p.customers?.name || '').toLowerCase().includes(search)
+                })
+                .forEach(pkg => {
+                    const effectiveDate = getPackageEffectiveDate(pkg) || pkg.purchased_at
+                    const petName = pkg.pets?.name || 'Pet'
+                    const tutorName = pkg.pets?.customers?.name || pkg.customers?.name || 'Sem tutor'
+                    const pkgName = pkg.service_packages?.name || 'Pacote'
+                    rawItems.push({
+                        id: pkg.id,
+                        title: `${petName} (${tutorName}) • Pacote: ${pkgName}`,
+                        description: `Vencimento: ${formatDateBR(effectiveDate)}`,
+                        category: 'Pacotes',
+                        rawDate: effectiveDate,
+                        amount: getPackageAmount(pkg)
+                    })
+                })
+        }
+
+        // Ordenação rigorosamente CRESCENTE por data (do mais antigo para o mais recente)
+        return rawItems.sort((a, b) => {
+            const timeDiff = getTimeFromDate(a.rawDate) - getTimeFromDate(b.rawDate)
+            if (timeDiff !== 0) return timeDiff
+            return a.title.localeCompare(b.title)
+        })
+    }
+
     const handleExportCSV = () => {
         if (!extractRecords.type) return;
 
         const headers = extractRecords.type === 'expenses'
-            ? ['Categoria', 'Descrição', 'Data', 'Valor']
-            : ['Item', 'Data', 'Valor', 'Categoria'];
+            ? ['Categoria', 'Descrição', 'Data', 'Valor (R$)']
+            : ['Item', 'Data', 'Valor (R$)', 'Categoria'];
 
-        const rows: any[][] = [];
-
-        if (extractRecords.type !== 'expenses') {
-            const apptsToExport = extractRecords.type === 'revenue' ? extractRecords.appointments : extractRecords.allPendingAppts;
-            apptsToExport
-                .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
-                .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
-                .forEach(appt => {
-                    const dateVal = appt.payment_status === 'paid' ? (appt.paid_at || appt.scheduled_at) : appt.scheduled_at;
-                    rows.push([
-                        `${appt.pets?.name || 'Pet'} • ${appt.services?.name || 'Serviço'}${appt.package_credit_id ? ' (Adicional de Pacote)' : ''}`,
-                        new Date(dateVal).toLocaleDateString('pt-BR'),
-                        getApptAmount(appt).toFixed(2).replace('.', ','),
-                        (appt.services as any)?.service_categories?.name || 'Serviços'
-                    ])
-                })
-        }
-
-        if (extractRecords.type !== 'pending') {
-            extractRecords.transactions
-                .filter(t => extractRecords.type === 'revenue' ? t.type === 'income' : t.type === 'expense')
-                .filter(t => selectedCategory === 'all' || t.category === selectedCategory)
-                .forEach(tx => {
-                    if (extractRecords.type === 'expenses') {
-                        rows.push([
-                            tx.category,
-                            tx.description || '',
-                            new Date(tx.date).toLocaleDateString('pt-BR'),
-                            tx.amount.toFixed(2).replace('.', ',')
-                        ])
-                    } else {
-                        rows.push([
-                            tx.description || 'Transação Avulsa',
-                            new Date(tx.date).toLocaleDateString('pt-BR'),
-                            tx.amount.toFixed(2).replace('.', ','),
-                            tx.category
-                        ])
-                    }
-                })
-        }
-
-        if (extractRecords.type === 'pending') {
-            extractRecords.pendingSales
-                .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
-                .forEach(sale => {
-                    const dateVal = sale.created_at;
-                    rows.push([
-                        `${sale.pets?.name || 'Avulso'} • ${sale.product_name}`,
-                        new Date(dateVal).toLocaleDateString('pt-BR'),
-                        sale.total_price.toFixed(2).replace('.', ','),
-                        'Venda Produto'
-                    ])
-                });
-
-            extractRecords.pendingPackages
-                .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
-                .forEach(pkg => {
-                    const effectiveDate = getPackageEffectiveDate(pkg) || pkg.purchased_at;
-                    const petName = pkg.pets?.name || 'Pet';
-                    const pkgName = pkg.service_packages?.name || 'Pacote';
-                    const amount = getPackageAmount(pkg);
-                    rows.push([
-                        `${petName} • Pacote: ${pkgName}`,
-                        new Date(effectiveDate.includes('T') ? effectiveDate : effectiveDate + 'T12:00:00').toLocaleDateString('pt-BR'),
-                        amount.toFixed(2).replace('.', ','),
-                        'Pacotes'
-                    ]);
-                });
-        }
+        const items = getUnifiedExtractItems()
+        const rows = items.map(item => {
+            const dateStr = formatDateBR(item.rawDate)
+            if (extractRecords.type === 'expenses') {
+                return [
+                    item.category,
+                    item.description || item.title || '',
+                    dateStr,
+                    item.amount.toFixed(2).replace('.', ',')
+                ]
+            }
+            return [
+                item.title,
+                dateStr,
+                item.amount.toFixed(2).replace('.', ','),
+                item.category
+            ]
+        })
 
         exportToCsv(`financeiro_${extractRecords.type}`, headers, rows)
     }
@@ -772,88 +885,104 @@ export default function FinanceiroPage() {
                 extractRecords.type === 'expenses' ? 'Extrato de Despesas' : 'Valores a Receber';
 
         const doc = new jsPDF()
-        doc.text(title, 14, 15)
+
+        // Cabeçalho institucional azul marinho
+        doc.setFillColor(43, 75, 111) // #2B4B6F
+        doc.rect(0, 0, 210, 22, 'F')
+
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(14)
+        doc.setTextColor(255, 255, 255)
+        doc.text('SR PET CLUBE', 14, 11)
+
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(9)
+        doc.setTextColor(230, 235, 245)
+        doc.text(title.toUpperCase(), 14, 18)
+
+        const emissionDate = new Date().toLocaleDateString('pt-BR', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        })
+        doc.setFontSize(8)
+        doc.text(`Emissão: ${emissionDate}`, 196, 14, { align: 'right' })
+
+        const items = getUnifiedExtractItems()
+        const totalVal = items.reduce((sum, item) => sum + item.amount, 0)
+
+        // Linha de contexto do filtro (período, categoria, total e indicação de ordem crescente)
+        doc.setFontSize(8.5)
+        doc.setTextColor(60, 60, 60)
+        const periodText = `Período: ${formatDateBR(startDate)} a ${formatDateBR(endDate)}`
+        const catText = selectedCategory !== 'all' ? ` | Categoria: ${selectedCategory}` : ''
+        doc.text(`${periodText}${catText} | Total: ${formatCurrency(totalVal)} (${items.length} itens — Ordem Crescente de Data)`, 14, 29)
 
         const headers = extractRecords.type === 'expenses'
             ? [['Categoria', 'Descrição', 'Data', 'Valor']]
             : [['Item', 'Data', 'Valor', 'Categoria']];
 
-        const rows: any[][] = [];
+        const rows = items.map(item => {
+            const dateStr = formatDateBR(item.rawDate)
+            if (extractRecords.type === 'expenses') {
+                return [
+                    item.category,
+                    item.description || item.title || '',
+                    dateStr,
+                    formatCurrency(item.amount)
+                ]
+            }
+            return [
+                item.title,
+                dateStr,
+                formatCurrency(item.amount),
+                item.category
+            ]
+        })
 
-        if (extractRecords.type !== 'expenses') {
-            const apptsToExport = extractRecords.type === 'revenue' ? extractRecords.appointments : extractRecords.allPendingAppts;
-            apptsToExport
-                .filter(a => extractRecords.type === 'revenue' ? a.payment_status === 'paid' : a.payment_status !== 'paid')
-                .filter(a => selectedCategory === 'all' || (a.services as any)?.service_categories?.name === selectedCategory)
-                .forEach(appt => {
-                    const dateVal = appt.payment_status === 'paid' ? (appt.paid_at || appt.scheduled_at) : appt.scheduled_at;
-                    rows.push([
-                        `${appt.pets?.name || 'Pet'} • ${appt.services?.name || 'Serviço'}${appt.package_credit_id ? ' (Adicional de Pacote)' : ''}`,
-                        new Date(dateVal).toLocaleDateString('pt-BR'),
-                        formatCurrency(getApptAmount(appt)),
-                        (appt.services as any)?.service_categories?.name || 'Serviços'
-                    ])
-                })
-        }
-
-        if (extractRecords.type !== 'pending') {
-            extractRecords.transactions
-                .filter(t => extractRecords.type === 'revenue' ? t.type === 'income' : t.type === 'expense')
-                .filter(t => selectedCategory === 'all' || t.category === selectedCategory)
-                .forEach(tx => {
-                    if (extractRecords.type === 'expenses') {
-                        rows.push([
-                            tx.category,
-                            tx.description || '',
-                            new Date(tx.date).toLocaleDateString('pt-BR'),
-                            formatCurrency(tx.amount)
-                        ])
-                    } else {
-                        rows.push([
-                            tx.description || 'Transação Avulsa',
-                            new Date(tx.date).toLocaleDateString('pt-BR'),
-                            formatCurrency(tx.amount),
-                            tx.category
-                        ])
-                    }
-                })
-        }
-
-        if (extractRecords.type === 'pending') {
-            extractRecords.pendingSales
-                .filter(s => selectedCategory === 'all' || selectedCategory === 'Venda Produto')
-                .forEach(sale => {
-                    const dateVal = sale.created_at;
-                    rows.push([
-                        `${sale.pets?.name || 'Avulso'} • ${sale.product_name}`,
-                        new Date(dateVal).toLocaleDateString('pt-BR'),
-                        formatCurrency(sale.total_price),
-                        'Venda Produto'
-                    ])
-                });
-
-            extractRecords.pendingPackages
-                .filter(p => selectedCategory === 'all' || selectedCategory === 'Pacotes')
-                .forEach(pkg => {
-                    const effectiveDate = getPackageEffectiveDate(pkg) || pkg.purchased_at;
-                    const petName = pkg.pets?.name || 'Pet';
-                    const pkgName = pkg.service_packages?.name || 'Pacote';
-                    const amount = getPackageAmount(pkg);
-                    rows.push([
-                        `${petName} • Pacote: ${pkgName}`,
-                        new Date(effectiveDate.includes('T') ? effectiveDate : effectiveDate + 'T12:00:00').toLocaleDateString('pt-BR'),
-                        formatCurrency(amount),
-                        'Pacotes'
-                    ]);
-                });
+        if (rows.length === 0) {
+            rows.push(['Nenhum registro encontrado no período', '-', '-', '-'])
         }
 
         autoTable(doc, {
             head: headers,
             body: rows,
-            startY: 20,
-            styles: { fontSize: 9 },
-            theme: 'striped'
+            startY: 33,
+            theme: 'striped',
+            headStyles: {
+                fillColor: [43, 75, 111],
+                textColor: [255, 255, 255],
+                fontStyle: 'bold',
+                fontSize: 9
+            },
+            bodyStyles: {
+                fontSize: 8.5,
+                textColor: [40, 40, 40]
+            },
+            alternateRowStyles: {
+                fillColor: [250, 252, 255]
+            },
+            columnStyles: extractRecords.type === 'expenses'
+                ? {
+                    0: { cellWidth: 38 },
+                    1: { cellWidth: 84 },
+                    2: { cellWidth: 28, halign: 'center' },
+                    3: { cellWidth: 32, halign: 'right', fontStyle: 'bold' }
+                }
+                : {
+                    0: { cellWidth: 88 },
+                    1: { cellWidth: 28, halign: 'center' },
+                    2: { cellWidth: 32, halign: 'right', fontStyle: 'bold' },
+                    3: { cellWidth: 34 }
+                },
+            didDrawPage: (data) => {
+                const pageCount = (doc as any).internal.getNumberOfPages()
+                doc.setFontSize(8)
+                doc.setTextColor(140)
+                doc.text(`Sr Pet Clube — ${title} • Página ${data.pageNumber} de ${pageCount}`, 14, 288)
+            }
         })
 
         doc.save(`financeiro_${extractRecords.type}.pdf`)
@@ -1489,45 +1618,94 @@ export default function FinanceiroPage() {
                 </div>
             ))}
 
-            {/* Renderização de itens de receita paga */}
-            {extractRecords.type === 'revenue' && filteredAppts.map(appt => (
-                <div key={appt.id} className={styles.extractItem}>
-                    <div className={styles.extractInfo}>
-                        <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}{appt.package_credit_id ? ' (Adicional de Pacote)' : ''}</strong>
-                        <span>{new Date(appt.paid_at || appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <div className={styles.extractActions}>
-                        <span className={styles.extractAmount}>
-                            {formatCurrency(getApptAmount(appt))}
-                        </span>
-                    </div>
-                </div>
-            ))}
+            {/* Renderização de itens de receita paga - UNIFICADO E ORDENADO POR DATA CRESCENTE */}
+            {extractRecords.type === 'revenue' && (() => {
+                const revenueItems = [
+                    ...filteredAppts.map(appt => ({
+                        id: `appt_${appt.id}`,
+                        type: 'appointment' as const,
+                        title: `${appt.pets?.name || 'Pet'} (${appt.pets?.customers?.name || 'Sem tutor'}) • ${appt.services?.name || 'Serviço'}${isPackageAppt(appt) ? ' (Adicional de Pacote)' : ''}`,
+                        description: '',
+                        rawDate: appt.paid_at || appt.scheduled_at,
+                        amount: getApptAmount(appt),
+                        category: (appt.services as any)?.service_categories?.name || 'Serviços',
+                        rawTx: null as any
+                    })),
+                    ...filteredTxs.map(tx => ({
+                        id: `tx_${tx.id}`,
+                        type: 'transaction' as const,
+                        title: tx.name ? `${tx.name}${tx.description ? ` - ${tx.description}` : ''}` : (tx.description || tx.category || 'Receita'),
+                        description: tx.description || '',
+                        rawDate: tx.date,
+                        amount: Number(tx.amount || 0),
+                        category: tx.category || 'Outros',
+                        rawTx: tx
+                    }))
+                ].sort((a, b) => {
+                    const timeDiff = getTimeFromDate(a.rawDate) - getTimeFromDate(b.rawDate)
+                    if (timeDiff !== 0) return timeDiff
+                    return a.title.localeCompare(b.title)
+                })
 
-            {/* Renderização de despesas e receitas avulsas */}
-            {extractRecords.type !== 'pending' && filteredTxs.map(tx => (
-                <div key={tx.id} className={styles.extractItem}>
-                    <div className={styles.extractInfo}>
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
-                            <strong>{tx.name || tx.category}</strong>
-                            <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({tx.category})</span>
+                return revenueItems.map(item => (
+                    <div key={item.id} className={styles.extractItem}>
+                        <div className={styles.extractInfo}>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                                <strong>{item.title}</strong>
+                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({item.category})</span>
+                            </div>
+                            {item.description && <span>{item.description}</span>}
+                            <span>{formatDateBR(item.rawDate)}</span>
                         </div>
-                        {tx.description && <span>{tx.description}</span>}
-                        <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
+                        <div className={styles.extractActions}>
+                            <span className={styles.extractAmount}>
+                                {formatCurrency(item.amount)}
+                            </span>
+                            {item.type === 'transaction' && item.rawTx && (
+                                <button
+                                    className={styles.deleteBtn}
+                                    onClick={() => handleDeleteTransaction(item.rawTx.id)}
+                                >
+                                    Excluir
+                                </button>
+                            )}
+                        </div>
                     </div>
-                    <div className={styles.extractActions}>
-                        <span className={`${styles.extractAmount} ${tx.type === 'expense' ? styles.negativeValue : ''}`}>
-                            {formatCurrency(tx.amount)}
-                        </span>
-                        <button
-                            className={styles.deleteBtn}
-                            onClick={() => handleDeleteTransaction(tx.id)}
-                        >
-                            Excluir
-                        </button>
+                ))
+            })()}
+
+            {/* Renderização de despesas - ORDENADO POR DATA CRESCENTE */}
+            {extractRecords.type === 'expenses' && (() => {
+                const sortedExpenses = [...filteredTxs].sort((a, b) => {
+                    const timeDiff = getTimeFromDate(a.date) - getTimeFromDate(b.date)
+                    if (timeDiff !== 0) return timeDiff
+                    return (a.name || a.category || '').localeCompare(b.name || b.category || '')
+                })
+
+                return sortedExpenses.map(tx => (
+                    <div key={tx.id} className={styles.extractItem}>
+                        <div className={styles.extractInfo}>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                                <strong>{tx.name || tx.category}</strong>
+                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({tx.category})</span>
+                            </div>
+                            {tx.description && <span>{tx.description}</span>}
+                            <span>{formatDateBR(tx.date)}</span>
+                        </div>
+                        <div className={styles.extractActions}>
+                            <span className={`${styles.extractAmount} ${styles.negativeValue}`}>
+                                {formatCurrency(tx.amount)}
+                            </span>
+                            <button
+                                className={styles.deleteBtn}
+                                onClick={() => handleDeleteTransaction(tx.id)}
+                            >
+                                Excluir
+                            </button>
+                        </div>
                     </div>
-                </div>
-            ))}
+                ))
+            })()}
 
             {isEmpty && (
                 <p className={styles.emptyExtract}>Nenhum registro encontrado para este termo/período/categoria.</p>

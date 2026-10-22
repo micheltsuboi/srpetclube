@@ -83,6 +83,30 @@ const getCleanDate = (dateStr?: string | null): string => {
     return `${y}-${m}-${day}`
 }
 
+const getTimeFromDate = (dateStr?: string | null): number => {
+    if (!dateStr) return 0
+    if (dateStr.length >= 10 && dateStr.charAt(4) === '-' && dateStr.charAt(7) === '-') {
+        const y = parseInt(dateStr.slice(0, 4), 10)
+        const m = parseInt(dateStr.slice(5, 7), 10) - 1
+        const d = parseInt(dateStr.slice(8, 10), 10)
+        return new Date(y, m, d).getTime()
+    }
+    const t = new Date(dateStr).getTime()
+    return isNaN(t) ? 0 : t
+}
+
+const formatDateBR = (dateStr?: string | null): string => {
+    if (!dateStr) return '-'
+    if (dateStr.length >= 10 && dateStr.charAt(4) === '-' && dateStr.charAt(7) === '-') {
+        const y = dateStr.slice(0, 4)
+        const m = dateStr.slice(5, 7)
+        const d = dateStr.slice(8, 10)
+        return `${d}/${m}/${y}`
+    }
+    const d = new Date(dateStr)
+    return isNaN(d.getTime()) ? '-' : d.toLocaleDateString('pt-BR')
+}
+
 export default function OwnerDashboard() {
     const supabase = createClient()
     const [selectedArea, setSelectedArea] = useState<ServiceArea>('all')
@@ -1562,8 +1586,8 @@ export default function OwnerDashboard() {
         })
     ].sort((a, b) => {
         if (pendingSortField === 'date') {
-            const timeA = new Date(a.date).getTime()
-            const timeB = new Date(b.date).getTime()
+            const timeA = getTimeFromDate(a.date)
+            const timeB = getTimeFromDate(b.date)
             return pendingSortDirection === 'asc' ? timeA - timeB : timeB - timeA
         }
         if (pendingSortField === 'amount') {
@@ -1705,44 +1729,94 @@ export default function OwnerDashboard() {
                 </div>
             ))}
 
-            {/* Renderização de itens de receita paga */}
-            {extractRecords.type === 'revenue' && filteredAppts.map(appt => (
-                <div key={appt.id} className={styles.extractItem}>
-                    <div className={styles.extractInfo}>
-                        <strong>{appt.pets?.name || 'Pet'} ({appt.pets?.customers?.name || 'Sem tutor'}) • {appt.services?.name || 'Serviço'}{appt.package_credit_id ? ' (Adicional de Pacote)' : ''}</strong>
-                        <span>{new Date(appt.paid_at || appt.scheduled_at).toLocaleDateString('pt-BR')}</span>
-                    </div>
-                    <div className={styles.extractActions}>
-                        <span className={styles.extractAmount}>
-                            {formatCurrency(getApptAmount(appt))}
-                        </span>
-                    </div>
-                </div>
-            ))}
+            {/* Renderização de itens de receita paga - UNIFICADO E ORDENADO POR DATA CRESCENTE */}
+            {extractRecords.type === 'revenue' && (() => {
+                const revenueItems = [
+                    ...filteredAppts.map(appt => ({
+                        id: `appt_${appt.id}`,
+                        type: 'appointment' as const,
+                        title: `${appt.pets?.name || 'Pet'} (${appt.pets?.customers?.name || 'Sem tutor'}) • ${appt.services?.name || 'Serviço'}${appt.package_credit_id ? ' (Adicional de Pacote)' : ''}`,
+                        description: '',
+                        rawDate: appt.paid_at || appt.scheduled_at,
+                        amount: getApptAmount(appt),
+                        category: (appt.services as any)?.service_categories?.name || 'Serviços',
+                        rawTx: null as any
+                    })),
+                    ...filteredTxs.map(tx => ({
+                        id: `tx_${tx.id}`,
+                        type: 'transaction' as const,
+                        title: tx.name ? `${tx.name}${tx.description ? ` - ${tx.description}` : ''}` : (tx.description || tx.category || 'Receita'),
+                        description: tx.description || '',
+                        rawDate: tx.date,
+                        amount: Number(tx.amount || 0),
+                        category: tx.category || 'Outros',
+                        rawTx: tx
+                    }))
+                ].sort((a, b) => {
+                    const timeDiff = getTimeFromDate(a.rawDate) - getTimeFromDate(b.rawDate)
+                    if (timeDiff !== 0) return timeDiff
+                    return a.title.localeCompare(b.title)
+                })
 
-            {filteredTxs.map(tx => (
-                <div key={tx.id} className={styles.extractItem}>
-                    <div className={styles.extractInfo}>
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline' }}>
-                            <strong>{tx.name || tx.category}</strong>
-                            <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({tx.category})</span>
+                return revenueItems.map(item => (
+                    <div key={item.id} className={styles.extractItem}>
+                        <div className={styles.extractInfo}>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                                <strong>{item.title}</strong>
+                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({item.category})</span>
+                            </div>
+                            {item.description && <span>{item.description}</span>}
+                            <span>{formatDateBR(item.rawDate)}</span>
                         </div>
-                        {tx.description && <span>{tx.description}</span>}
-                        <span>{new Date(tx.date).toLocaleDateString('pt-BR')}</span>
+                        <div className={styles.extractActions}>
+                            <span className={styles.extractAmount}>
+                                {formatCurrency(item.amount)}
+                            </span>
+                            {item.type === 'transaction' && item.rawTx && (
+                                <button
+                                    className={styles.deleteBtn}
+                                    onClick={() => handleDeleteTransaction(item.rawTx.id)}
+                                >
+                                    Excluir
+                                </button>
+                            )}
+                        </div>
                     </div>
-                    <div className={styles.extractActions}>
-                        <span className={`${styles.extractAmount} ${tx.type === 'expense' ? styles.negativeValue : ''}`}>
-                            {formatCurrency(tx.amount)}
-                        </span>
-                        <button
-                            className={styles.deleteBtn}
-                            onClick={() => handleDeleteTransaction(tx.id)}
-                        >
-                            Excluir
-                        </button>
+                ))
+            })()}
+
+            {/* Renderização de despesas - ORDENADO POR DATA CRESCENTE */}
+            {extractRecords.type === 'expenses' && (() => {
+                const sortedExpenses = [...filteredTxs].sort((a, b) => {
+                    const timeDiff = getTimeFromDate(a.date) - getTimeFromDate(b.date)
+                    if (timeDiff !== 0) return timeDiff
+                    return (a.name || a.category || '').localeCompare(b.name || b.category || '')
+                })
+
+                return sortedExpenses.map(tx => (
+                    <div key={tx.id} className={styles.extractItem}>
+                        <div className={styles.extractInfo}>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'baseline', flexWrap: 'wrap' }}>
+                                <strong>{tx.name || tx.category}</strong>
+                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>({tx.category})</span>
+                            </div>
+                            {tx.description && <span>{tx.description}</span>}
+                            <span>{formatDateBR(tx.date)}</span>
+                        </div>
+                        <div className={styles.extractActions}>
+                            <span className={`${styles.extractAmount} ${styles.negativeValue}`}>
+                                {formatCurrency(tx.amount)}
+                            </span>
+                            <button
+                                className={styles.deleteBtn}
+                                onClick={() => handleDeleteTransaction(tx.id)}
+                            >
+                                Excluir
+                            </button>
+                        </div>
                     </div>
-                </div>
-            ))}
+                ))
+            })()}
 
             {isEmpty && (
                 <p className={styles.emptyExtract}>Nenhum registro encontrado para este termo/período.</p>
