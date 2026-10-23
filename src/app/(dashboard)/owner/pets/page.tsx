@@ -2488,7 +2488,21 @@ function PetsContent() {
                                                 <div className={styles.addPackageSection}>
                                                     <h3 className={styles.sectionTitle}>Contratar Novo Pacote</h3>
                                                     <div className={styles.packageSelection}>
-                                                        <select className={styles.select} value={selectedPackageId} onChange={e => setSelectedPackageId(e.target.value)}>
+                                                        <select
+                                                            className={styles.select}
+                                                            value={selectedPackageId}
+                                                            onChange={e => {
+                                                                const id = e.target.value
+                                                                setSelectedPackageId(id)
+                                                                if (id) {
+                                                                    const pkg = availablePackages.find(p => p.id === id)
+                                                                    const isWeeklyOrCreche = pkg?.name?.toLowerCase().includes('semana') || pkg?.name?.toLowerCase().includes('creche')
+                                                                    if (isWeeklyOrCreche) {
+                                                                        setIsAutoSchedule(true)
+                                                                    }
+                                                                }
+                                                            }}
+                                                        >
                                                             <option value="">Selecione um pacote...</option>
                                                             {sortedPackageCategories.map(category => (
                                                                 <optgroup key={category} label={`📁 ${category}`}>
@@ -3080,10 +3094,13 @@ function PetsContent() {
                                                                                             const sessionIdx = indexMap.get(slot.id);
                                                                                             // Soma todos os créditos do pacote para obter o total real
                                                                                             const totalInPkg = pkgGroup.services.reduce((sum: number, srv: any) => sum + (srv.total_qty || 0), 0) || pkgGroup.services[0]?.total_qty || 0;
+                                                                                            const isUnbooked = !slot.appointment_id && slot.status === 'pending';
                                                                                             const statusMap: Record<string, { icon: string, label: string, color: string }> = {
                                                                                                 done: { icon: '✅', label: 'Realizado', color: '#10B981' },
                                                                                                 scheduled: { icon: '🕐', label: 'Agendado', color: '#3B82F6' },
-                                                                                                pending: { icon: '📅', label: 'Pendente', color: '#F59E0B' },
+                                                                                                pending: isUnbooked
+                                                                                                    ? { icon: '⏳', label: 'Não agendado (avulso)', color: '#F59E0B' }
+                                                                                                    : { icon: '📅', label: 'Pendente', color: '#F59E0B' },
                                                                                                 skipped: { icon: '⏭️', label: 'Pulado', color: '#6B7280' },
                                                                                                 rescheduled: { icon: '🔄', label: 'Reagendado', color: '#8B5CF6' },
                                                                                                 no_show: { icon: '❌', label: 'Falta', color: '#EF4444' },
@@ -3098,9 +3115,15 @@ function PetsContent() {
                                                                                                             <span style={{ fontSize: '0.75rem', color: s.color }}>{s.label}</span>
                                                                                                         </div>
                                                                                                         <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
-                                                                                                            {slot.slot_date ? new Date(slot.slot_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
-                                                                                                            {slot.slot_time ? ` às ${slot.slot_time}` : ''}
-                                                                                                            {slot.period_label ? ` · ${slot.period_label}` : ''}
+                                                                                                            {isUnbooked ? (
+                                                                                                                <span style={{ color: '#F59E0B', fontStyle: 'italic' }}>Aguardando agendamento na agenda</span>
+                                                                                                            ) : (
+                                                                                                                <>
+                                                                                                                    {slot.slot_date ? new Date(slot.slot_date + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                                                                                                                    {slot.slot_time ? ` às ${slot.slot_time}` : ''}
+                                                                                                                    {slot.period_label ? ` · ${slot.period_label}` : ''}
+                                                                                                                </>
+                                                                                                            )}
                                                                                                         </div>
 
                                                                                                         {/* Exibição dos Extras da Sessão (se houver) */}
