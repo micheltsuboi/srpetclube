@@ -1119,6 +1119,11 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
         return { message: 'Pacote não encontrado.', success: false }
     }
 
+    const packageItems = (currentPackage.service_packages as any)?.package_items || []
+    if (packageItems.length === 0) {
+        return { message: 'O modelo deste pacote não possui serviços configurados em sua composição. Configure os serviços na página de Pacotes antes de renovar.', success: false }
+    }
+
     // Os créditos não usados devem ser somados aos novos créditos
     const { data: existingCredits } = await supabase
         .from('package_credits')
@@ -1164,7 +1169,6 @@ export async function renewCustomerPackage(customerPackageId: string): Promise<A
     }
 
     // Criar créditos considerando apenas a quantidade original do pacote
-    const packageItems = (currentPackage.service_packages as any)?.package_items || []
     const newCredits = packageItems.map((item: any) => {
         return {
             customer_package_id: newPackage.id,
