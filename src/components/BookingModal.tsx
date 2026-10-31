@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import styles from './BookingModal.module.css'
 import { createAppointment } from '@/app/actions/appointment'
 import { searchPets } from '@/app/actions/pet'
+import { createClient } from '@/lib/supabase/client'
 import { useFormStatus } from 'react-dom'
 
 interface Service {
@@ -87,6 +88,10 @@ export default function BookingModal({
     const [dynamicPrices, setDynamicPrices] = useState<Record<string, number>>({})
     const [loadingPrices, setLoadingPrices] = useState(false)
 
+    // Referência de Supabase client e controle de concorrência de busca
+    const supabaseClient = useRef(createClient())
+    const searchReqId = useRef(0)
+
     // Extras States
     const [extrasList, setExtrasList] = useState<Array<{ name: string, price: number }>>([])
     const [extraName, setExtraName] = useState('')
@@ -135,44 +140,152 @@ export default function BookingModal({
             setSelectedTime(initialHour)
             setBookingError(null)
             setPetSearchTerm('')
+            setIsSearching(false)
+            setShowPetResults(false)
+            setSearchResults([])
             setExtrasList([])
             setExtraName('')
             setExtraPrice('')
             setSelectedExtraServiceId('')
             
             if (initialPetId) {
-                // If initialPetId provided, try to search it
-                searchPets(initialPetId).then(results => {
-                    const found = (results as any[]).find(p => p.id === initialPetId)
-                    if (found) setSelectedPets([found])
-                }).catch(() => {})
+                // If initialPetId provided, busca diretamente por ID no Supabase client
+                const supabase = supabaseClient.current
+                Promise.resolve(
+                    supabase
+                        .from('pets')
+                        .select('id, name, species, breed, size, weight_kg, is_adapted, customers(id, name, phone_1)')
+                        .eq('id', initialPetId)
+                        .single()
+                ).then(({ data, error }) => {
+                    if (data && !error) {
+                        const rawPet = data as any
+                        const petCustomer = Array.isArray(rawPet.customers) ? rawPet.customers[0] : rawPet.customers
+                        setSelectedPets([{
+                            ...rawPet,
+                            customers: petCustomer ? { name: petCustomer.name } : undefined
+                        }])
+                    }
+                }).catch((err: any) => {
+                    console.error('Error loading initial pet:', err)
+                })
             } else {
                 setSelectedPets([])
             }
         }
     }, [isOpen, initialPetId, initialServiceId, initialDate, initialHour])
 
-    // Debounced Pet Search
+    // Debounced Pet Search resiliente com concorrência e timeout de segurança
     useEffect(() => {
-        if (petSearchTerm.length < 2) {
+        const term = petSearchTerm.trim()
+        if (term.length < 2) {
             setSearchResults([])
+            setIsSearching(false)
             return
         }
 
+        const reqId = ++searchReqId.current
+        setIsSearching(true)
+
+        // Trava de segurança: impede que fique em "Buscando..." se houver atraso ou queda de conexão
+        const safetyTimeout = setTimeout(() => {
+            if (searchReqId.current === reqId) {
+                setIsSearching(false)
+            }
+        }, 3000)
+
         const timer = setTimeout(async () => {
-            setIsSearching(true)
             try {
-                const results = await searchPets(petSearchTerm)
-                setSearchResults(results as any[])
-                setShowPetResults(true)
+                let results: Pet[] = []
+                const supabase = supabaseClient.current
+
+                // 1. Tentar RPC search_pets_rpc diretamente do browser (mais rápido)
+                try {
+                    const { data: { user } } = await supabase.auth.getUser()
+                    if (user) {
+                        const { data: profile } = await supabase
+                            .from('profiles')
+                            .select('org_id')
+                            .eq('id', user.id)
+                            .single()
+
+                        if (profile?.org_id) {
+                            const { data: rpcData, error: rpcErr } = await supabase.rpc('search_pets_rpc', {
+                                search_term: term,
+                                organization_id: profile.org_id,
+                                p_limit: 50
+                            })
+                            if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0) {
+                                results = rpcData as Pet[]
+                            }
+                        }
+                    }
+                } catch (rpcCatch) {
+                    console.warn('Direct RPC search failed, falling back:', rpcCatch)
+                }
+
+                // 2. Se a RPC do browser não trouxe resultados, tenta a Server Action searchPets
+                if (results.length === 0) {
+                    try {
+                        const actionData = await searchPets(term)
+                        if (Array.isArray(actionData) && actionData.length > 0) {
+                            results = actionData as Pet[]
+                        }
+                    } catch (actionErr) {
+                        console.warn('Server Action searchPets failed:', actionErr)
+                    }
+                }
+
+                // 3. Fallback direto por query na tabela pets se necessário
+                if (results.length === 0) {
+                    try {
+                        const { data: queryData } = await supabase
+                            .from('pets')
+                            .select('id, name, species, breed, size, weight_kg, is_adapted, is_active, is_deceased, customers(id, name, phone_1)')
+                            .eq('is_active', true)
+                            .ilike('name', `%${term}%`)
+                            .limit(20)
+
+                        if (queryData && queryData.length > 0) {
+                            results = queryData
+                                .filter((p: any) => !p.is_deceased)
+                                .map((p: any) => {
+                                    const cust = Array.isArray(p.customers) ? p.customers[0] : p.customers
+                                    return {
+                                        id: p.id,
+                                        name: p.name,
+                                        species: p.species,
+                                        breed: p.breed,
+                                        size: p.size,
+                                        weight_kg: p.weight_kg,
+                                        is_adapted: p.is_adapted,
+                                        customers: cust ? { name: cust.name } : undefined
+                                    } as Pet
+                                })
+                        }
+                    } catch (fallbackErr) {
+                        console.warn('Direct fallback query failed:', fallbackErr)
+                    }
+                }
+
+                if (searchReqId.current === reqId) {
+                    setSearchResults(results)
+                    setShowPetResults(true)
+                }
             } catch (err) {
                 console.error('Error searching pets:', err)
             } finally {
-                setIsSearching(false)
+                clearTimeout(safetyTimeout)
+                if (searchReqId.current === reqId) {
+                    setIsSearching(false)
+                }
             }
-        }, 350)
+        }, 250)
 
-        return () => clearTimeout(timer)
+        return () => {
+            clearTimeout(timer)
+            clearTimeout(safetyTimeout)
+        }
     }, [petSearchTerm])
 
     // Fetch Dynamic Prices when Pets or Date changes
@@ -422,12 +535,46 @@ export default function BookingModal({
                                 onFocus={() => {
                                     if (petSearchTerm.length >= 2) setShowPetResults(true)
                                 }}
+                                style={{ paddingRight: petSearchTerm ? '2.5rem' : undefined }}
                             />
+                            {petSearchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setPetSearchTerm('')
+                                        setSearchResults([])
+                                        setShowPetResults(false)
+                                    }}
+                                    style={{
+                                        position: 'absolute',
+                                        right: '12px',
+                                        top: '50%',
+                                        transform: 'translateY(-50%)',
+                                        background: 'rgba(255,255,255,0.1)',
+                                        border: 'none',
+                                        borderRadius: '50%',
+                                        width: '20px',
+                                        height: '20px',
+                                        color: '#cbd5e1',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '0.75rem',
+                                        zIndex: 5
+                                    }}
+                                    title="Limpar busca"
+                                >
+                                    ✕
+                                </button>
+                            )}
                             
                             {showPetResults && (isSearching || petSearchTerm.length >= 2) && (
                                 <div className={styles.searchResultsContainer}>
                                     {isSearching ? (
-                                        <div className={styles.searchResultItem}>Buscando...</div>
+                                        <div className={styles.searchResultItem} style={{ color: '#94a3b8', fontStyle: 'italic' }}>
+                                            ⏳ Buscando pets e tutores...
+                                        </div>
                                     ) : searchResults.length > 0 ? (
                                         searchResults.map((p: Pet) => {
                                             const isSelected = selectedPets.some(sp => sp.id === p.id)
@@ -436,6 +583,10 @@ export default function BookingModal({
                                                     key={p.id}
                                                     className={styles.searchResultItem}
                                                     style={{ opacity: isSelected ? 0.5 : 1, cursor: isSelected ? 'default' : 'pointer' }}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault()
+                                                        if (!isSelected) handleAddPet(p)
+                                                    }}
                                                     onClick={() => {
                                                         if (!isSelected) handleAddPet(p)
                                                     }}
@@ -450,7 +601,9 @@ export default function BookingModal({
                                             )
                                         })
                                     ) : (
-                                        <div className={styles.searchResultItem}>Nenhum pet encontrado</div>
+                                        <div className={styles.searchResultItem} style={{ color: '#94a3b8' }}>
+                                            Nenhum pet encontrado para &quot;{petSearchTerm}&quot;
+                                        </div>
                                     )}
                                 </div>
                             )}

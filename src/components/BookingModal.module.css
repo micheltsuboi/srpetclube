@@ -90,7 +90,7 @@
     margin-top: 4px;
     max-height: 250px;
     overflow-y: auto;
-    z-index: 10;
+    z-index: 100;
     box-shadow: var(--shadow-xl);
 }
 

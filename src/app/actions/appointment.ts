@@ -215,27 +215,64 @@ export async function createAppointment(prevState: CreateAppointmentState, formD
         }
 
         // Pricing Calculation Logic
+        const targetDate = date || checkInDate || new Date().toISOString().split('T')[0]
+        const appointmentDayOfWeek = targetDate ? new Date(`${targetDate}T12:00:00`).getDay() : new Date().getDay()
         let calculatedPrice = (serviceData as any).base_price
         const weight = (petData as any).weight_kg ?? (petData as any).weight
+        const petSize = (petData as any).size
 
+        // 1. Tentar RPC get_price
+        try {
+            const { data: rpcPrice, error: rpcErr } = await supabase.rpc('get_price', {
+                p_pet_id: petId,
+                p_service_id: serviceId,
+                p_date: targetDate
+            })
+            if (!rpcErr && typeof rpcPrice === 'number' && rpcPrice > 0) {
+                calculatedPrice = rpcPrice
+            }
+        } catch (e) {
+            console.error('Error calling get_price RPC:', e)
+        }
+
+        // 2. Reforço de Matriz de Preço com prioridade estrita para Peso + Dia da Semana
         if (weight !== null && weight !== undefined) {
             const { data: rules } = await supabase
                 .from('pricing_matrix')
-                .select('fixed_price')
+                .select('*')
                 .eq('service_id', serviceId)
                 .eq('is_active', true)
-                .lte('weight_min', weight)
-                .gte('weight_max', weight)
 
             if (rules && rules.length > 0) {
-                calculatedPrice = rules[0].fixed_price
-            } else {
-                const { data: rpcPrice } = await supabase.rpc('get_price', {
-                    p_pet_id: petId,
-                    p_service_id: serviceId,
-                    p_date: date || checkInDate || new Date().toISOString().split('T')[0]
+                const matchingRules = rules.filter(r => {
+                    if (r.day_of_week !== null && r.day_of_week !== appointmentDayOfWeek) return false
+                    const hasWeight = r.weight_min !== null || r.weight_max !== null
+                    if (hasWeight) {
+                        if (r.weight_min !== null && weight < r.weight_min) return false
+                        if (r.weight_max !== null && weight > r.weight_max) return false
+                        return true
+                    }
+                    if (r.size && petSize) return r.size === petSize
+                    return false
+                }).sort((a, b) => {
+                    const aDowWeight = (a.day_of_week !== null && (a.weight_min !== null || a.weight_max !== null)) ? 1 : 0
+                    const bDowWeight = (b.day_of_week !== null && (b.weight_min !== null || b.weight_max !== null)) ? 1 : 0
+                    if (aDowWeight !== bDowWeight) return bDowWeight - aDowWeight
+
+                    const aDow = a.day_of_week !== null ? 1 : 0
+                    const bDow = b.day_of_week !== null ? 1 : 0
+                    if (aDow !== bDow) return bDow - aDow
+
+                    const aWeight = (a.weight_min !== null || a.weight_max !== null) ? 1 : 0
+                    const bWeight = (b.weight_min !== null || b.weight_max !== null) ? 1 : 0
+                    if (aWeight !== bWeight) return bWeight - aWeight
+
+                    return (b.fixed_price || 0) - (a.fixed_price || 0)
                 })
-                if (rpcPrice) calculatedPrice = rpcPrice
+
+                if (matchingRules.length > 0 && matchingRules[0].fixed_price !== null) {
+                    calculatedPrice = matchingRules[0].fixed_price
+                }
             }
         }
 
