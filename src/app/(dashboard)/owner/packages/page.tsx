@@ -39,7 +39,7 @@ interface ServicePackage {
     package_items: PackageItem[]
 }
 
-const initialState = { message: '', success: false }
+const initialState: { message: string; success: boolean; data?: any } = { message: '', success: false }
 
 export default function PackagesPage() {
     const supabase = createClient()
@@ -205,10 +205,25 @@ export default function PackagesPage() {
     }, [fetchData])
 
     useEffect(() => {
-        if (createState.success || updateState.success) {
+        if (createState.success) {
+            fetchData()
+            if (createState.data) {
+                const created = createState.data as any
+                setSelectedPackage({
+                    ...created,
+                    package_items: []
+                })
+                setIsEditing(true)
+                setShowModal(true)
+                alert('Pacote criado com sucesso! Agora adicione abaixo os serviços que fazem parte deste pacote.')
+            } else {
+                setShowModal(false)
+                alert(createState.message)
+            }
+        } else if (updateState.success) {
             setShowModal(false)
             fetchData()
-            alert(createState.message || updateState.message)
+            alert(updateState.message)
         } else if (createState.message || updateState.message) {
             alert(createState.message || updateState.message)
         }
@@ -428,7 +443,9 @@ export default function PackagesPage() {
                                 </div>
                             ))}
                             {(!pkg.package_items || pkg.package_items.length === 0) && (
-                                <div style={{ fontSize: '0.8rem', color: '#999' }}>Nenhum serviço adicionado</div>
+                                <div style={{ fontSize: '0.8rem', color: '#ef4444', fontWeight: 600, background: 'rgba(239, 68, 68, 0.1)', padding: '0.35rem 0.6rem', borderRadius: '4px', border: '1px dashed #ef4444' }}>
+                                    ⚠️ Sem serviços cadastrados (Incompleto)
+                                </div>
                             )}
                         </div>
                     </div>

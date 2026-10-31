@@ -237,6 +237,10 @@ export async function sellPackageToCustomer(prevState: ActionState, formData: Fo
         return { message: 'Pacote não encontrado.', success: false }
     }
 
+    if (!packageData.package_items || packageData.package_items.length === 0) {
+        return { message: `O pacote "${packageData.name}" não possui nenhum serviço configurado. Configure os serviços do pacote em 'Pacotes' antes de contratá-lo.`, success: false }
+    }
+
     // Calcular data de expiração
     let expires_at = null
     if (packageData.validity_days) {
@@ -663,6 +667,10 @@ export async function sellPackageToPet(
         return { message: 'Pacote não encontrado.', success: false }
     }
 
+    if (!packageData.package_items || packageData.package_items.length === 0) {
+        return { message: `O pacote "${packageData.name}" não possui nenhum serviço configurado. Configure os serviços do pacote em 'Pacotes' antes de contratá-lo.`, success: false }
+    }
+
     // Calcular data de expiração
     let expires_at = null
     if (packageData.validity_days) {
@@ -819,13 +827,13 @@ export async function reschedulePackageSlot(
             .update({ scheduled_at: scheduledAt })
             .eq('id', slot.appointment_id)
     } else {
-        // Criar appointment como 'pending' para refletir na agenda
+        // Criar appointment coberto pelo pacote para refletir na agenda
         const cpData = Array.isArray(slot.customer_packages) ? slot.customer_packages[0] : slot.customer_packages
         const serviceData = Array.isArray(slot.services) ? slot.services[0] : slot.services
         if (cpData && cpData.pet_id && cpData.org_id && serviceData?.id) {
             const { data: credit } = await supabase
                 .from('package_credits')
-                .select('id')
+                .select('id, remaining_quantity')
                 .eq('customer_package_id', slot.customer_package_id)
                 .eq('service_id', serviceData.id)
                 .single()
@@ -839,7 +847,11 @@ export async function reschedulePackageSlot(
                     scheduled_at: scheduledAt,
                     status: 'pending',
                     package_slot_id: slotId,
-                    package_credit_id: credit?.id || null
+                    package_credit_id: credit?.id || null,
+                    calculated_price: 0,
+                    final_price: 0,
+                    payment_status: 'paid',
+                    discount_percent: 100
                 })
                 .select('id')
                 .single()
@@ -847,8 +859,23 @@ export async function reschedulePackageSlot(
             if (newAppt) {
                 await supabase
                     .from('package_schedule_slots')
-                    .update({ appointment_id: newAppt.id })
+                    .update({ 
+                        appointment_id: newAppt.id,
+                        status: 'scheduled'
+                    })
                     .eq('id', slotId)
+
+                if (credit?.id && credit.remaining_quantity > 0) {
+                    await supabase
+                        .from('package_credits')
+                        .update({ 
+                            remaining_quantity: credit.remaining_quantity - 1, 
+                            updated_at: new Date().toISOString() 
+                        })
+                        .eq('id', credit.id)
+                }
+
+                await fixPackageUsageIndices(cpData.pet_id)
             }
         }
     }

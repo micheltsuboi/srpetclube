@@ -1386,6 +1386,11 @@ function PetsContent() {
             ? ` | Desconto: ${packageDiscountType === 'percent' ? `${packageDiscountValue}%` : `R$ ${packageDiscountValue.toFixed(2)}`} (-R$ ${discountAmount.toFixed(2)})`
             : ''
         
+        if (!pkg.package_items || pkg.package_items.length === 0) {
+            alert(`O pacote "${pkg.name}" não possui serviços cadastrados em sua composição. Configure os serviços na página de Pacotes antes de contratá-lo.`)
+            return
+        }
+
         if (isAutoSchedule && prefWeekdays.length === 0) {
             alert('Por favor, selecione pelo menos um dia da semana para o agendamento automático.')
             return
@@ -2506,15 +2511,32 @@ function PetsContent() {
                                                             <option value="">Selecione um pacote...</option>
                                                             {sortedPackageCategories.map(category => (
                                                                 <optgroup key={category} label={`📁 ${category}`}>
-                                                                    {groupedPackages[category]?.map((pkg: any) => (
-                                                                        <option key={pkg.id} value={pkg.id}>
-                                                                            {pkg.name} - R$ {pkg.total_price.toFixed(2)}
-                                                                        </option>
-                                                                    ))}
+                                                                    {groupedPackages[category]?.map((pkg: any) => {
+                                                                        const hasNoItems = !pkg.package_items || pkg.package_items.length === 0
+                                                                        return (
+                                                                            <option key={pkg.id} value={pkg.id} disabled={hasNoItems} style={{ color: hasNoItems ? '#94a3b8' : 'inherit' }}>
+                                                                                {pkg.name} - R$ {pkg.total_price.toFixed(2)} {hasNoItems ? '(⚠️ Sem serviços cadastrados)' : ''}
+                                                                            </option>
+                                                                        )
+                                                                    })}
                                                                 </optgroup>
                                                             ))}
                                                         </select>
                                                     </div>
+
+                                                    {/* Alerta de pacote sem serviços configurados */}
+                                                    {selectedPackageId && (() => {
+                                                        const selectedPkg = availablePackages.find(p => p.id === selectedPackageId)
+                                                        const hasNoItems = !selectedPkg?.package_items || selectedPkg.package_items.length === 0
+                                                        if (hasNoItems) {
+                                                            return (
+                                                                <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', color: '#f87171', fontSize: '0.85rem' }}>
+                                                                    ⚠️ <strong>Atenção:</strong> Este pacote ainda não possui serviços cadastrados em sua composição. Configure os serviços na página <strong>Pacotes</strong> antes de contratá-lo.
+                                                                </div>
+                                                            )
+                                                        }
+                                                        return null
+                                                    })()}
 
                                                     {/* Configuração de agendamento automático */}
                                                     {selectedPackageId && (
@@ -2575,6 +2597,11 @@ function PetsContent() {
                                                                                 )
                                                                             })}
                                                                         </div>
+                                                                        {isAutoSchedule && prefWeekdays.length === 0 && (
+                                                                            <p style={{ fontSize: '0.75rem', color: '#f87171', marginTop: '0.4rem', fontWeight: 500 }}>
+                                                                                ⚠️ Selecione pelo menos 1 dia da semana acima para o agendamento automático.
+                                                                            </p>
+                                                                        )}
                                                                     </div>
                                                                     <div style={{ gridColumn: 'span 2' }}>
                                                                         <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Horário padrão</label>
@@ -2714,15 +2741,21 @@ function PetsContent() {
                                                         </div>
                                                     )}
 
-                                                    <button
-                                                        type="button"
-                                                        className={styles.submitButton}
-                                                        style={{ marginTop: '0.75rem', width: '100%' }}
-                                                        disabled={!selectedPackageId || isSelling}
-                                                        onClick={handleSellPackage}
-                                                    >
-                                                        {isSelling ? 'Processando...' : '🎁 Contratar Pacote'}
-                                                    </button>
+                                                    {(() => {
+                                                        const selPkg = availablePackages.find(p => p.id === selectedPackageId)
+                                                        const hasNoItems = selectedPackageId && (!selPkg?.package_items || selPkg.package_items.length === 0)
+                                                        return (
+                                                            <button
+                                                                type="button"
+                                                                className={styles.submitButton}
+                                                                style={{ marginTop: '0.75rem', width: '100%', opacity: hasNoItems ? 0.6 : 1 }}
+                                                                disabled={!selectedPackageId || isSelling || Boolean(hasNoItems)}
+                                                                onClick={handleSellPackage}
+                                                            >
+                                                                {isSelling ? 'Processando...' : hasNoItems ? '⚠️ Pacote sem serviços cadastrados' : '🎁 Contratar Pacote'}
+                                                            </button>
+                                                        )
+                                                    })()}
                                                 </div>
 
                                                 <h3 className={styles.sectionTitle} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Pacotes Ativos & Sessões</h3>
