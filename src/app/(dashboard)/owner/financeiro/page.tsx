@@ -448,21 +448,29 @@ export default function FinanceiroPage() {
                 type: 'income',
                 category: 'Pagamento Parcial',
                 amount: amountPaid,
-                description: `Pagamento parcial: ${description}`,
+                description: `Pagamento parcial (${type === 'package' ? `Pacote ID: ${id}` : description})`,
                 payment_method: paymentMethod,
+                reference_id: id,
                 date: new Date().toISOString()
             });
 
             if (res.error) throw res.error;
 
-            const remaining = currentAmount - amountPaid;
+            const remaining = Math.max(0, currentAmount - amountPaid);
 
             if (type === 'appointment') {
                 await supabase.from('appointments').update({ final_price: remaining }).eq('id', id);
             } else if (type === 'sale') {
                 await supabase.from('petshop_sales').update({ total_price: remaining }).eq('id', id);
             } else if (type === 'package') {
-                await supabase.from('customer_packages').update({ total_paid: remaining, calculated_price: remaining }).eq('id', id);
+                // Ao registrar pagamento parcial do pacote, atualiza calculated_price para refletir o saldo devedor pendente,
+                // mas preserva o total_paid caso já esteja preenchido com o valor integral do pacote.
+                const { data: currentPkg } = await supabase.from('customer_packages').select('total_paid').eq('id', id).single();
+                const currentTotalPaid = currentPkg?.total_paid != null && Number(currentPkg.total_paid) > 0 ? Number(currentPkg.total_paid) : currentAmount;
+                await supabase.from('customer_packages').update({
+                    calculated_price: remaining,
+                    total_paid: currentTotalPaid
+                }).eq('id', id);
             }
 
             alert('Pagamento parcial registrado. O valor pendente foi atualizado!');
@@ -614,8 +622,9 @@ export default function FinanceiroPage() {
 
     const getPackageAmount = (p: any): number => {
         if (p.discount_percent === 100) return 0
+        if (p.calculated_price != null && p.calculated_price !== '') return Number(p.calculated_price)
         if (p.total_paid != null && p.total_paid !== '') return Number(p.total_paid)
-        return Number(p.calculated_price || 0)
+        return 0
     }
 
     // Pendências filtradas pelo período selecionado (Mês Atual por padrão)
