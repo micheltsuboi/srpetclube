@@ -432,6 +432,7 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
     const supabase = await createClient()
     
     let realPaidAt: string | null = null
+    let autoTotalPaid: number | null = null
 
     // Se estiver marcando como pago, precisamos registrar/atualizar no financeiro
     if (status === 'paid') {
@@ -451,53 +452,74 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
             .single()
 
         if (!pkgError && pkg) {
-            const amount = (pkg as any).discount_percent === 100
-                ? 0
-                : (pkg.total_paid != null && (pkg.total_paid as any) !== '' ? Number(pkg.total_paid) : Number(pkg.calculated_price || 0))
+            const discount = Number((pkg as any).discount_percent || 0)
+            let contractedAmount = 0
+            if (discount >= 100) {
+                contractedAmount = 0
+            } else if (pkg.total_paid != null && (pkg.total_paid as any) !== '' && Number(pkg.total_paid) > 0) {
+                contractedAmount = Number(pkg.total_paid)
+            } else {
+                const base = Number(pkg.calculated_price || 0)
+                contractedAmount = discount > 0 && base > 0
+                    ? parseFloat((base * (1 - discount / 100)).toFixed(2))
+                    : base
+            }
+
+            if (contractedAmount > 0 && (!pkg.total_paid || Number(pkg.total_paid) <= 0)) {
+                autoTotalPaid = contractedAmount
+            }
+
             const packageName = (pkg.service_packages as any)?.name || 'Pacote'
             const targetName = (pkg.pets as any)?.name || (pkg.customers as any)?.name || 'Cliente'
 
-            // Verificamos se já existe transação para evitar duplicidade
-            const { data: existing } = await supabase
+            // Buscar todas as transações financeiras vinculadas ao pacote (parciais e quitações)
+            const { data: linkedTxs } = await supabase
                 .from('financial_transactions')
-                .select('id')
-                .like('description', `%${pkg.id}%`)
-                .limit(1)
+                .select('id, amount, category')
+                .or(`reference_id.eq.${pkg.id},description.ilike.%${pkg.id}%`)
 
-            if (amount > 0) {
-                if (!existing || existing.length === 0) {
+            const partialTxs = (linkedTxs || []).filter(t => t.category === 'Pagamento Parcial')
+            const settlementTxs = (linkedTxs || []).filter(t => t.category !== 'Pagamento Parcial')
+            const partialPaidTotal = partialTxs.reduce((sum, t) => sum + Number(t.amount || 0), 0)
+            const remainingToSettle = Math.max(0, parseFloat((contractedAmount - partialPaidTotal).toFixed(2)))
+
+            if (remainingToSettle > 0) {
+                if (settlementTxs.length === 0) {
                     await addFinancialTransaction({
                         type: 'income',
                         category: 'Pacotes',
                         name: `Venda de Pacote: ${packageName}`,
-                        amount: amount,
+                        amount: remainingToSettle,
                         date: realPaidAt,
                         payment_method: method || pkg.payment_method || 'other',
-                        description: `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`
+                        description: `Vinculado ao pacote ID: ${pkg.id} - Pet: ${targetName}`,
+                        reference_id: pkg.id
                     })
                 } else {
                     await supabase
                         .from('financial_transactions')
                         .update({
-                            amount: amount,
+                            amount: remainingToSettle,
                             date: realPaidAt,
-                            payment_method: method || pkg.payment_method || 'other'
+                            payment_method: method || pkg.payment_method || 'other',
+                            reference_id: pkg.id
                         })
-                        .eq('id', existing[0].id)
+                        .eq('id', settlementTxs[0].id)
                 }
-            } else if (existing && existing.length > 0) {
+            } else if (settlementTxs.length > 0) {
                 await supabase
                     .from('financial_transactions')
                     .delete()
-                    .eq('id', existing[0].id)
+                    .in('id', settlementTxs.map(t => t.id))
             }
         }
     } else if (status === 'pending') {
-        // Se desfez o pagamento do pacote, remover a transação financeira vinculada
+        // Se desfez o pagamento do pacote, remover apenas transações de quitação (preservar Pagamento Parcial)
         await supabase
             .from('financial_transactions')
             .delete()
-            .like('description', `%${id}%`)
+            .neq('category', 'Pagamento Parcial')
+            .or(`reference_id.eq.${id},description.ilike.%${id}%`)
     }
 
     const updatePayload: Record<string, any> = { 
@@ -506,6 +528,9 @@ export async function updatePackagePaymentStatus(id: string, status: string, met
     }
     if (status === 'paid') {
         updatePayload.paid_at = realPaidAt
+        if (autoTotalPaid !== null) {
+            updatePayload.total_paid = autoTotalPaid
+        }
     } else if (status === 'pending') {
         updatePayload.paid_at = null
     }
@@ -590,17 +615,19 @@ export async function applyPackageDiscount(id: string, value: number, type: 'per
 
     if (error) return { message: error.message, success: false }
 
-    // Sincronizar transação financeira vinculada caso o pacote já esteja pago
+    // Sincronizar transação financeira vinculada caso o pacote já esteja pago (preservar Pagamento Parcial)
     if (roundedFinalPrice > 0) {
         await supabase
             .from('financial_transactions')
             .update({ amount: roundedFinalPrice })
-            .like('description', `%${id}%`)
+            .eq('category', 'Pacotes')
+            .or(`reference_id.eq.${id},description.ilike.%${id}%`)
     } else {
         await supabase
             .from('financial_transactions')
             .delete()
-            .like('description', `%${id}%`)
+            .eq('category', 'Pacotes')
+            .or(`reference_id.eq.${id},description.ilike.%${id}%`)
     }
 
     revalidatePath('/owner/pets')

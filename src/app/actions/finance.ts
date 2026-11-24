@@ -12,6 +12,7 @@ export async function addFinancialTransaction(data: {
     date?: string
     payment_method?: string
     is_recurring?: boolean
+    reference_id?: string
 }) {
     const supabase = await createClient()
 
@@ -74,6 +75,7 @@ export async function addFinancialTransaction(data: {
                         ? (data.date.includes('T') ? data.date : `${data.date}T12:00:00`)
                         : new Date().toISOString(),
                     payment_method: data.payment_method || 'cash',
+                    reference_id: data.reference_id || null,
                     created_by: user.id
                 }])
 

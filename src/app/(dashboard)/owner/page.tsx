@@ -164,13 +164,15 @@ export default function OwnerDashboard() {
         allPending: any[];
         pendingSales: any[];
         pendingPackages: any[];
+        partialTxs: any[];
     }>({
         type: null,
         appointments: [],
         transactions: [],
         allPending: [],
         pendingSales: [],
-        pendingPackages: []
+        pendingPackages: [],
+        partialTxs: []
     })
 
     const [isExtractModalOpen, setIsExtractModalOpen] = useState(false)
@@ -213,11 +215,44 @@ export default function OwnerDashboard() {
         return effectiveDate <= todayEnd
     }
 
-    const getPackageAmount = (p: any): number => {
-        if (p.discount_percent === 100) return 0
-        if (p.calculated_price != null && p.calculated_price !== '') return Number(p.calculated_price)
-        if (p.total_paid != null && p.total_paid !== '') return Number(p.total_paid)
-        return 0
+    const getPackageContractedAmount = (p: any): number => {
+        const discount = Number(p.discount_percent || 0)
+        if (discount >= 100) return 0
+        if (p.total_paid != null && p.total_paid !== '' && Number(p.total_paid) > 0) {
+            return Number(p.total_paid)
+        }
+        const base = Number(p.calculated_price || 0)
+        if (discount > 0 && base > 0) {
+            return parseFloat((base * (1 - discount / 100)).toFixed(2))
+        }
+        return base
+    }
+
+    const getPackageOriginalAmount = (p: any): number => {
+        const spTotal = Number(p.service_packages?.total_price || 0)
+        const taxi = p.has_taxi ? Number(p.taxi_fee || 0) : 0
+        if (spTotal > 0) return parseFloat((spTotal + taxi).toFixed(2))
+
+        const contracted = getPackageContractedAmount(p)
+        const calc = Number(p.calculated_price || 0)
+        const discount = Number(p.discount_percent || 0)
+        if (calc > contracted) return calc
+        if (discount > 0 && discount < 100 && contracted > 0) {
+            return parseFloat((contracted / (1 - discount / 100)).toFixed(2))
+        }
+        return calc || contracted
+    }
+
+    const getPackagePartialPaid = (pkgId: string, partialTxsList: any[] = extractRecords.partialTxs): number => {
+        return (partialTxsList || [])
+            .filter(t => t.reference_id === pkgId || (typeof t.description === 'string' && t.description.includes(pkgId)))
+            .reduce((sum, t) => sum + Number(t.amount || 0), 0)
+    }
+
+    const getPackageAmount = (p: any, partialTxsList: any[] = extractRecords.partialTxs): number => {
+        const contracted = getPackageContractedAmount(p)
+        const partialPaid = getPackagePartialPaid(p.id, partialTxsList)
+        return Math.max(0, parseFloat((contracted - partialPaid).toFixed(2)))
     }
 
     const isPackageAppt = (a: any): boolean => {
@@ -301,7 +336,8 @@ export default function OwnerDashboard() {
                     prevMonthApptsRes,
                     pendingSalesRes,
                     pendingPackagesRes,
-                    allTxsRes
+                    allTxsRes,
+                    partialTxsRes
                 ] = await Promise.all([
                     supabase
                         .from('appointments')
@@ -342,7 +378,7 @@ export default function OwnerDashboard() {
                         .order('created_at', { ascending: true }),
                     supabase
                         .from('customer_packages')
-                        .select('id, total_paid, calculated_price, discount_percent, payment_status, is_active, purchased_at, payment_due_date, period_label, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name ), package_schedule_slots ( slot_date, status )')
+                        .select('id, total_paid, calculated_price, discount_percent, has_taxi, taxi_fee, payment_status, is_active, purchased_at, payment_due_date, period_label, pets ( name, customers ( name ) ), customers ( name ), service_packages ( name, total_price ), package_schedule_slots ( slot_date, status )')
                         .eq('org_id', profile.org_id)
                         .eq('payment_status', 'pending')
                         .or('is_active.is.null,is_active.eq.true')
@@ -353,7 +389,13 @@ export default function OwnerDashboard() {
                         .eq('org_id', profile.org_id)
                         .gte('date', `${prevStartDate < startDate ? prevStartDate : startDate}T00:00:00`)
                         .order('date', { ascending: false })
-                        .limit(5000)
+                        .limit(5000),
+                    supabase
+                        .from('financial_transactions')
+                        .select('id, amount, reference_id, description')
+                        .eq('org_id', profile.org_id)
+                        .eq('type', 'income')
+                        .eq('category', 'Pagamento Parcial')
                 ])
 
                 const currentMonthAppts = currentMonthApptsRes.data || []
@@ -362,6 +404,7 @@ export default function OwnerDashboard() {
                 const pendingSalesData = pendingSalesRes.data || []
                 const pendingPackagesData = pendingPackagesRes.data || []
                 const allTxs = allTxsRes.data || []
+                const partialTxsData = partialTxsRes.data || []
 
                 const activeAppts = currentMonthAppts.filter(a =>
                     isBillableAppt(a) &&
@@ -383,10 +426,10 @@ export default function OwnerDashboard() {
 
                 const periodRealizedPendingTotal = periodRealizedAppts.reduce((sum, a) => sum + getApptAmount(a), 0)
                     + periodSales.reduce((sum, s) => sum + Number(s.total_price || 0), 0)
-                    + periodRealizedPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
+                    + periodRealizedPackages.reduce((sum, p) => sum + getPackageAmount(p, partialTxsData), 0)
 
                 const periodForecastPendingTotal = periodForecastAppts.reduce((sum, a) => sum + getApptAmount(a), 0)
-                    + periodForecastPackages.reduce((sum, p) => sum + getPackageAmount(p), 0)
+                    + periodForecastPackages.reduce((sum, p) => sum + getPackageAmount(p, partialTxsData), 0)
 
                 const activeTxs = allTxs.filter(t => filterByPeriod(t.date))
                 const prevTxs = allTxs.filter(t => {
@@ -436,7 +479,8 @@ export default function OwnerDashboard() {
                     transactions: activeTxs,
                     allPending: pendingAppts,
                     pendingSales: pendingSalesData,
-                    pendingPackages: pendingPackagesData
+                    pendingPackages: pendingPackagesData,
+                    partialTxs: partialTxsData
                 })
 
                 // 2. Fetch Operational Stats
@@ -747,14 +791,8 @@ export default function OwnerDashboard() {
             } else if (type === 'sale') {
                 await supabase.from('petshop_sales').update({ total_price: remaining }).eq('id', id)
             } else if (type === 'package') {
-                // Ao registrar pagamento parcial do pacote, atualiza calculated_price para refletir o saldo devedor pendente,
-                // mas preserva o total_paid caso já esteja preenchido com o valor integral do pacote.
-                const { data: currentPkg } = await supabase.from('customer_packages').select('total_paid').eq('id', id).single()
-                const currentTotalPaid = currentPkg?.total_paid != null && Number(currentPkg.total_paid) > 0 ? Number(currentPkg.total_paid) : currentAmount
-                await supabase.from('customer_packages').update({
-                    calculated_price: remaining,
-                    total_paid: currentTotalPaid
-                }).eq('id', id)
+                // O abatimento do saldo pendente de pacotes é calculado dinamicamente a partir das transações de 'Pagamento Parcial'
+                // vinculadas, preservando calculated_price (valor base) e total_paid (valor contratado com desconto).
             }
 
             alert('Pagamento parcial registrado. O valor pendente foi atualizado!')
@@ -1553,7 +1591,22 @@ export default function OwnerDashboard() {
         }) : []
 
     // 5. Unificação e ordenação para Pendências
-    const pendingItems = extractRecords.type === 'pending' ? [
+    type PendingDisplayItem = {
+        id: string
+        type: 'appointment' | 'sale' | 'package'
+        petName: string
+        customerName: string
+        title: string
+        date: string
+        amount: number
+        isRealized: boolean
+        originalAmount?: number
+        discountPercent?: number
+        partialPaid?: number
+        raw: any
+    }
+
+    const pendingItems: PendingDisplayItem[] = extractRecords.type === 'pending' ? [
         ...filteredAppts.map(appt => ({
             id: appt.id,
             type: 'appointment' as const,
@@ -1581,6 +1634,9 @@ export default function OwnerDashboard() {
             const tutorName = pkg.pets?.customers?.name || pkg.customers?.name || 'Sem tutor'
             const effectiveDate = getPackageEffectiveDate(pkg)
             const isRealized = isPackageRealized(pkg)
+            const originalAmount = getPackageOriginalAmount(pkg)
+            const discountPercent = Number(pkg.discount_percent || 0)
+            const partialPaid = getPackagePartialPaid(pkg.id)
             return {
                 id: pkg.id,
                 type: 'package' as const,
@@ -1590,6 +1646,9 @@ export default function OwnerDashboard() {
                 date: effectiveDate || pkg.purchased_at,
                 amount: getPackageAmount(pkg),
                 isRealized,
+                originalAmount,
+                discountPercent,
+                partialPaid,
                 raw: pkg
             }
         })
@@ -1667,9 +1726,21 @@ export default function OwnerDashboard() {
                                 </span>
                             )}
                             {item.type === 'package' && (
-                                <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(155, 89, 182, 0.2)', color: '#9b59b6', border: '1px solid rgba(155, 89, 182, 0.4)', fontWeight: 600 }}>
-                                    📦 Pacote
-                                </span>
+                                <>
+                                    <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(155, 89, 182, 0.2)', color: '#9b59b6', border: '1px solid rgba(155, 89, 182, 0.4)', fontWeight: 600 }}>
+                                        📦 Pacote
+                                    </span>
+                                    {(item.discountPercent || 0) > 0 && (
+                                        <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.4)', fontWeight: 600 }}>
+                                            🏷️ -{item.discountPercent}% desc.
+                                        </span>
+                                    )}
+                                    {(item.partialPaid || 0) > 0 && (
+                                        <span style={{ fontSize: '0.7rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(243, 156, 18, 0.2)', color: '#f39c12', border: '1px solid rgba(243, 156, 18, 0.4)', fontWeight: 600 }}>
+                                            💳 Pago parcial: {formatCurrency(item.partialPaid || 0)}
+                                        </span>
+                                    )}
+                                </>
                             )}
                         </div>
                         <span style={{ fontSize: '0.8rem', color: 'rgba(255,255,255,0.6)' }}>
@@ -1678,9 +1749,16 @@ export default function OwnerDashboard() {
                         </span>
                     </div>
                     <div className={styles.extractActions}>
-                        <span className={styles.extractAmount}>
-                            {formatCurrency(item.amount)}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            {item.type === 'package' && (item.discountPercent || 0) > 0 && (item.originalAmount || 0) > item.amount && (
+                                <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.45)', textDecoration: 'line-through' }}>
+                                    {formatCurrency(item.originalAmount || 0)}
+                                </span>
+                            )}
+                            <span className={styles.extractAmount}>
+                                {formatCurrency(item.amount)}
+                            </span>
+                        </div>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             {item.type === 'appointment' && (
                                 <>
