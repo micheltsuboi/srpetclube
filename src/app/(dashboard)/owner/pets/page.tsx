@@ -441,18 +441,26 @@ function PetsContent() {
 
             // 2. Pacotes de Serviços
             let packagesList: any[] = []
+            const hasServiceCategorySelected = statementModules.banho || statementModules.creche || statementModules.hotel
+            const shouldFetchPackages = statementModules.packages || hasServiceCategorySelected
 
-            if (statementModules.packages) {
-                includedNames.push('Pacotes')
+            const includedPkgIds = new Set<string>()
+            const includedCreditIds = new Set<string>()
+            const includedSlotIds = new Set<string>()
+            const includedPkgApptIds = new Set<string>()
+
+            if (statementModules.packages) includedNames.push('Pacotes')
+
+            if (shouldFetchPackages) {
                 const { data: pkgsData, error: pkgError } = await supabase
                     .from('customer_packages')
                     .select(`
                         id, total_paid, calculated_price, payment_status, discount_percent, purchased_at, payment_due_date, period_label,
                         service_packages ( id, name, total_price ),
-                        package_credits ( id, total_quantity, used_quantity, remaining_quantity, services ( id, name ) ),
+                        package_credits ( id, total_quantity, used_quantity, remaining_quantity, services ( id, name, service_categories ( id, name ) ) ),
                         package_schedule_slots (
                             id, slot_date, slot_time, status, period_label, appointment_id,
-                            services ( id, name )
+                            services ( id, name, service_categories ( id, name ) )
                         )
                     `)
                     .eq('pet_id', selectedPet.id)
@@ -462,9 +470,88 @@ function PetsContent() {
                 if (pkgError) {
                     console.error('Erro ao buscar pacotes do pet:', pkgError)
                 } else if (pkgsData) {
-                    // Buscar agendamentos vinculados a slots que possam estar fora do range padrão
-                    const allSlotApptIds = pkgsData.flatMap((p: any) => (p.package_schedule_slots || []).map((s: any) => s.appointment_id)).filter(Boolean)
-                    const missingApptIds = allSlotApptIds.filter((id: string) => !appts.some(a => a.id === id))
+                    const classifyServiceCategory = (nameOrCat: string): 'banho' | 'creche' | 'hotel' | 'other' => {
+                        const lower = (nameOrCat || '').toLowerCase()
+                        if (lower.includes('creche') || lower.includes('aula') || lower.includes('day use')) return 'creche'
+                        if (lower.includes('hospedagem') || lower.includes('hotel') || lower.includes('diária') || lower.includes('diaria')) return 'hotel'
+                        if (lower.includes('banho') || lower.includes('tosa') || lower.includes('higiênica') || lower.includes('higienica') || lower.includes('hidrata')) return 'banho'
+                        return 'other'
+                    }
+
+                    const getPackageCategories = (p: any): Set<'banho' | 'creche' | 'hotel' | 'other'> => {
+                        const cats = new Set<'banho' | 'creche' | 'hotel' | 'other'>()
+                        ;(p.package_credits || []).forEach((c: any) => {
+                            const s = Array.isArray(c.services) ? c.services[0] : c.services
+                            const sc = Array.isArray(s?.service_categories) ? s.service_categories[0] : s?.service_categories
+                            const cat = classifyServiceCategory(sc?.name || s?.name || '')
+                            if (cat !== 'other') cats.add(cat)
+                        })
+                        ;(p.package_schedule_slots || []).forEach((sl: any) => {
+                            const s = Array.isArray(sl.services) ? sl.services[0] : sl.services
+                            const sc = Array.isArray(s?.service_categories) ? s.service_categories[0] : s?.service_categories
+                            const cat = classifyServiceCategory(sc?.name || s?.name || '')
+                            if (cat !== 'other') cats.add(cat)
+                        })
+                        if (cats.size === 0) {
+                            const pkgName = (p.service_packages as any)?.name || ''
+                            cats.add(classifyServiceCategory(pkgName))
+                        }
+                        return cats
+                    }
+
+                    // Filtrar pacotes relevantes para o extrato (período + categoria selecionada)
+                    const relevantPkgs = pkgsData.filter((p: any) => {
+                        const pkgDate = p.payment_due_date || p.purchased_at
+                        const dStr = pkgDate ? pkgDate.split('T')[0] : ''
+                        const isInPeriod = dStr >= cleanStartDate && dStr <= cleanEndDate
+
+                        const hasSlotInPeriod = (p.package_schedule_slots || []).some((s: any) => {
+                            const sDate = s.slot_date ? s.slot_date.split('T')[0] : ''
+                            return sDate >= cleanStartDate && sDate <= cleanEndDate
+                        })
+
+                        const pkgCreditIds = (p.package_credits || []).map((c: any) => c.id)
+                        const pkgSlotIds = (p.package_schedule_slots || []).map((s: any) => s.id)
+                        const hasApptInPeriod = appts.some(a => {
+                            const aDate = a.scheduled_at ? a.scheduled_at.split('T')[0] : ''
+                            const inDate = aDate >= cleanStartDate && aDate <= cleanEndDate
+                            return inDate && (
+                                pkgCreditIds.includes(a.package_credit_id) ||
+                                a.package_credit_id === p.id ||
+                                pkgSlotIds.includes(a.package_slot_id)
+                            )
+                        })
+
+                        if (!isInPeriod && !hasSlotInPeriod && !hasApptInPeriod) return false
+
+                        const pkgCats = getPackageCategories(p)
+                        const matchesCategory = !hasServiceCategorySelected
+                            ? statementModules.packages
+                            : (
+                                (statementModules.banho && pkgCats.has('banho')) ||
+                                (statementModules.creche && pkgCats.has('creche')) ||
+                                (statementModules.hotel && pkgCats.has('hotel')) ||
+                                (statementModules.packages && pkgCats.has('other'))
+                            )
+
+                        return matchesCategory
+                    })
+
+                    relevantPkgs.forEach((p: any) => {
+                        includedPkgIds.add(p.id)
+                        ;(p.package_credits || []).forEach((c: any) => {
+                            if (c.id) includedCreditIds.add(c.id)
+                        })
+                        ;(p.package_schedule_slots || []).forEach((s: any) => {
+                            if (s.id) includedSlotIds.add(s.id)
+                            if (s.appointment_id) includedPkgApptIds.add(s.appointment_id)
+                        })
+                    })
+
+                    // Buscar agendamentos vinculados a slots apenas dos pacotes relevantes (mantendo appts restrito ao período)
+                    const relevantSlotApptIds = relevantPkgs.flatMap((p: any) => (p.package_schedule_slots || []).map((s: any) => s.appointment_id)).filter(Boolean)
+                    const missingApptIds = relevantSlotApptIds.filter((id: string) => !appts.some(a => a.id === id))
+                    let packageAppts = appts
 
                     if (missingApptIds.length > 0) {
                         const { data: missingAppts } = await supabase
@@ -483,41 +570,23 @@ function PetsContent() {
                             .in('id', missingApptIds)
 
                         if (missingAppts && missingAppts.length > 0) {
-                            appts = [...appts, ...missingAppts]
+                            packageAppts = [...appts, ...missingAppts]
                         }
                     }
-
-                    // Filtrar pacotes relevantes para o extrato
-                    const relevantPkgs = pkgsData.filter((p: any) => {
-                        const pkgDate = p.payment_due_date || p.purchased_at
-                        const dStr = pkgDate ? pkgDate.split('T')[0] : ''
-                        const isInPeriod = dStr >= cleanStartDate && dStr <= cleanEndDate
-
-                        const hasSlotInPeriod = (p.package_schedule_slots || []).some((s: any) => {
-                            const sDate = s.slot_date ? s.slot_date.split('T')[0] : ''
-                            return sDate >= cleanStartDate && sDate <= cleanEndDate
-                        })
-
-                        const pkgCreditIds = (p.package_credits || []).map((c: any) => c.id)
-                        const hasApptInPeriod = appts.some(a => {
-                            const aDate = a.scheduled_at ? a.scheduled_at.split('T')[0] : ''
-                            const inDate = aDate >= cleanStartDate && aDate <= cleanEndDate
-                            return inDate && (pkgCreditIds.includes(a.package_credit_id) || a.package_credit_id === p.id)
-                        })
-
-                        return isInPeriod || hasSlotInPeriod || hasApptInPeriod
-                    })
 
                     packagesList = relevantPkgs.map((p: any) => {
                         const pkgDate = p.payment_due_date || p.purchased_at
                         const pkgName = (p.service_packages as any)?.name || 'Pacote de Serviços'
 
                         // 1. Valor contratado com desconto já deduzido
-                        const pkgAmount = p.discount_percent === 100
+                        const pkgDiscount = Number(p.discount_percent || 0)
+                        const pkgAmount = pkgDiscount >= 100
                             ? 0
                             : (p.total_paid != null && (p.total_paid as any) !== '' && Number(p.total_paid) > 0
                                 ? Number(p.total_paid)
-                                : Number(p.calculated_price || 0))
+                                : (pkgDiscount > 0 && Number(p.calculated_price || 0) > 0
+                                    ? parseFloat((Number(p.calculated_price) * (1 - pkgDiscount / 100)).toFixed(2))
+                                    : Number(p.calculated_price || 0)))
 
                         // 2. Total de sessões contratadas
                         const totalCreditsQty = (p.package_credits || []).reduce((sum: number, c: any) => sum + (Number(c.total_quantity) || 0), 0)
@@ -540,7 +609,7 @@ function PetsContent() {
 
                         if (sortedSlots.length > 0) {
                             sortedSlots.forEach((slot: any, idx: number) => {
-                                const linkedAppt = appts.find(a => a.id === slot.appointment_id || a.package_slot_id === slot.id)
+                                const linkedAppt = packageAppts.find(a => a.id === slot.appointment_id || a.package_slot_id === slot.id)
 
                                 const rawServiceName = slot.services?.name || linkedAppt?.services?.name || pkgName || 'Sessão'
 
@@ -598,7 +667,7 @@ function PetsContent() {
                             })
 
                             // Adicionar atendimentos do pacote que consumiram créditos mas não tinham slot registrado
-                            const unslottedAppts = appts.filter(a =>
+                            const unslottedAppts = packageAppts.filter(a =>
                                 (pkgCreditIds.includes(a.package_credit_id) || a.package_credit_id === p.id) &&
                                 !slotApptIds.includes(a.id) &&
                                 !slotIds.includes(a.package_slot_id)
@@ -653,7 +722,7 @@ function PetsContent() {
                             })
                         } else {
                             // Fallback se não tiver slots gerados
-                            const pkgAppts = appts.filter(a => pkgCreditIds.includes(a.package_credit_id) || a.package_credit_id === p.id)
+                            const pkgAppts = packageAppts.filter(a => pkgCreditIds.includes(a.package_credit_id) || a.package_credit_id === p.id)
                             pkgAppts.forEach((a: any, idx: number) => {
                                 const serv = Array.isArray(a.services) ? a.services[0] : a.services
                                 const rawServiceName = serv?.name || pkgName || 'Sessão'
@@ -735,8 +804,16 @@ function PetsContent() {
             if (statementModules.hotel) includedNames.push('Hospedagem')
 
             appts.forEach((a: any) => {
-                // Se pertence a um pacote e o módulo de pacotes está ativo, já foi para a seção do pacote!
-                if ((a.package_credit_id || a.package_slot_id) && statementModules.packages) return
+                // Garantir que apenas atendimentos dentro do período selecionado entrem nos avulsos
+                const apptDateStr = a.scheduled_at ? a.scheduled_at.split('T')[0] : ''
+                if (apptDateStr && (apptDateStr < cleanStartDate || apptDateStr > cleanEndDate)) return
+
+                // Se já foi contemplado na seção de pacotes deste extrato, não duplicar em avulsos
+                const isCoveredByIncludedPackage =
+                    includedPkgApptIds.has(a.id) ||
+                    (a.package_credit_id && (includedCreditIds.has(a.package_credit_id) || includedPkgIds.has(a.package_credit_id))) ||
+                    (a.package_slot_id && includedSlotIds.has(a.package_slot_id))
+                if (isCoveredByIncludedPackage) return
 
                 const serv = Array.isArray(a.services) ? a.services[0] : a.services
                 const cat = Array.isArray(serv?.service_categories) ? serv?.service_categories[0] : serv?.service_categories
@@ -757,7 +834,11 @@ function PetsContent() {
                     if (a.has_extras && a.extras_fee) details.push(`+ Extra (R$ ${Number(a.extras_fee).toFixed(2).replace('.', ',')})`)
                     if (a.notes && a.notes.trim()) details.push(`Obs: ${a.notes.trim()}`)
 
-                    const rawPrice = (a.package_credit_id || a.package_slot_id) ? 0 : (a.final_price ?? a.calculated_price ?? serv?.base_price ?? 0)
+                    const hasPkgLink = !!(a.package_credit_id || a.package_slot_id)
+                    const fallbackAddons = (a.has_extras ? Number(a.extras_fee || 0) : 0) + (a.has_taxi ? Number(a.taxi_fee || 0) : 0)
+                    const rawPrice = hasPkgLink
+                        ? (Number(a.final_price || 0) > 0 ? Number(a.final_price) : fallbackAddons)
+                        : (a.final_price ?? a.calculated_price ?? serv?.base_price ?? 0)
 
                     standaloneItems.push({
                         id: a.id,
@@ -766,7 +847,7 @@ function PetsContent() {
                         description: serv?.name || itemType,
                         status: a.status,
                         amount: Number(rawPrice) || 0,
-                        paymentStatus: (a.package_credit_id || a.package_slot_id) ? 'paid' : (a.payment_status || 'pending'),
+                        paymentStatus: a.payment_status || 'pending',
                         details
                     })
                 }
