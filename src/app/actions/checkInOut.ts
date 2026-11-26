@@ -17,7 +17,10 @@ export async function checkInAppointment(appointmentId: string) {
 
         const { error } = await supabase
             .from('appointments')
-            .update({ actual_check_in: new Date().toISOString() })
+            .update({
+                actual_check_in: new Date().toISOString(),
+                status: 'in_progress'
+            })
             .eq('id', appointmentId)
 
         if (error) {
@@ -112,6 +115,7 @@ export async function checkOutAppointment(appointmentId: string) {
 
         revalidatePath('/owner/creche')
         revalidatePath('/owner/banho-tosa')
+        revalidatePath('/owner/hospedagem')
         revalidatePath('/owner/agenda')
         revalidatePath('/owner/pets')
         return { success: true, message: 'Check-out realizado com sucesso!' }

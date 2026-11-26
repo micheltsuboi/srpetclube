@@ -162,8 +162,8 @@ export default function HospedagemPage() {
                 const filtered = dateRange === 'all'
                     ? appts
                     : appts.filter((a: any) => {
-                        // Always show if in_progress (currently hosted)
-                        if (a.status === 'in_progress' && viewMode === 'active') return true
+                        // Always show if in_progress or checked in (currently hosted)
+                        if ((a.status === 'in_progress' || (!!a.actual_check_in && !a.actual_check_out)) && viewMode === 'active') return true
 
                         // Otherwise check date overlap
                         const checkIn = a.check_in_date || a.scheduled_at.split('T')[0]
@@ -186,7 +186,16 @@ export default function HospedagemPage() {
         fetchHospedagemData()
     }, [fetchHospedagemData])
 
-    const handleCheckIn = async (appointmentId: string) => {
+    const handleCheckIn = async (appointmentId: string, plannedCheckIn?: string | null) => {
+        const now = new Date()
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        if (plannedCheckIn && plannedCheckIn > todayStr) {
+            const [y, m, d] = plannedCheckIn.split('-')
+            const formatted = `${d}/${m}/${y}`
+            if (!confirm(`Esta reserva está prevista apenas para ${formatted}. Deseja realmente fazer o check-in antecipado hoje?`)) {
+                return
+            }
+        }
         const result = await checkInAppointment(appointmentId)
         if (result.success) {
             alert(result.message)
@@ -334,6 +343,8 @@ export default function HospedagemPage() {
                             : ((appt.services?.base_price || 0) * (days || 1))
 
                         const categoryColor = appt.services?.service_categories?.color || '#F97316'
+                        const isCheckedIn = appt.status === 'in_progress' || (!!appt.actual_check_in && !appt.actual_check_out)
+                        const isFinished = appt.status === 'done' || appt.status === 'completed'
 
                         return (
                             <div
@@ -408,8 +419,8 @@ export default function HospedagemPage() {
                                                     </span>
                                                 )}
                                                 <span className={styles.statusBadge} style={{ fontSize: '0.75rem', padding: '2px 6px' }}>
-                                                    {appt.status === 'in_progress' ? '🏠 Hospedado' :
-                                                        (appt.status === 'done' || appt.status === 'completed') ? '✅ Finalizado' :
+                                                    {isCheckedIn ? '🏠 Hospedado' :
+                                                        isFinished ? '✅ Finalizado' :
                                                             '⏳ Reservado'}
                                                 </span>
                                             </div>
@@ -506,10 +517,25 @@ export default function HospedagemPage() {
                                             }}>👤 {appt.pets?.customers?.name || 'Cliente'}</span>
 
                                             <div style={{ fontSize: '0.85rem', color: '#e2e8f0', marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                                     <span>📅 <strong>Check-in:</strong></span>
                                                     {appt.actual_check_in ? (
-                                                        <span style={{ color: '#10b981', fontWeight: 600 }}>{new Date(appt.actual_check_in).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} ✓</span>
+                                                        <>
+                                                            <span style={{ color: '#10b981', fontWeight: 600 }}>{new Date(appt.actual_check_in).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} ✓</span>
+                                                            {(() => {
+                                                                const actualDate = new Date(appt.actual_check_in)
+                                                                const actualYMD = `${actualDate.getFullYear()}-${String(actualDate.getMonth() + 1).padStart(2, '0')}-${String(actualDate.getDate()).padStart(2, '0')}`
+                                                                const plannedYMD = appt.check_in_date || appt.scheduled_at.split('T')[0]
+                                                                if (actualYMD !== plannedYMD) {
+                                                                    return (
+                                                                        <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
+                                                                            (Previsto: {checkInDate.toLocaleDateString('pt-BR')})
+                                                                        </span>
+                                                                    )
+                                                                }
+                                                                return null
+                                                            })()}
+                                                        </>
                                                     ) : (
                                                         <span>{checkInDate.toLocaleDateString('pt-BR')}</span>
                                                     )}
@@ -618,10 +644,10 @@ export default function HospedagemPage() {
 
                                     {viewMode === 'active' && (
                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                            {appt.status !== 'in_progress' && (
+                                            {!isCheckedIn && (
                                                 <>
                                                     <button
-                                                        onClick={(e) => { e.stopPropagation(); handleCheckIn(appt.id) }}
+                                                        onClick={(e) => { e.stopPropagation(); handleCheckIn(appt.id, appt.check_in_date || appt.scheduled_at.split('T')[0]) }}
                                                         style={{ flex: 1, padding: '0.5rem', borderRadius: '6px', border: 'none', background: '#10B981', color: 'white', cursor: 'pointer', fontWeight: 600 }}>
                                                         📥 Check-in
                                                     </button>
@@ -634,7 +660,7 @@ export default function HospedagemPage() {
                                                     )}
                                                 </>
                                             )}
-                                            {appt.status === 'in_progress' && (
+                                            {isCheckedIn && (
                                                 <div style={{ display: 'flex', gap: '0.5rem', width: '100%' }}>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); handleCheckOut(appt.id) }}
