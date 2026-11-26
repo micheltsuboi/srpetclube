@@ -566,7 +566,7 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
     // 1. Fetch current appointment to get pet_id and package link
     const { data: currentAppt } = await supabase
         .from('appointments')
-        .select('pet_id, service_id, package_credit_id, package_slot_id, payment_status, has_extras, extras_fee')
+        .select('pet_id, service_id, package_credit_id, package_slot_id, payment_status, has_extras, extras_fee, discount_percent, discount, check_in_date, check_out_date')
         .eq('id', id)
         .single()
 
@@ -604,8 +604,8 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
 
     let days = 1
     if (isActuallyHospedagem && checkInDate && checkOutDate) {
-        const start = new Date(checkInDate)
-        const end = new Date(checkOutDate)
+        const start = new Date(checkInDate.includes('T') ? checkInDate : `${checkInDate}T12:00:00`)
+        const end = new Date(checkOutDate.includes('T') ? checkOutDate : `${checkOutDate}T12:00:00`)
         start.setHours(12, 0, 0, 0)
         end.setHours(12, 0, 0, 0)
 
@@ -618,9 +618,31 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
 
     const isPackageAppt = !!(currentAppt.package_credit_id || currentAppt.package_slot_id)
     const finalCalcPrice = isPackageAppt ? 0 : calculatedPrice
+
+    // Preserve existing discount when keeping the same service (e.g., adding Day Use/extra to discounted Hospedagem)
+    const serviceChanged = currentAppt.service_id !== serviceId
+    const preservedDiscountPercent = (!serviceChanged && !isPackageAppt)
+        ? (Number(currentAppt.discount_percent) || 0)
+        : 0
+    let preservedDiscount = 0
+    if (!serviceChanged && !isPackageAppt) {
+        const storedDiscount = Number(currentAppt.discount) || 0
+        if (storedDiscount > 0 && preservedDiscountPercent === 0) {
+            preservedDiscount = Math.min(calculatedPrice, storedDiscount)
+        } else if (preservedDiscountPercent > 0) {
+            const datesChanged = isActuallyHospedagem && (
+                (checkInDate || null) !== (currentAppt.check_in_date || null) ||
+                (checkOutDate || null) !== (currentAppt.check_out_date || null)
+            )
+            preservedDiscount = (!datesChanged && storedDiscount > 0)
+                ? Math.min(calculatedPrice, storedDiscount)
+                : Number(((calculatedPrice * preservedDiscountPercent) / 100).toFixed(2))
+        }
+    }
+    const discountedServicePrice = Math.max(0, Number((calculatedPrice - preservedDiscount).toFixed(2)))
     const finalPriceToCharge = isPackageAppt
         ? ((hasTaxi ? taxiFee : 0) + extrasFee)
-        : (calculatedPrice + (hasTaxi ? taxiFee : 0) + extrasFee)
+        : Number((discountedServicePrice + (hasTaxi ? taxiFee : 0) + extrasFee).toFixed(2))
 
     const updateData: any = {
         service_id: serviceId,
@@ -634,8 +656,8 @@ export async function updateAppointment(prevState: CreateAppointmentState, formD
         extras: extrasList,
         calculated_price: finalCalcPrice,
         final_price: finalPriceToCharge,
-        discount_percent: 0, // Reset discount when service changes
-        discount: 0
+        discount_percent: preservedDiscountPercent,
+        discount: preservedDiscount
     }
 
     // Se o serviço tiver extras ou taxas a cobrar, NÃO pode ficar como pago automaticamente!

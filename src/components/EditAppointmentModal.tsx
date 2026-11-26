@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { updateAppointment, deleteAppointment } from '@/app/actions/appointment'
 import { createPetshopSale } from '@/app/actions/petshop'
@@ -41,11 +41,22 @@ interface EditAppointmentModalProps {
     }
     onClose: () => void
     onSave: () => void
+    focusExtras?: boolean
 }
 
-export default function EditAppointmentModal({ appointment, onClose, onSave }: EditAppointmentModalProps) {
+export default function EditAppointmentModal({ appointment, onClose, onSave, focusExtras = false }: EditAppointmentModalProps) {
     const supabase = createClient()
     const [loading, setLoading] = useState(false)
+    const extrasSectionRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        if (focusExtras) {
+            const timer = setTimeout(() => {
+                extrasSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+            }, 80)
+            return () => clearTimeout(timer)
+        }
+    }, [focusExtras])
     const [services, setServices] = useState<Service[]>([])
     const [products, setProducts] = useState<Product[]>([])
 
@@ -89,7 +100,7 @@ export default function EditAppointmentModal({ appointment, onClose, onSave }: E
         const svc = services.find(s => s.id === serviceId)
         if (svc) {
             setExtraName(svc.name)
-            setExtraPrice(svc.base_price.toString())
+            setExtraPrice((svc.base_price ?? 0).toString())
         }
     }
 
@@ -146,7 +157,10 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
     }
 
     const selectedService = services.find(s => s.id === serviceId)
-    const isHospedagem = selectedService?.name === 'Hospedagem' || (appointment.services as any)?.service_categories?.name === 'Hospedagem'
+    const isHospedagem =
+        selectedService?.service_categories?.name === 'Hospedagem' ||
+        selectedService?.name === 'Hospedagem' ||
+        (appointment.services as any)?.service_categories?.name === 'Hospedagem'
 
     useEffect(() => {
         const fetchServices = async () => {
@@ -389,16 +403,19 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
                             )}
                         </div>
 
-                        <div style={{ 
-                            background: 'rgba(232, 130, 106, 0.05)', 
-                            padding: '1rem', 
-                            borderRadius: '12px', 
-                            border: '1px solid rgba(232, 130, 106, 0.1)',
-                            marginBottom: '0.5rem'
-                        }}>
+                        <div
+                            ref={extrasSectionRef}
+                            style={{
+                                background: focusExtras ? 'rgba(232, 130, 106, 0.12)' : 'rgba(232, 130, 106, 0.05)',
+                                padding: '1rem',
+                                borderRadius: '12px',
+                                border: focusExtras ? '1.5px solid #E8826A' : '1px solid rgba(232, 130, 106, 0.1)',
+                                marginBottom: '0.5rem'
+                            }}
+                        >
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                                 <span style={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>➕ Adicionar Serviços Extras?</span>
-                                <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>Inclua serviços adicionais que serão cobrados à parte deste agendamento.</span>
+                                <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>Inclua serviços adicionais (ex: Day Use por horário excedido) que serão cobrados à parte deste agendamento.</span>
                             </div>
                             
                             <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -410,8 +427,19 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
                                         style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '0.85rem' }}
                                     >
                                         <option value="">Selecione para autocompletar...</option>
-                                        {services.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name} - R$ {(s.base_price ?? 0).toFixed(2)}</option>
+                                        {Object.entries(
+                                            services.reduce<Record<string, Service[]>>((acc, s) => {
+                                                const cat = s.service_categories?.name || 'Outros'
+                                                if (!acc[cat]) acc[cat] = []
+                                                acc[cat].push(s)
+                                                return acc
+                                            }, {})
+                                        ).map(([cat, items]) => (
+                                            <optgroup key={cat} label={cat}>
+                                                {items.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.name} - R$ {(s.base_price ?? 0).toFixed(2)}</option>
+                                                ))}
+                                            </optgroup>
                                         ))}
                                     </select>
                                 </div>
@@ -439,6 +467,7 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
                                         />
                                     </div>
                                     <button
+                                        type="button"
                                         onClick={handleAddExtra}
                                         style={{
                                             padding: '0.5rem 1rem',
@@ -468,6 +497,7 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
                                                 <span style={{ fontSize: '0.8rem', color: '#E8826A', fontWeight: 700 }}>R$ {item.price.toFixed(2)}</span>
                                             </div>
                                             <button
+                                                type="button"
                                                 onClick={(e) => handleRemoveExtra(e, index)}
                                                 style={{
                                                     background: 'transparent',
@@ -562,6 +592,7 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
                                 )}
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
                                     <button
+                                        type="button"
                                         onClick={handleAddProduct}
                                         style={{
                                             padding: '0.5rem 1rem',
@@ -591,6 +622,7 @@ const handleRemoveExtra = (e: React.MouseEvent, index: number) => {
                                                 <span style={{ fontSize: '0.8rem', color: '#3b82f6', fontWeight: 700 }}>R$ {item.total_price.toFixed(2)} - {item.payment_status === 'paid' ? 'Pago' : 'Pendente'}</span>
                                             </div>
                                             <button
+                                                type="button"
                                                 onClick={(e) => handleRemoveProduct(e, index)}
                                                 style={{
                                                     background: 'transparent',

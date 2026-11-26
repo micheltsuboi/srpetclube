@@ -68,9 +68,15 @@ export default function HospedagemPage() {
     const supabase = createClient()
     const [appointments, setAppointments] = useState<Appointment[]>([])
     const [loading, setLoading] = useState(true)
-    const [dateRange, setDateRange] = useState<DateRange>('month') // Default to month for hospedagem
+    const [dateRange, setDateRange] = useState<DateRange>('all') // Show active/upcoming stays across all months by default
+    const [customMonth, setCustomMonth] = useState<string>(() => {
+        const now = new Date()
+        const next = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+        return `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
+    })
     const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
     const [editingAppointment, setEditingAppointment] = useState<Appointment | null>(null)
+    const [editingFocusExtras, setEditingFocusExtras] = useState(false)
     const [viewMode, setViewMode] = useState<'active' | 'history'>('active')
     const [searchTerm, setSearchTerm] = useState('')
     const [showNewModal, setShowNewModal] = useState(false)
@@ -84,10 +90,16 @@ export default function HospedagemPage() {
             const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
             if (!profile?.org_id) return
 
-            // Get Date Range based on filter
-            const { start, end } = getDateRange(dateRange)
-            const startISO = start.toISOString().split('T')[0]
-            const endISO = end.toISOString().split('T')[0]
+            // Get Date Range based on filter (use local calendar dates to avoid UTC month-boundary shifts)
+            const formatLocalYMD = (d: Date) => {
+                const y = d.getFullYear()
+                const m = String(d.getMonth() + 1).padStart(2, '0')
+                const day = String(d.getDate()).padStart(2, '0')
+                return `${y}-${m}-${day}`
+            }
+            const { start, end } = getDateRange(dateRange, customMonth)
+            const startISO = formatLocalYMD(start)
+            const endISO = formatLocalYMD(end)
 
             // Status Filter based on viewMode
             const statusFilter = viewMode === 'active'
@@ -147,17 +159,19 @@ export default function HospedagemPage() {
                 console.error('Error fetching hospedagem:', error)
             } else if (appts) {
                 // Client-side filtering for better overlap logic
-                const filtered = appts.filter((a: any) => {
-                    // Always show if in_progress (currently hosted)
-                    if (a.status === 'in_progress' && viewMode === 'active') return true
+                const filtered = dateRange === 'all'
+                    ? appts
+                    : appts.filter((a: any) => {
+                        // Always show if in_progress (currently hosted)
+                        if (a.status === 'in_progress' && viewMode === 'active') return true
 
-                    // Otherwise check date overlap
-                    const checkIn = a.check_in_date || a.scheduled_at.split('T')[0]
-                    const checkOut = a.check_out_date || checkIn // Fallback to single day if no checkout
+                        // Otherwise check date overlap
+                        const checkIn = a.check_in_date || a.scheduled_at.split('T')[0]
+                        const checkOut = a.check_out_date || checkIn // Fallback to single day if no checkout
 
-                    // Check if the appointment interval [checkIn, checkOut] overlaps with [startISO, endISO]
-                    return checkIn <= endISO && checkOut >= startISO
-                })
+                        // Check if the appointment interval [checkIn, checkOut] overlaps with [startISO, endISO]
+                        return checkIn <= endISO && checkOut >= startISO
+                    })
                 setAppointments(filtered as unknown as Appointment[])
             }
 
@@ -166,7 +180,7 @@ export default function HospedagemPage() {
         } finally {
             if (!isBackground) setLoading(false)
         }
-    }, [supabase, dateRange, viewMode])
+    }, [supabase, dateRange, customMonth, viewMode])
 
     useEffect(() => {
         fetchHospedagemData()
@@ -269,13 +283,19 @@ export default function HospedagemPage() {
             {/* View Mode Tabs */}
             <div className={styles.tabs}>
                 <button
-                    onClick={() => setViewMode('active')}
+                    onClick={() => {
+                        setViewMode('active')
+                        setDateRange('all')
+                    }}
                     className={`${styles.tab} ${viewMode === 'active' ? styles.activeTab : ''}`}
                 >
                     Hóspedes Ativos / Futuros
                 </button>
                 <button
-                    onClick={() => setViewMode('history')}
+                    onClick={() => {
+                        setViewMode('history')
+                        setDateRange('month')
+                    }}
                     className={`${styles.tab} ${viewMode === 'history' ? styles.activeTab : ''}`}
                 >
                     📜 Histórico
@@ -283,7 +303,14 @@ export default function HospedagemPage() {
             </div>
 
             {/* Date Range Filter */}
-            <DateRangeFilter value={dateRange} onChange={setDateRange} />
+            <DateRangeFilter
+                value={dateRange}
+                onChange={setDateRange}
+                showExtendedOptions
+                allLabel={viewMode === 'active' ? 'Todos (Ativos/Futuros)' : 'Todos'}
+                customMonth={customMonth}
+                onCustomMonthChange={setCustomMonth}
+            />
 
             {loading ? (
                 <div style={{ padding: '2rem', color: '#94a3b8' }}>Carregando...</div>
@@ -360,8 +387,8 @@ export default function HospedagemPage() {
                                     <span style={{ fontSize: '1.4rem', fontWeight: '900', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
                                         {checkInDate.getDate()}
                                     </span>
-                                    <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, marginTop: '2px', opacity: 0.95 }}>
-                                        {checkInDate.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')}
+                                    <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, marginTop: '2px', opacity: 0.95 }}>
+                                        {checkInDate.toLocaleDateString('pt-BR', { weekday: 'short' }).replace('.', '')} • {checkInDate.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')}
                                     </span>
                                 </div>
 
@@ -388,7 +415,7 @@ export default function HospedagemPage() {
                                             </div>
 
                                             {/* Action Buttons Row */}
-                                            <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
+                                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.5rem', marginBottom: '0.25rem' }}>
                                                 <button
                                                     onClick={(e) => {
                                                         e.stopPropagation()
@@ -409,47 +436,68 @@ export default function HospedagemPage() {
                                                 >
                                                     🖨️ Imprimir
                                                 </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setEditingFocusExtras(false)
+                                                        setEditingAppointment(appt)
+                                                    }}
+                                                    style={{
+                                                        background: 'rgba(255,255,255,0.1)',
+                                                        border: 'none',
+                                                        borderRadius: '4px',
+                                                        padding: '4px 8px',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        fontSize: '0.9rem',
+                                                        color: '#e2e8f0'
+                                                    }}
+                                                >
+                                                    ✏️ Editar
+                                                </button>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation()
+                                                        setEditingFocusExtras(true)
+                                                        setEditingAppointment(appt)
+                                                    }}
+                                                    title="Adicionar Serviço Extra (ex: Day Use por horário excedido)"
+                                                    style={{
+                                                        background: 'rgba(232, 130, 106, 0.18)',
+                                                        border: '1px solid rgba(232, 130, 106, 0.45)',
+                                                        borderRadius: '4px',
+                                                        padding: '4px 8px',
+                                                        cursor: 'pointer',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        fontSize: '0.9rem',
+                                                        color: '#fdba74',
+                                                        fontWeight: 600
+                                                    }}
+                                                >
+                                                    ➕ Extra
+                                                </button>
                                                 {viewMode === 'active' && (
-                                                    <>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                setEditingAppointment(appt)
-                                                            }}
-                                                            style={{
-                                                                background: 'rgba(255,255,255,0.1)',
-                                                                border: 'none',
-                                                                borderRadius: '4px',
-                                                                padding: '4px 8px',
-                                                                cursor: 'pointer',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                fontSize: '0.9rem',
-                                                                color: '#e2e8f0'
-                                                            }}
-                                                        >
-                                                            ✏️ Editar
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation()
-                                                                handleDelete(appt.id)
-                                                            }}
-                                                            style={{
-                                                                background: 'rgba(239, 68, 68, 0.15)',
-                                                                border: 'none',
-                                                                borderRadius: '4px',
-                                                                padding: '4px 8px',
-                                                                cursor: 'pointer',
-                                                                display: 'flex',
-                                                                alignItems: 'center',
-                                                                fontSize: '0.9rem',
-                                                                color: '#fca5a5'
-                                                            }}
-                                                        >
-                                                            🗑️ Excluir
-                                                        </button>
-                                                    </>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation()
+                                                            handleDelete(appt.id)
+                                                        }}
+                                                        style={{
+                                                            background: 'rgba(239, 68, 68, 0.15)',
+                                                            border: 'none',
+                                                            borderRadius: '4px',
+                                                            padding: '4px 8px',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            fontSize: '0.9rem',
+                                                            color: '#fca5a5'
+                                                        }}
+                                                    >
+                                                        🗑️ Excluir
+                                                    </button>
                                                 )}
                                             </div>
                                             <span className={styles.tutorName} style={{ cursor: 'pointer' }} onClick={(e) => {
@@ -477,8 +525,37 @@ export default function HospedagemPage() {
                                             </div>
 
                                             <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.5rem' }}>
-                                                {appt.services?.name} ({days} {days === 1 ? 'dia' : 'dias'})
+                                                {appt.services?.name} ({Math.max(1, days)} {Math.max(1, days) === 1 ? 'dia' : 'dias'})
                                             </div>
+                                            {(() => {
+                                                let parsedExtras: Array<{ name: string; price: number }> = []
+                                                if (Array.isArray(appt.extras)) {
+                                                    parsedExtras = appt.extras
+                                                } else if (typeof appt.extras === 'string') {
+                                                    try { parsedExtras = JSON.parse(appt.extras) } catch { parsedExtras = [] }
+                                                }
+                                                if (parsedExtras.length === 0) return null
+                                                return (
+                                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem', marginTop: '0.35rem' }}>
+                                                        {parsedExtras.map((ex, idx) => (
+                                                            <span
+                                                                key={idx}
+                                                                style={{
+                                                                    fontSize: '0.72rem',
+                                                                    background: 'rgba(232, 130, 106, 0.16)',
+                                                                    border: '1px solid rgba(232, 130, 106, 0.4)',
+                                                                    color: '#fdba74',
+                                                                    padding: '2px 6px',
+                                                                    borderRadius: '4px',
+                                                                    fontWeight: 600
+                                                                }}
+                                                            >
+                                                                ➕ {ex.name} (R$ {Number(ex.price || 0).toFixed(2)})
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                )
+                                            })()}
 
                                             {(() => {
                                                 const cp = Array.isArray((appt.package_credits as any)?.customer_packages)
@@ -618,10 +695,15 @@ export default function HospedagemPage() {
             {editingAppointment && (
                 <EditAppointmentModal
                     appointment={editingAppointment as any} // Cast safely
-                    onClose={() => setEditingAppointment(null)}
+                    focusExtras={editingFocusExtras}
+                    onClose={() => {
+                        setEditingAppointment(null)
+                        setEditingFocusExtras(false)
+                    }}
                     onSave={() => {
                         fetchHospedagemData()
                         setEditingAppointment(null)
+                        setEditingFocusExtras(false)
                     }}
                 />
             )}
@@ -645,12 +727,14 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
     const supabase = createClient()
     const [pets, setPets] = useState<any[]>([])
     const [services, setServices] = useState<any[]>([])
+    const [allServices, setAllServices] = useState<any[]>([])
     const [selectedPetId, setSelectedPetId] = useState('')
     const [selectedServiceId, setSelectedServiceId] = useState('')
 
     // Dates
-    const [checkInDate, setCheckInDate] = useState(new Date().toISOString().split('T')[0])
-    const [checkOutDate, setCheckOutDate] = useState(new Date(Date.now() + 86400000).toISOString().split('T')[0]) // Tomorrow
+    const formatLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+    const [checkInDate, setCheckInDate] = useState(() => formatLocal(new Date()))
+    const [checkOutDate, setCheckOutDate] = useState(() => formatLocal(new Date(Date.now() + 86400000))) // Tomorrow
 
     const [notes, setNotes] = useState('')
     const [loading, setLoading] = useState(false)
@@ -661,6 +745,44 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
     const [hasTaxi, setHasTaxi] = useState(false)
     const [taxiFee, setTaxiFee] = useState('0')
     const [ignorePackage, setIgnorePackage] = useState(false)
+    const [extrasList, setExtrasList] = useState<Array<{ name: string, price: number }>>([])
+    const [extraName, setExtraName] = useState('')
+    const [extraPrice, setExtraPrice] = useState('')
+    const [selectedExtraServiceId, setSelectedExtraServiceId] = useState('')
+
+    const handleSelectExtraService = (svcId: string) => {
+        setSelectedExtraServiceId(svcId)
+        if (!svcId) {
+            setExtraName('')
+            setExtraPrice('')
+            return
+        }
+        const svc = allServices.find(s => s.id === svcId)
+        if (svc) {
+            setExtraName(svc.name)
+            setExtraPrice((svc.base_price ?? 0).toString())
+        }
+    }
+
+    const handleAddExtra = () => {
+        if (!extraName.trim()) {
+            alert('Informe o nome do serviço extra.')
+            return
+        }
+        const numericPrice = parseFloat(extraPrice)
+        if (isNaN(numericPrice) || numericPrice < 0) {
+            alert('Informe um valor válido para o serviço extra.')
+            return
+        }
+        setExtrasList(prev => [...prev, { name: extraName.trim(), price: numericPrice }])
+        setExtraName('')
+        setExtraPrice('')
+        setSelectedExtraServiceId('')
+    }
+
+    const handleRemoveExtra = (index: number) => {
+        setExtrasList(prev => prev.filter((_, i) => i !== index))
+    }
 
     useEffect(() => {
         const loadData = async () => {
@@ -677,15 +799,17 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
                 .order('name')
             if (petsData) setPets(petsData)
 
-            // Load Hospedagem services only
-            const { data: servicesData } = await supabase
+            // Load all active services once; derive Hospedagem list + extras list
+            const { data: allServicesData } = await supabase
                 .from('services')
-                .select('id, name, base_price, service_categories!inner(name)')
+                .select('id, name, base_price, service_categories(name)')
                 .eq('org_id', profile.org_id)
-                .eq('service_categories.name', 'Hospedagem')
                 .neq('is_active', false)
                 .order('name')
-            if (servicesData) setServices(servicesData)
+            if (allServicesData) {
+                setAllServices(allServicesData)
+                setServices(allServicesData.filter((s: any) => s.service_categories?.name === 'Hospedagem'))
+            }
         }
         loadData()
     }, [])
@@ -740,6 +864,9 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
         if (ignorePackage) {
             formData.append('ignorePackage', 'true')
         }
+        if (extrasList.length > 0) {
+            formData.append('extras', JSON.stringify(extrasList))
+        }
 
         // Pass fake date/time for compatibility (will be ignored by backend for Hospedagem)
         formData.append('date', checkInDate)
@@ -769,11 +896,12 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
         }} onClick={onClose}>
             <div style={{
                 background: '#1e293b', borderRadius: '16px', width: '90%', maxWidth: '500px',
+                maxHeight: '90vh', overflowY: 'auto',
                 padding: '2rem', boxShadow: '0 20px 50px rgba(0,0,0,0.5)', border: '1px solid #334155'
             }} onClick={e => e.stopPropagation()}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                     <h2 style={{ margin: 0, color: 'white', fontSize: '1.25rem', fontWeight: 700 }}>Nova Hospedagem</h2>
-                    <button onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#cbd5e1' }}>✕</button>
+                    <button type="button" onClick={onClose} style={{ background: 'transparent', border: 'none', fontSize: '1.5rem', cursor: 'pointer', color: '#cbd5e1' }}>✕</button>
                 </div>
                 <form onSubmit={handleSubmit}>
                     <div style={{ marginBottom: '1rem', position: 'relative' }}>
@@ -880,6 +1008,109 @@ function NewHospedagemAppointmentModal({ onClose, onSave }: { onClose: () => voi
                                 Agendar como serviço avulso (Não utilizar pacote)
                             </label>
                         </div>
+                    </div>
+                    <div style={{
+                        background: 'rgba(232, 130, 106, 0.05)',
+                        padding: '1rem',
+                        borderRadius: '12px',
+                        border: '1px solid rgba(232, 130, 106, 0.1)',
+                        marginBottom: '1rem'
+                    }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                            <span style={{ color: 'white', fontWeight: 600, fontSize: '0.95rem' }}>➕ Adicionar Serviços Extras?</span>
+                            <span style={{ fontSize: '0.75rem', color: '#cbd5e1' }}>Ex: Day Use por horário de entrada/saída excedido.</span>
+                        </div>
+                        <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                            <div>
+                                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '0.25rem' }}>SELECIONAR SERVIÇO CADASTRADO (OPCIONAL)</label>
+                                <select
+                                    value={selectedExtraServiceId}
+                                    onChange={(e) => handleSelectExtraService(e.target.value)}
+                                    style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '0.85rem' }}
+                                >
+                                    <option value="">Selecione para autocompletar...</option>
+                                    {Object.entries(
+                                        allServices.reduce<Record<string, any[]>>((acc, s) => {
+                                            const cat = s.service_categories?.name || 'Outros'
+                                            if (!acc[cat]) acc[cat] = []
+                                            acc[cat].push(s)
+                                            return acc
+                                        }, {})
+                                    ).map(([cat, items]) => (
+                                        <optgroup key={cat} label={cat}>
+                                            {items.map(s => (
+                                                <option key={s.id} value={s.id}>{s.name} - R$ {(s.base_price ?? 0).toFixed(2)}</option>
+                                            ))}
+                                        </optgroup>
+                                    ))}
+                                </select>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'flex-end' }}>
+                                <div style={{ flex: 2 }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '0.25rem' }}>Nome do Extra</label>
+                                    <input
+                                        type="text"
+                                        value={extraName}
+                                        onChange={(e) => setExtraName(e.target.value)}
+                                        placeholder="Ex: Day Use Hospedagem"
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '0.85rem' }}
+                                    />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                    <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#cbd5e1', display: 'block', marginBottom: '0.25rem' }}>Valor (R$)</label>
+                                    <input
+                                        type="number"
+                                        step="0.01"
+                                        value={extraPrice}
+                                        onChange={(e) => setExtraPrice(e.target.value)}
+                                        placeholder="0.00"
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white', fontSize: '0.85rem' }}
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={handleAddExtra}
+                                    style={{
+                                        padding: '0.5rem 0.9rem',
+                                        height: '36px',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        background: '#E8826A',
+                                        color: 'white',
+                                        fontWeight: 'bold',
+                                        fontSize: '0.85rem',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    + Add
+                                </button>
+                            </div>
+                        </div>
+                        {extrasList.length > 0 && (
+                            <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', background: 'rgba(255, 255, 255, 0.02)', padding: '0.65rem', borderRadius: '10px', border: '1px solid #334155' }}>
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'white' }}>EXTRAS ADICIONADOS:</span>
+                                {extrasList.map((item, idx) => (
+                                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255, 255, 255, 0.05)', padding: '0.4rem 0.65rem', borderRadius: '6px' }}>
+                                        <div>
+                                            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: 'white' }}>{item.name}</span>
+                                            <span style={{ fontSize: '0.8rem', color: '#E8826A', fontWeight: 700, marginLeft: '0.5rem' }}>R$ {item.price.toFixed(2)}</span>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleRemoveExtra(idx)}
+                                            style={{ background: 'transparent', border: 'none', color: '#ef4444', fontSize: '1.1rem', cursor: 'pointer', lineHeight: 1 }}
+                                            title="Remover"
+                                        >
+                                            &times;
+                                        </button>
+                                    </div>
+                                ))}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed #334155', paddingTop: '0.4rem', marginTop: '0.2rem', fontSize: '0.82rem', fontWeight: 'bold' }}>
+                                    <span style={{ color: '#cbd5e1' }}>Total Extras:</span>
+                                    <span style={{ color: '#E8826A' }}>R$ {extrasList.reduce((acc, i) => acc + i.price, 0).toFixed(2)}</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div style={{ marginBottom: '1.5rem' }}>
                         <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600, color: '#cbd5e1' }}>Observações</label>
