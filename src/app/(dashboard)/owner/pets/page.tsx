@@ -10,7 +10,7 @@ import { createPet, updatePet, deletePet, updatePetVaccineCard, searchPets } fro
 import { sellPackageToPet, getPetPackagesWithUsage, deleteCustomerPackage, renewCustomerPackage } from '@/app/actions/package'
 import { getPetAssessment } from '@/app/actions/petAssessment'
 import { getPetAppointmentsByCategory as getPetAppointments, updateAppointmentStatus } from '@/app/actions/appointment'
-import { getPetshopHistory, payPetshopSale, deletePetshopSale } from '@/app/actions/petshop'
+import { getPetshopHistory, payPetshopSale, deletePetshopSale, createPetshopSale } from '@/app/actions/petshop'
 import { createVaccine, deleteVaccine, getPetVaccines } from '@/app/actions/vaccine'
 import PetAssessmentForm from '@/components/PetAssessmentForm'
 import ImageUpload from '@/components/ImageUpload'
@@ -1023,6 +1023,100 @@ function PetsContent() {
     const [hotelHistory, setHotelHistory] = useState<any[]>([])
     const [bathHistory, setBathHistory] = useState<any[]>([])
     const [petshopHistory, setPetshopHistory] = useState<any[]>([])
+    const [petshopProducts, setPetshopProducts] = useState<Array<{ id: string; name: string; category: string; price: number; stock_quantity: number }>>([])
+    const [showPetshopSaleForm, setShowPetshopSaleForm] = useState(false)
+    const [petshopProductSearch, setPetshopProductSearch] = useState('')
+    const [petshopSaleForm, setPetshopSaleForm] = useState({
+        productId: '',
+        quantity: 1,
+        discountType: 'percent' as 'percent' | 'fixed',
+        discountValue: '0',
+        paymentStatus: 'paid' as 'paid' | 'pending',
+        paymentMethod: 'cash'
+    })
+    const [isSavingPetshopSale, setIsSavingPetshopSale] = useState(false)
+
+    const computePetshopSalePricing = (
+        unitPrice: number,
+        quantity: number,
+        discountType: 'percent' | 'fixed',
+        rawDiscountValue: string
+    ) => {
+        const safeQty = Math.max(1, Math.floor(Number(quantity) || 1))
+        const subtotal = Number((unitPrice * safeQty).toFixed(2))
+        const parsedVal = Math.max(0, parseFloat(String(rawDiscountValue || '0').replace(',', '.')) || 0)
+        let discountAmount = 0
+        let effectiveDiscountPercent = 0
+
+        if (discountType === 'percent') {
+            const pct = Math.min(100, parsedVal)
+            discountAmount = Number(((subtotal * pct) / 100).toFixed(2))
+            effectiveDiscountPercent = Number(pct.toFixed(2))
+        } else {
+            discountAmount = Math.min(subtotal, Number(parsedVal.toFixed(2)))
+            effectiveDiscountPercent = subtotal > 0 ? Number(((discountAmount / subtotal) * 100).toFixed(2)) : 0
+        }
+
+        const finalTotal = Math.max(0, Number((subtotal - discountAmount).toFixed(2)))
+        return { safeQty, subtotal, discountAmount, effectiveDiscountPercent, finalTotal }
+    }
+
+    const handleCreatePetPetshopSale = async () => {
+        if (!selectedPet || !petshopSaleForm.productId || isSavingPetshopSale) return
+        const selectedProd = petshopProducts.find(p => p.id === petshopSaleForm.productId)
+        if (!selectedProd) return
+
+        setIsSavingPetshopSale(true)
+        try {
+            const { safeQty, effectiveDiscountPercent, finalTotal } = computePetshopSalePricing(
+                selectedProd.price,
+                petshopSaleForm.quantity,
+                petshopSaleForm.discountType,
+                petshopSaleForm.discountValue
+            )
+
+            const res = await createPetshopSale({
+                pet_id: selectedPet.id,
+                product_id: selectedProd.id,
+                product_name: selectedProd.name,
+                quantity: safeQty,
+                unit_price: selectedProd.price,
+                total_price: finalTotal,
+                discount_percent: effectiveDiscountPercent,
+                payment_status: petshopSaleForm.paymentStatus,
+                payment_method: petshopSaleForm.paymentMethod || 'cash'
+            })
+
+            if (!res.success) {
+                alert(res.message || 'Erro ao registrar venda.')
+                return
+            }
+
+            const histRes = await getPetshopHistory(selectedPet.id)
+            setPetshopHistory(histRes.data || [])
+            setPetshopProducts(prev => prev.map(p => p.id === selectedProd.id ? { ...p, stock_quantity: p.stock_quantity - safeQty } : p))
+            setPetshopProductSearch('')
+            setPetshopSaleForm({
+                productId: '',
+                quantity: 1,
+                discountType: 'percent',
+                discountValue: '0',
+                paymentStatus: 'paid',
+                paymentMethod: 'cash'
+            })
+            setShowPetshopSaleForm(false)
+            alert(
+                petshopSaleForm.paymentStatus === 'paid'
+                    ? `Venda lançada com sucesso!\n\nTotal: R$ ${finalTotal.toFixed(2)}\nStatus: Pago e registrado no financeiro.`
+                    : `Venda lançada como PENDENTE!\n\nTotal: R$ ${finalTotal.toFixed(2)}\nStatus: Aguardando pagamento.`
+            )
+        } catch (err) {
+            console.error('Erro ao lançar venda na ficha do pet:', err)
+            alert('Erro inesperado ao registrar venda.')
+        } finally {
+            setIsSavingPetshopSale(false)
+        }
+    }
     const [searchTerm, setSearchTerm] = useState('')
     const [debouncedSearch, setDebouncedSearch] = useState('')
     const [petTab, setPetTab] = useState<'active' | 'inactive' | 'deceased'>('active')
@@ -1256,8 +1350,20 @@ function PetsContent() {
         }
         if (accordions.petshop) {
             getPetshopHistory(selectedPet.id).then(res => setPetshopHistory(res.data || []))
+            supabase.auth.getUser().then(async ({ data: { user } }) => {
+                if (!user) return
+                const { data: profile } = await supabase.from('profiles').select('org_id').eq('id', user.id).single()
+                if (!profile?.org_id) return
+                const { data: prods } = await supabase
+                    .from('products')
+                    .select('id, name, category, price, stock_quantity')
+                    .eq('org_id', profile.org_id)
+                    .neq('is_active', false)
+                    .order('name')
+                if (prods) setPetshopProducts(prods)
+            })
         }
-    }, [selectedPet, accordions.creche, accordions.hotel, accordions.bathGrooming, accordions.petshop])
+    }, [selectedPet, accordions.creche, accordions.hotel, accordions.bathGrooming, accordions.petshop, supabase])
 
     const isFirstRender = useRef(true)
 
@@ -1286,6 +1392,8 @@ function PetsContent() {
         setSelectedPet(pet)
         setIsViewingAssessment(false)
         setIsEditingAssessment(false)
+        setShowPetshopSaleForm(false)
+        setPetshopProductSearch('')
         setAccordions({
             details: false,
             bathGrooming: false,
@@ -3652,16 +3760,300 @@ function PetsContent() {
                                     <div className={styles.accordionContent}>
                                         {selectedPet ? (
                                             <>
-                                                <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Histórico de Compras</h4>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                                                    <h4 style={{ margin: 0, fontSize: '0.95rem', color: 'var(--text-secondary)' }}>Histórico de Compras</h4>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setShowPetshopSaleForm(prev => !prev)}
+                                                        style={{
+                                                            padding: '0.45rem 0.85rem',
+                                                            borderRadius: '8px',
+                                                            border: showPetshopSaleForm ? '1px solid #475569' : 'none',
+                                                            background: showPetshopSaleForm ? 'transparent' : '#10B981',
+                                                            color: showPetshopSaleForm ? '#cbd5e1' : 'white',
+                                                            fontSize: '0.82rem',
+                                                            fontWeight: 700,
+                                                            cursor: 'pointer'
+                                                        }}
+                                                    >
+                                                        {showPetshopSaleForm ? '✕ Fechar Venda' : '➕ Lançar Venda de Produto'}
+                                                    </button>
+                                                </div>
+
+                                                {showPetshopSaleForm && (
+                                                    <div style={{
+                                                        background: 'rgba(15, 23, 42, 0.75)',
+                                                        border: '1px solid rgba(16, 185, 129, 0.35)',
+                                                        borderRadius: '10px',
+                                                        padding: '1rem',
+                                                        marginBottom: '1rem',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        gap: '0.75rem'
+                                                    }}>
+                                                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#34D399' }}>
+                                                            🛒 Lançar Produto para {selectedPet.name}
+                                                        </div>
+
+                                                        <div>
+                                                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.25rem' }}>
+                                                                Produto *
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Filtrar produto pelo nome..."
+                                                                value={petshopProductSearch}
+                                                                onChange={e => setPetshopProductSearch(e.target.value)}
+                                                                style={{
+                                                                    width: '100%',
+                                                                    padding: '0.45rem 0.65rem',
+                                                                    borderRadius: '6px',
+                                                                    background: '#0f172a',
+                                                                    border: '1px solid #334155',
+                                                                    color: 'white',
+                                                                    fontSize: '0.82rem',
+                                                                    marginBottom: '0.4rem'
+                                                                }}
+                                                            />
+                                                            <select
+                                                                value={petshopSaleForm.productId}
+                                                                onChange={e => setPetshopSaleForm(prev => ({ ...prev, productId: e.target.value }))}
+                                                                style={{
+                                                                    width: '100%',
+                                                                    padding: '0.5rem 0.65rem',
+                                                                    borderRadius: '6px',
+                                                                    background: '#0f172a',
+                                                                    border: '1px solid #334155',
+                                                                    color: 'white',
+                                                                    fontSize: '0.85rem'
+                                                                }}
+                                                            >
+                                                                <option value="">Selecione um produto...</option>
+                                                                {petshopProducts
+                                                                    .filter(p => !petshopProductSearch.trim() || p.name.toLowerCase().includes(petshopProductSearch.toLowerCase()))
+                                                                    .map(p => (
+                                                                        <option key={p.id} value={p.id}>
+                                                                            {p.name} — R$ {Number(p.price || 0).toFixed(2)} (Estoque: {p.stock_quantity} un)
+                                                                        </option>
+                                                                    ))}
+                                                            </select>
+                                                        </div>
+
+                                                        {(() => {
+                                                            const selectedProd = petshopProducts.find(p => p.id === petshopSaleForm.productId)
+                                                            if (!selectedProd) return null
+                                                            const { safeQty, subtotal, discountAmount, effectiveDiscountPercent, finalTotal } = computePetshopSalePricing(
+                                                                selectedProd.price,
+                                                                petshopSaleForm.quantity,
+                                                                petshopSaleForm.discountType,
+                                                                petshopSaleForm.discountValue
+                                                            )
+
+                                                            return (
+                                                                <>
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
+                                                                        <div>
+                                                                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.25rem' }}>
+                                                                                Quantidade
+                                                                            </label>
+                                                                            <input
+                                                                                type="number"
+                                                                                min="1"
+                                                                                value={petshopSaleForm.quantity}
+                                                                                onChange={e => setPetshopSaleForm(prev => ({ ...prev, quantity: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                                                                                style={{
+                                                                                    width: '100%',
+                                                                                    padding: '0.5rem 0.65rem',
+                                                                                    borderRadius: '6px',
+                                                                                    background: '#0f172a',
+                                                                                    border: '1px solid #334155',
+                                                                                    color: 'white',
+                                                                                    fontSize: '0.85rem'
+                                                                                }}
+                                                                            />
+                                                                            {safeQty > selectedProd.stock_quantity && (
+                                                                                <span style={{ display: 'block', marginTop: '0.25rem', fontSize: '0.74rem', color: '#fbbf24', fontWeight: 600 }}>
+                                                                                    ⚠️ Estoque: {selectedProd.stock_quantity} un
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                                                                                <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1' }}>
+                                                                                    Desconto ({petshopSaleForm.discountType === 'percent' ? '%' : 'R$'})
+                                                                                </label>
+                                                                                <div style={{ display: 'inline-flex', background: '#0f172a', border: '1px solid #334155', borderRadius: '6px', padding: '1px', gap: '2px' }}>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => setPetshopSaleForm(prev => ({ ...prev, discountType: 'percent', discountValue: '0' }))}
+                                                                                        style={{
+                                                                                            border: 'none',
+                                                                                            borderRadius: '4px',
+                                                                                            padding: '1px 7px',
+                                                                                            fontSize: '0.72rem',
+                                                                                            fontWeight: 700,
+                                                                                            cursor: 'pointer',
+                                                                                            background: petshopSaleForm.discountType === 'percent' ? '#E8826A' : 'transparent',
+                                                                                            color: petshopSaleForm.discountType === 'percent' ? 'white' : '#94a3b8'
+                                                                                        }}
+                                                                                    >
+                                                                                        %
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        onClick={() => setPetshopSaleForm(prev => ({ ...prev, discountType: 'fixed', discountValue: '0' }))}
+                                                                                        style={{
+                                                                                            border: 'none',
+                                                                                            borderRadius: '4px',
+                                                                                            padding: '1px 7px',
+                                                                                            fontSize: '0.72rem',
+                                                                                            fontWeight: 700,
+                                                                                            cursor: 'pointer',
+                                                                                            background: petshopSaleForm.discountType === 'fixed' ? '#E8826A' : 'transparent',
+                                                                                            color: petshopSaleForm.discountType === 'fixed' ? 'white' : '#94a3b8'
+                                                                                        }}
+                                                                                    >
+                                                                                        R$
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                            <input
+                                                                                type="number"
+                                                                                step="0.01"
+                                                                                min="0"
+                                                                                max={petshopSaleForm.discountType === 'percent' ? 100 : subtotal}
+                                                                                value={petshopSaleForm.discountValue}
+                                                                                onChange={e => setPetshopSaleForm(prev => ({ ...prev, discountValue: e.target.value }))}
+                                                                                style={{
+                                                                                    width: '100%',
+                                                                                    padding: '0.5rem 0.65rem',
+                                                                                    borderRadius: '6px',
+                                                                                    background: '#0f172a',
+                                                                                    border: '1px solid #334155',
+                                                                                    color: 'white',
+                                                                                    fontSize: '0.85rem'
+                                                                                }}
+                                                                            />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem' }}>
+                                                                        <div>
+                                                                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.25rem' }}>
+                                                                                Status do Pagamento
+                                                                            </label>
+                                                                            <select
+                                                                                value={petshopSaleForm.paymentStatus}
+                                                                                onChange={e => setPetshopSaleForm(prev => ({ ...prev, paymentStatus: e.target.value as 'paid' | 'pending' }))}
+                                                                                style={{
+                                                                                    width: '100%',
+                                                                                    padding: '0.5rem 0.65rem',
+                                                                                    borderRadius: '6px',
+                                                                                    background: '#0f172a',
+                                                                                    border: `1px solid ${petshopSaleForm.paymentStatus === 'pending' ? '#ef4444' : '#10b981'}`,
+                                                                                    color: 'white',
+                                                                                    fontSize: '0.85rem'
+                                                                                }}
+                                                                            >
+                                                                                <option value="paid">✅ Pago (Gera Caixa)</option>
+                                                                                <option value="pending">⏳ Pendente (Aguardando)</option>
+                                                                            </select>
+                                                                        </div>
+
+                                                                        <div>
+                                                                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '0.25rem' }}>
+                                                                                Forma de Pagamento
+                                                                            </label>
+                                                                            <select
+                                                                                value={petshopSaleForm.paymentMethod}
+                                                                                onChange={e => setPetshopSaleForm(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                                                                                disabled={petshopSaleForm.paymentStatus === 'pending'}
+                                                                                style={{
+                                                                                    width: '100%',
+                                                                                    padding: '0.5rem 0.65rem',
+                                                                                    borderRadius: '6px',
+                                                                                    background: '#0f172a',
+                                                                                    border: '1px solid #334155',
+                                                                                    color: 'white',
+                                                                                    fontSize: '0.85rem',
+                                                                                    opacity: petshopSaleForm.paymentStatus === 'pending' ? 0.5 : 1
+                                                                                }}
+                                                                            >
+                                                                                <option value="cash">Dinheiro</option>
+                                                                                <option value="pix">PIX</option>
+                                                                                <option value="credit">Cartão de Crédito</option>
+                                                                                <option value="debit">Cartão de Débito</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid #334155', borderRadius: '8px', padding: '0.65rem 0.85rem', fontSize: '0.84rem' }}>
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8' }}>
+                                                                            <span>Subtotal:</span>
+                                                                            <span>R$ {subtotal.toFixed(2)}</span>
+                                                                        </div>
+                                                                        {discountAmount > 0 && (
+                                                                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#f0a090', marginTop: '0.2rem' }}>
+                                                                                <span>Desconto ({effectiveDiscountPercent}%):</span>
+                                                                                <span>- R$ {discountAmount.toFixed(2)}</span>
+                                                                            </div>
+                                                                        )}
+                                                                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34D399', fontWeight: 700, fontSize: '0.95rem', marginTop: '0.35rem', paddingTop: '0.35rem', borderTop: '1px dashed #334155' }}>
+                                                                            <span>Total Final:</span>
+                                                                            <span>R$ {finalTotal.toFixed(2)}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </>
+                                                            )
+                                                        })()}
+
+                                                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.25rem' }}>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setShowPetshopSaleForm(false)}
+                                                                style={{ padding: '0.5rem 0.9rem', borderRadius: '6px', border: '1px solid #475569', background: 'transparent', color: '#cbd5e1', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}
+                                                            >
+                                                                Cancelar
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                disabled={isSavingPetshopSale || !petshopSaleForm.productId}
+                                                                onClick={handleCreatePetPetshopSale}
+                                                                style={{
+                                                                    padding: '0.5rem 1rem',
+                                                                    borderRadius: '6px',
+                                                                    border: 'none',
+                                                                    background: '#10B981',
+                                                                    color: 'white',
+                                                                    fontSize: '0.82rem',
+                                                                    fontWeight: 700,
+                                                                    cursor: isSavingPetshopSale || !petshopSaleForm.productId ? 'not-allowed' : 'pointer',
+                                                                    opacity: isSavingPetshopSale || !petshopSaleForm.productId ? 0.6 : 1
+                                                                }}
+                                                            >
+                                                                {isSavingPetshopSale ? 'Salvando...' : 'Confirmar Venda'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 {petshopHistory.length === 0 ? (
                                                     <p style={{ fontSize: '0.9rem', color: '#94a3b8' }}>Nenhum produto comprado.</p>
                                                 ) : (
                                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                         {petshopHistory.map((sale: any) => (
                                                             <div key={sale.id} style={{ padding: '0.75rem', borderRadius: '6px', background: 'var(--bg-secondary)', borderLeft: `4px solid ${sale.payment_status === 'paid' ? '#10B981' : '#EF4444'}` }}>
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', gap: '0.5rem', flexWrap: 'wrap' }}>
                                                                     <div style={{ fontWeight: 600 }}>{sale.quantity}x {sale.product_name}</div>
-                                                                    <div style={{ fontWeight: 600 }}>R$ {sale.total_price.toFixed(2)}</div>
+                                                                    <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                                        {Number(sale.discount_percent || 0) > 0 && (
+                                                                            <span style={{ fontSize: '0.72rem', background: 'rgba(232, 130, 106, 0.16)', color: '#f0a090', padding: '1px 6px', borderRadius: '4px' }}>
+                                                                                -{Number(sale.discount_percent).toFixed(2).replace(/\.00$/, '')}%
+                                                                            </span>
+                                                                        )}
+                                                                        <span>R$ {sale.total_price.toFixed(2)}</span>
+                                                                    </div>
                                                                 </div>
                                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                                                     {(() => {

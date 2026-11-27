@@ -629,6 +629,81 @@
     font-weight: 600;
 }
 
+.stockWarning {
+    display: block;
+    margin-top: 0.35rem;
+    font-size: 0.78rem;
+    color: #fbbf24;
+    font-weight: 600;
+}
+
+.discountHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-bottom: 0.45rem;
+}
+
+.discountToggle {
+    display: inline-flex;
+    align-items: center;
+    background: rgba(13, 27, 42, 0.8);
+    border: 1px solid rgba(140, 180, 201, 0.25);
+    border-radius: 8px;
+    padding: 2px;
+    gap: 2px;
+}
+
+.discountToggleBtn {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.2rem 0.55rem;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease;
+}
+
+.discountToggleActive {
+    background: var(--color-primary, #E8826A);
+    color: #ffffff;
+}
+
+.discountInputWrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.discountPrefix {
+    position: absolute;
+    left: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    pointer-events: none;
+}
+
+.discountSuffix {
+    position: absolute;
+    right: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-secondary);
+    pointer-events: none;
+}
+
+.inputWithPrefix {
+    padding-left: 2.35rem;
+}
+
+.inputWithSuffix {
+    padding-right: 2rem;
+}
+
 .finalTotal {
     font-size: 1.15rem;
     font-weight: 700;

@@ -1,6 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 
 export async function getPetshopHistory(petId: string) {
     try {
@@ -11,7 +12,7 @@ export async function getPetshopHistory(petId: string) {
 
         const { data, error } = await supabase
             .from('petshop_sales')
-            .select('id, product_name, quantity, total_price, payment_status, payment_method, created_at, updated_at, financial_transactions(id, date, payment_method)')
+            .select('id, product_name, quantity, unit_price, total_price, discount_percent, payment_status, payment_method, created_at, updated_at, financial_transactions(id, date, payment_method)')
             .eq('pet_id', petId)
             .order('created_at', { ascending: false })
 
@@ -84,6 +85,11 @@ export async function payPetshopSale(saleId: string, paymentMethod: string) {
             return { success: false, message: 'Financeiro gerado, mas erro ao atualizar status do produto.' }
         }
 
+        revalidatePath('/owner/petshop')
+        revalidatePath('/owner/financeiro')
+        revalidatePath('/owner/pets')
+        revalidatePath('/owner')
+
         return { success: true, message: 'Pagamento registrado com sucesso!' }
     } catch (error: any) {
         console.error('Error processing payment:', error)
@@ -144,6 +150,11 @@ export async function deletePetshopSale(saleId: string) {
             return { success: false, message: 'Erro ao excluir produto.' }
         }
 
+        revalidatePath('/owner/petshop')
+        revalidatePath('/owner/financeiro')
+        revalidatePath('/owner/pets')
+        revalidatePath('/owner')
+
         return { success: true, message: 'Produto removido com sucesso!' }
     } catch (error: any) {
         console.error('Error deleting sale:', error)
@@ -152,12 +163,13 @@ export async function deletePetshopSale(saleId: string) {
 }
 
 export async function createPetshopSale(saleData: {
-    pet_id: string;
+    pet_id: string | null;
     product_id: string;
     product_name: string;
     quantity: number;
     unit_price: number;
     total_price: number;
+    discount_percent?: number;
     payment_status: 'paid' | 'pending';
     payment_method: string;
 }) {
@@ -175,7 +187,63 @@ export async function createPetshopSale(saleData: {
 
         if (!profile?.org_id) return { success: false, message: 'Erro de organização.' }
 
-        // Update Stock
+        const safeQty = Math.max(1, Math.floor(Number(saleData.quantity) || 1))
+        const safeUnitPrice = Math.max(0, Number(Number(saleData.unit_price || 0).toFixed(2)))
+        const safeTotalPrice = Math.max(0, Number(Number(saleData.total_price || 0).toFixed(2)))
+        const safeDiscountPercent = Math.min(100, Math.max(0, Number(Number(saleData.discount_percent || 0).toFixed(2))))
+        const safePaymentMethod = saleData.payment_method || 'cash'
+
+        let transactionId: string | null = null
+
+        // 1. If paid and positive value, create financial transaction first
+        if (saleData.payment_status === 'paid' && safeTotalPrice > 0) {
+            const { data: txData, error: txError } = await supabase
+                .from('financial_transactions')
+                .insert({
+                    org_id: profile.org_id,
+                    type: 'income',
+                    category: 'Venda Produto',
+                    amount: safeTotalPrice,
+                    description: `Venda de ${safeQty}x ${saleData.product_name}`,
+                    payment_method: safePaymentMethod,
+                    created_by: user.id,
+                    date: new Date().toISOString()
+                })
+                .select()
+                .single()
+
+            if (txError || !txData) {
+                console.error('Error creating transaction for petshop sale:', txError)
+                return { success: false, message: 'Erro ao registrar transação no financeiro.' }
+            }
+            transactionId = txData.id
+        }
+
+        // 2. Insert Sale (if it fails, rollback created transaction to avoid orphan income)
+        const { error: saleError } = await supabase
+            .from('petshop_sales')
+            .insert({
+                org_id: profile.org_id,
+                pet_id: saleData.pet_id || null,
+                product_id: saleData.product_id,
+                product_name: saleData.product_name,
+                quantity: safeQty,
+                unit_price: safeUnitPrice,
+                total_price: safeTotalPrice,
+                discount_percent: safeDiscountPercent,
+                payment_status: saleData.payment_status,
+                payment_method: safePaymentMethod,
+                financial_transaction_id: transactionId
+            })
+
+        if (saleError) {
+            if (transactionId) {
+                await supabase.from('financial_transactions').delete().eq('id', transactionId)
+            }
+            throw saleError
+        }
+
+        // 3. Update Stock
         const { data: product } = await supabase
             .from('products')
             .select('stock_quantity')
@@ -185,54 +253,18 @@ export async function createPetshopSale(saleData: {
         if (product) {
             await supabase
                 .from('products')
-                .update({ stock_quantity: product.stock_quantity - saleData.quantity })
+                .update({ stock_quantity: product.stock_quantity - safeQty })
                 .eq('id', saleData.product_id)
         }
 
-        let transactionId = null
+        revalidatePath('/owner/petshop')
+        revalidatePath('/owner/financeiro')
+        revalidatePath('/owner/pets')
+        revalidatePath('/owner')
 
-        // If paid, create transaction
-        if (saleData.payment_status === 'paid') {
-            const { data: txData } = await supabase
-                .from('financial_transactions')
-                .insert({
-                    org_id: profile.org_id,
-                    type: 'income',
-                    category: 'Venda Produto',
-                    amount: saleData.total_price,
-                    description: `Venda de ${saleData.quantity}x ${saleData.product_name}`,
-                    payment_method: saleData.payment_method,
-                    created_by: user.id,
-                    date: new Date().toISOString()
-                })
-                .select()
-                .single()
-
-            if (txData) transactionId = txData.id
-        }
-
-        // Insert Sale
-        const { error: saleError } = await supabase
-            .from('petshop_sales')
-            .insert({
-                org_id: profile.org_id,
-                pet_id: saleData.pet_id,
-                product_id: saleData.product_id,
-                product_name: saleData.product_name,
-                quantity: saleData.quantity,
-                unit_price: saleData.unit_price,
-                total_price: saleData.total_price,
-                discount_percent: 0,
-                payment_status: saleData.payment_status,
-                payment_method: saleData.payment_method,
-                financial_transaction_id: transactionId
-            })
-
-        if (saleError) throw saleError
-
-        return { success: true, message: 'Produto adicionado com sucesso!' }
+        return { success: true, message: 'Venda registrada com sucesso!' }
     } catch (error: any) {
         console.error('Error creating petshop sale:', error)
-        return { success: false, message: 'Erro ao adicionar produto.' }
+        return { success: false, message: 'Erro ao registrar venda.' }
     }
 }

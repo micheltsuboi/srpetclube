@@ -6,6 +6,7 @@ import { Product, ProductFormData } from '@/types/database'
 import ImageUpload from '@/components/ImageUpload'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
+import { createPetshopSale } from '@/app/actions/petshop'
 
 interface PetOption {
     id: string
@@ -26,7 +27,8 @@ export default function PetshopPage() {
     const [isSavingSale, setIsSavingSale] = useState(false)
     const [saleData, setSaleData] = useState({
         quantity: 1,
-        tempDiscountPercent: 0,
+        discountType: 'percent' as 'percent' | 'fixed',
+        discountValue: '0',
         paymentMethod: 'cash',
         paymentStatus: 'paid',
         petId: ''
@@ -177,10 +179,45 @@ export default function PetshopPage() {
         }
     }
 
+    const computeSalePricing = (
+        unitPrice: number,
+        quantity: number,
+        discountType: 'percent' | 'fixed',
+        rawDiscountValue: string
+    ) => {
+        const safeQty = Math.max(1, Math.floor(Number(quantity) || 1))
+        const subtotal = Number((unitPrice * safeQty).toFixed(2))
+        const parsedVal = Math.max(0, parseFloat(String(rawDiscountValue || '0').replace(',', '.')) || 0)
+
+        let discountAmount = 0
+        let effectiveDiscountPercent = 0
+
+        if (discountType === 'percent') {
+            const pct = Math.min(100, parsedVal)
+            discountAmount = Number(((subtotal * pct) / 100).toFixed(2))
+            effectiveDiscountPercent = Number(pct.toFixed(2))
+        } else {
+            discountAmount = Math.min(subtotal, Number(parsedVal.toFixed(2)))
+            effectiveDiscountPercent = subtotal > 0
+                ? Number(((discountAmount / subtotal) * 100).toFixed(2))
+                : 0
+        }
+
+        const finalTotal = Math.max(0, Number((subtotal - discountAmount).toFixed(2)))
+        return { subtotal, discountAmount, effectiveDiscountPercent, finalTotal }
+    }
+
     const handleOpenSaleModal = (product: Product) => {
         setProductToSell(product)
         setPetSearchTerm('')
-        setSaleData({ quantity: 1, tempDiscountPercent: 0, paymentMethod: 'cash', paymentStatus: 'paid', petId: '' })
+        setSaleData({
+            quantity: 1,
+            discountType: 'percent',
+            discountValue: '0',
+            paymentMethod: 'cash',
+            paymentStatus: 'paid',
+            petId: ''
+        })
         setIsSaleModalOpen(true)
     }
 
@@ -190,74 +227,29 @@ export default function PetshopPage() {
         setIsSavingSale(true)
 
         try {
-            const discountAmount = (productToSell.price * saleData.quantity) * (saleData.tempDiscountPercent / 100)
-            const finalTotal = (productToSell.price * saleData.quantity) - discountAmount
+            const { effectiveDiscountPercent, finalTotal } = computeSalePricing(
+                productToSell.price,
+                saleData.quantity,
+                saleData.discountType,
+                saleData.discountValue
+            )
 
-            const { data: { user } } = await supabase.auth.getUser()
-            if (!user) return
+            const res = await createPetshopSale({
+                pet_id: saleData.petId || null,
+                product_id: productToSell.id,
+                product_name: productToSell.name,
+                quantity: saleData.quantity,
+                unit_price: productToSell.price,
+                total_price: finalTotal,
+                discount_percent: effectiveDiscountPercent,
+                payment_status: saleData.paymentStatus as 'paid' | 'pending',
+                payment_method: saleData.paymentMethod || 'cash'
+            })
 
-            // Get user's organization
-            const { data: profile } = await supabase
-                .from('profiles')
-                .select('org_id')
-                .eq('id', user.id)
-                .single()
-
-            if (!profile?.org_id) return
-
-            // 1. Update Stock
-            const { error: stockError } = await supabase
-                .from('products')
-                .update({ stock_quantity: productToSell.stock_quantity - saleData.quantity })
-                .eq('id', productToSell.id)
-
-            if (stockError) throw stockError
-
-            let transactionId = null
-
-            // 2. ONLY Create Financial Transaction if Status is Paid
-            if (saleData.paymentStatus === 'paid') {
-                const { data: txData, error: transactionError } = await supabase
-                    .from('financial_transactions')
-                    .insert({
-                        org_id: profile.org_id,
-                        type: 'income',
-                        category: 'Venda Produto',
-                        amount: finalTotal,
-                        description: `Venda de ${saleData.quantity}x ${productToSell.name}`,
-                        payment_method: saleData.paymentMethod || 'cash',
-                        created_by: user.id,
-                        date: new Date().toISOString()
-                    })
-                    .select()
-                    .single()
-
-                if (transactionError) {
-                    console.error('Erro ao registrar transação:', transactionError)
-                    alert('Erro ao registrar transação no financeiro.')
-                    throw transactionError
-                }
-                transactionId = txData.id
+            if (!res.success) {
+                alert(res.message || 'Erro ao processar a venda. Tente novamente.')
+                return
             }
-
-            // 3. Register the Pet Shop Sale
-            const { error: saleError } = await supabase
-                .from('petshop_sales')
-                .insert({
-                    org_id: profile.org_id,
-                    pet_id: saleData.petId || null,
-                    product_id: productToSell.id,
-                    product_name: productToSell.name,
-                    quantity: saleData.quantity,
-                    unit_price: productToSell.price,
-                    total_price: finalTotal,
-                    discount_percent: saleData.tempDiscountPercent,
-                    payment_status: saleData.paymentStatus,
-                    payment_method: saleData.paymentMethod || 'cash',
-                    financial_transaction_id: transactionId
-                })
-
-            if (saleError) throw saleError
 
             if (saleData.paymentStatus === 'paid') {
                 alert(`Venda concluída com sucesso!\n\nTotal: ${formatCurrency(finalTotal)}\nStatus: Paga e registrada no financeiro.`)
@@ -626,20 +618,6 @@ export default function PetshopPage() {
                                 </select>
                             </div>
 
-                            <div className={styles.formGroup}>
-                                <label htmlFor="sale-payment-status" className={styles.label}>Status do Pagamento</label>
-                                <select
-                                    id="sale-payment-status"
-                                    className={styles.select}
-                                    value={saleData.paymentStatus}
-                                    onChange={e => setSaleData({ ...saleData, paymentStatus: e.target.value })}
-                                    style={{ borderColor: saleData.paymentStatus === 'pending' ? '#ef4444' : '#10b981', background: saleData.paymentStatus === 'pending' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)' }}
-                                >
-                                    <option value="paid">✅ Pago (Gera Caixa)</option>
-                                    <option value="pending">⏳ Pendente (Aguardando)</option>
-                                </select>
-                            </div>
-
                             <div className={styles.row}>
                                 <div className={`${styles.formGroup} ${styles.col}`}>
                                     <label htmlFor="sale-quantity" className={styles.label}>Quantidade</label>
@@ -648,23 +626,74 @@ export default function PetshopPage() {
                                         className={styles.input}
                                         type="number"
                                         min="1"
-                                        max={productToSell.stock_quantity}
                                         required
                                         value={saleData.quantity}
-                                        onChange={e => setSaleData({ ...saleData, quantity: parseInt(e.target.value, 10) || 1 })}
+                                        onChange={e => setSaleData({ ...saleData, quantity: Math.max(1, parseInt(e.target.value, 10) || 1) })}
                                     />
+                                    {saleData.quantity > productToSell.stock_quantity && (
+                                        <span className={styles.stockWarning}>
+                                            ⚠️ Estoque atual: {productToSell.stock_quantity} un (ficará negativo após a venda).
+                                        </span>
+                                    )}
                                 </div>
                                 <div className={`${styles.formGroup} ${styles.col}`}>
-                                    <label htmlFor="sale-discount" className={styles.label}>Desconto (%)</label>
-                                    <input
-                                        id="sale-discount"
-                                        className={styles.input}
-                                        type="number"
-                                        min="0"
-                                        max="100"
-                                        value={saleData.tempDiscountPercent}
-                                        onChange={e => setSaleData({ ...saleData, tempDiscountPercent: parseFloat(e.target.value) || 0 })}
-                                    />
+                                    <div className={styles.discountHeader}>
+                                        <label htmlFor="sale-discount" className={styles.label} style={{ marginBottom: 0 }}>
+                                            Desconto ({saleData.discountType === 'percent' ? '%' : 'R$'})
+                                        </label>
+                                        <div className={styles.discountToggle} role="group" aria-label="Tipo de desconto">
+                                            <button
+                                                type="button"
+                                                aria-pressed={saleData.discountType === 'percent'}
+                                                className={`${styles.discountToggleBtn} ${saleData.discountType === 'percent' ? styles.discountToggleActive : ''}`}
+                                                onClick={() => setSaleData(prev => ({ ...prev, discountType: 'percent', discountValue: '0' }))}
+                                            >
+                                                %
+                                            </button>
+                                            <button
+                                                type="button"
+                                                aria-pressed={saleData.discountType === 'fixed'}
+                                                className={`${styles.discountToggleBtn} ${saleData.discountType === 'fixed' ? styles.discountToggleActive : ''}`}
+                                                onClick={() => setSaleData(prev => ({ ...prev, discountType: 'fixed', discountValue: '0' }))}
+                                            >
+                                                R$
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className={styles.discountInputWrapper}>
+                                        {saleData.discountType === 'fixed' && (
+                                            <span className={styles.discountPrefix} aria-hidden="true">R$</span>
+                                        )}
+                                        <input
+                                            id="sale-discount"
+                                            className={`${styles.input} ${saleData.discountType === 'fixed' ? styles.inputWithPrefix : styles.inputWithSuffix}`}
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max={saleData.discountType === 'percent' ? 100 : productToSell.price * saleData.quantity}
+                                            value={saleData.discountValue}
+                                            onChange={e => setSaleData({ ...saleData, discountValue: e.target.value })}
+                                        />
+                                        {saleData.discountType === 'percent' && (
+                                            <span className={styles.discountSuffix} aria-hidden="true">%</span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className={styles.row}>
+                                <div className={`${styles.formGroup} ${styles.col}`}>
+                                    <label htmlFor="sale-payment-status" className={styles.label}>Status do Pagamento</label>
+                                    <select
+                                        id="sale-payment-status"
+                                        className={styles.select}
+                                        value={saleData.paymentStatus}
+                                        onChange={e => setSaleData({ ...saleData, paymentStatus: e.target.value })}
+                                        style={{ borderColor: saleData.paymentStatus === 'pending' ? '#ef4444' : '#10b981', background: saleData.paymentStatus === 'pending' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)' }}
+                                    >
+                                        <option value="paid">✅ Pago (Gera Caixa)</option>
+                                        <option value="pending">⏳ Pendente (Aguardando)</option>
+                                    </select>
                                 </div>
                                 <div className={`${styles.formGroup} ${styles.col}`}>
                                     <label htmlFor="sale-payment-method" className={styles.label}>Forma de Pagamento</label>
@@ -677,34 +706,39 @@ export default function PetshopPage() {
                                         style={{ opacity: saleData.paymentStatus === 'pending' ? 0.5 : 1 }}
                                     >
                                         <option value="cash">Dinheiro</option>
+                                        <option value="pix">PIX</option>
                                         <option value="credit">Cartão de Crédito</option>
                                         <option value="debit">Cartão de Débito</option>
-                                        <option value="pix">PIX</option>
                                     </select>
                                 </div>
                             </div>
 
-                            <div className={styles.totalSection}>
-                                <div className={styles.totalRow}>
-                                    <span>Subtotal:</span>
-                                    <span>{formatCurrency(productToSell.price * saleData.quantity)}</span>
-                                </div>
-                                <div className={styles.totalRow}>
-                                    <span>Desconto:</span>
-                                    <span className={styles.discountValue}>
-                                        - {formatCurrency((productToSell.price * saleData.quantity) * (saleData.tempDiscountPercent / 100))}
-                                    </span>
-                                </div>
-                                <div className={`${styles.totalRow} ${styles.finalTotal}`}>
-                                    <span>Total Final:</span>
-                                    <span>
-                                        {formatCurrency(
-                                            (productToSell.price * saleData.quantity) -
-                                            ((productToSell.price * saleData.quantity) * (saleData.tempDiscountPercent / 100))
-                                        )}
-                                    </span>
-                                </div>
-                            </div>
+                            {(() => {
+                                const { subtotal, discountAmount, effectiveDiscountPercent, finalTotal } = computeSalePricing(
+                                    productToSell.price,
+                                    saleData.quantity,
+                                    saleData.discountType,
+                                    saleData.discountValue
+                                )
+                                return (
+                                    <div className={styles.totalSection}>
+                                        <div className={styles.totalRow}>
+                                            <span>Subtotal:</span>
+                                            <span>{formatCurrency(subtotal)}</span>
+                                        </div>
+                                        <div className={styles.totalRow}>
+                                            <span>Desconto{effectiveDiscountPercent > 0 ? ` (${effectiveDiscountPercent}%)` : ''}:</span>
+                                            <span className={styles.discountValue}>
+                                                - {formatCurrency(discountAmount)}
+                                            </span>
+                                        </div>
+                                        <div className={`${styles.totalRow} ${styles.finalTotal}`}>
+                                            <span>Total Final:</span>
+                                            <span>{formatCurrency(finalTotal)}</span>
+                                        </div>
+                                    </div>
+                                )
+                            })()}
 
                             <button type="submit" disabled={isSavingSale} className={`${styles.submitButton} ${styles.confirmSaleButton}`}>
                                 {isSavingSale ? 'Registrando...' : 'Confirmar Venda'}
