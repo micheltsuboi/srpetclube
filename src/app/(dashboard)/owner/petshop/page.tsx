@@ -1,10 +1,17 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { Eye, DollarSign, Pencil, Trash2, Plus, Search } from 'lucide-react'
 import { Product, ProductFormData } from '@/types/database'
 import ImageUpload from '@/components/ImageUpload'
 import styles from './page.module.css'
 import { createClient } from '@/lib/supabase/client'
+
+interface PetOption {
+    id: string
+    name: string
+    customers: { name: string } | { name: string }[] | null
+}
 
 export default function PetshopPage() {
     const supabase = createClient()
@@ -25,7 +32,13 @@ export default function PetshopPage() {
         petId: ''
     })
     const [productToSell, setProductToSell] = useState<Product | null>(null)
-    const [pets, setPets] = useState<{ id: string, name: string }[]>([])
+    const [pets, setPets] = useState<PetOption[]>([])
+    const [petSearchTerm, setPetSearchTerm] = useState('')
+
+    const getTutorName = (pet: PetOption): string => {
+        if (!pet.customers) return ''
+        return Array.isArray(pet.customers) ? (pet.customers[0]?.name || '') : (pet.customers.name || '')
+    }
 
     // Form State
     const [formData, setFormData] = useState<ProductFormData>({
@@ -62,10 +75,10 @@ export default function PetshopPage() {
         try {
             const { data } = await supabase
                 .from('pets')
-                .select('id, name')
+                .select('id, name, customers(name)')
                 .eq('is_active', true)
                 .order('name')
-            if (data) setPets(data)
+            if (data) setPets(data as PetOption[])
         } catch (error) {
             console.error('Erro ao buscar pets:', error)
         }
@@ -166,6 +179,7 @@ export default function PetshopPage() {
 
     const handleOpenSaleModal = (product: Product) => {
         setProductToSell(product)
+        setPetSearchTerm('')
         setSaleData({ quantity: 1, tempDiscountPercent: 0, paymentMethod: 'cash', paymentStatus: 'paid', petId: '' })
         setIsSaleModalOpen(true)
     }
@@ -258,6 +272,8 @@ export default function PetshopPage() {
         } catch (error) {
             console.error('Erro ao processar venda:', error)
             alert('Erro ao processar a venda. Tente novamente.')
+        } finally {
+            setIsSavingSale(false)
         }
     }
 
@@ -284,6 +300,14 @@ export default function PetshopPage() {
         const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase())
         const matchesCategory = selectedCategory === 'Todas' || product.category === selectedCategory
         return matchesSearch && matchesCategory
+    })
+
+    const filteredPets = pets.filter(pet => {
+        if (!petSearchTerm.trim()) return true
+        const term = petSearchTerm.toLowerCase()
+        const petName = pet.name.toLowerCase()
+        const tutorName = getTutorName(pet).toLowerCase()
+        return petName.includes(term) || tutorName.includes(term)
     })
 
     const formatCurrency = (value: number) => {
@@ -313,8 +337,9 @@ export default function PetshopPage() {
                     <h1 className={styles.title}>📦 Gestão de Produtos</h1>
                     <p className={styles.subtitle}>Gerencie o estoque e catálogo do Pet Shop</p>
                 </div>
-                <button className={styles.addButton} onClick={() => handleOpenModal()}>
-                    ➕ Novo Produto
+                <button type="button" className={styles.addButton} onClick={() => handleOpenModal()}>
+                    <Plus size={18} aria-hidden="true" />
+                    Novo Produto
                 </button>
             </div>
 
@@ -323,13 +348,15 @@ export default function PetshopPage() {
                     <input
                         type="text"
                         placeholder="Buscar produtos..."
+                        aria-label="Buscar produtos"
                         className={styles.searchInput}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                     />
-                    <span className={styles.searchIcon}>🔍</span>
+                    <Search size={18} className={styles.searchIcon} aria-hidden="true" />
                 </div>
                 <select
+                    aria-label="Filtrar por categoria"
                     className={styles.categoryFilter}
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value)}
@@ -344,51 +371,75 @@ export default function PetshopPage() {
                 <table className={styles.table}>
                     <thead>
                         <tr>
-                            <th style={{ width: '80px' }}>Foto</th>
-                            <th>Produto</th>
-                            <th>Categoria</th>
-                            <th>Preço</th>
-                            <th>Estoque</th>
-                            <th>Validade</th>
-                            <th>Ações</th>
+                            <th scope="col" style={{ width: '80px' }}>Foto</th>
+                            <th scope="col">Produto</th>
+                            <th scope="col">Categoria</th>
+                            <th scope="col">Preço</th>
+                            <th scope="col">Estoque</th>
+                            <th scope="col">Validade</th>
+                            <th scope="col" style={{ textAlign: 'right' }}>Ações</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filteredProducts.map(product => (
                             <tr key={product.id} onClick={() => setViewProduct(product)} style={{ cursor: 'pointer' }}>
-                                <td>
+                                <td data-label="Foto">
                                     {product.image_url ? (
                                         <img src={product.image_url} alt={product.name} className={styles.productThumb} />
                                     ) : (
-                                        <div className={styles.productThumb}>📦</div>
+                                        <div className={styles.productThumb} aria-hidden="true">📦</div>
                                     )}
                                 </td>
-                                <td>
+                                <td data-label="Produto">
                                     <div className={styles.productNameCell}>
                                         {product.name}
                                     </div>
                                 </td>
-                                <td><span className={styles.productCategoryCell}>{product.category}</span></td>
-                                <td style={{ color: 'var(--primary)', fontWeight: 600 }}>{formatCurrency(product.price)}</td>
-                                <td>
+                                <td data-label="Categoria"><span className={styles.productCategoryCell}>{product.category}</span></td>
+                                <td data-label="Preço" style={{ color: 'var(--color-primary, #E8826A)', fontWeight: 600 }}>{formatCurrency(product.price)}</td>
+                                <td data-label="Estoque">
                                     <span className={`${styles.stockValue} ${product.stock_quantity < (product.min_stock_alert || 5) ? styles.lowStock : ''}`}>
                                         {product.stock_quantity} un
                                     </span>
                                 </td>
-                                <td>{formatDate(product.expiration_date)}</td>
-                                <td>
+                                <td data-label="Validade">{formatDate(product.expiration_date)}</td>
+                                <td data-label="Ações" style={{ textAlign: 'right' }}>
                                     <div className={styles.actionsCell} onClick={e => e.stopPropagation()}>
-                                        <button className={styles.tableActionBtn} title="Ver Detalhes" onClick={() => setViewProduct(product)}>
-                                            👁️
+                                        <button
+                                            type="button"
+                                            className={`${styles.tableActionBtn} ${styles.viewActionBtn}`}
+                                            title="Ver Detalhes"
+                                            aria-label={`Ver detalhes de ${product.name}`}
+                                            onClick={() => setViewProduct(product)}
+                                        >
+                                            <Eye size={16} aria-hidden="true" />
                                         </button>
-                                        <button className={styles.tableActionBtn} title="Vender" style={{ color: '#10B981', borderColor: '#10B981' }} onClick={() => handleOpenSaleModal(product)}>
-                                            💲
+                                        <button
+                                            type="button"
+                                            className={`${styles.tableActionBtn} ${styles.sellActionBtn}`}
+                                            title="Vender"
+                                            aria-label={`Vender ${product.name}`}
+                                            onClick={() => handleOpenSaleModal(product)}
+                                        >
+                                            <DollarSign size={16} aria-hidden="true" />
                                         </button>
-                                        <button className={styles.tableActionBtn} title="Editar" onClick={() => handleOpenModal(product)}>
-                                            ✏️
+                                        <button
+                                            type="button"
+                                            className={`${styles.tableActionBtn} ${styles.editActionBtn}`}
+                                            title="Editar"
+                                            aria-label={`Editar ${product.name}`}
+                                            onClick={() => handleOpenModal(product)}
+                                        >
+                                            <Pencil size={16} aria-hidden="true" />
                                         </button>
-                                        <button className={styles.tableActionBtn} title="Excluir" style={{ color: '#ef4444', borderColor: '#ef4444' }} onClick={() => handleDelete(product.id)}>
-                                            🗑️
+                                        <button
+                                            type="button"
+                                            className={`${styles.tableActionBtn} ${styles.deleteActionBtn}`}
+                                            title="Excluir"
+                                            aria-label={`Excluir ${product.name}`}
+                                            onClick={() => handleDelete(product.id)}
+                                        >
+                                            <Trash2 size={16} aria-hidden="true" />
                                         </button>
                                     </div>
                                 </td>
@@ -408,7 +459,7 @@ export default function PetshopPage() {
             {isModalOpen && (
                 <div className={styles.modalOverlay} onClick={() => setIsModalOpen(false)}>
                     <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
-                        <button className={styles.closeButton} onClick={() => setIsModalOpen(false)}>×</button>
+                        <button type="button" className={styles.closeButton} aria-label="Fechar modal" onClick={() => setIsModalOpen(false)}>×</button>
                         <h2>{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h2>
 
                         <form onSubmit={handleSave}>
@@ -527,8 +578,8 @@ export default function PetshopPage() {
             {isSaleModalOpen && productToSell && (
                 <div className={styles.modalOverlay} onClick={() => setIsSaleModalOpen(false)}>
                     <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
-                        <button className={styles.closeButton} onClick={() => setIsSaleModalOpen(false)}>×</button>
-                        <h2><span className={styles.modalIcon}>$</span> Registrar Venda</h2>
+                        <button type="button" className={styles.closeButton} aria-label="Fechar modal" onClick={() => setIsSaleModalOpen(false)}>×</button>
+                        <h2><span className={styles.modalIcon} aria-hidden="true">$</span> Registrar Venda</h2>
                         <p className={styles.subtitle}>{productToSell.name}</p>
 
                         <form onSubmit={handleConfirmSale} className={styles.saleForm}>
@@ -543,61 +594,82 @@ export default function PetshopPage() {
                                 </div>
                             </div>
 
-                            <div className={styles.row}>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Vincular a um Pet (Opcional)</label>
-                                    <select
-                                        className={styles.select}
-                                        value={saleData.petId}
-                                        onChange={e => setSaleData({ ...saleData, petId: e.target.value })}
-                                    >
-                                        <option value="">Anônimo / Avulso</option>
-                                        {pets.map(pet => (
-                                            <option key={pet.id} value={pet.id}>{pet.name}</option>
-                                        ))}
-                                    </select>
+                            <div className={styles.formGroup}>
+                                <label htmlFor="sale-pet-select" className={styles.label}>Vincular a um Pet (Opcional)</label>
+                                <div className={styles.petSearchWrapper}>
+                                    <Search size={15} className={styles.petSearchIcon} aria-hidden="true" />
+                                    <input
+                                        id="sale-pet-filter"
+                                        type="text"
+                                        className={styles.petFilterInput}
+                                        placeholder="Filtrar por nome do pet ou tutor..."
+                                        aria-label="Filtrar pets por nome ou tutor"
+                                        value={petSearchTerm}
+                                        onChange={e => setPetSearchTerm(e.target.value)}
+                                    />
                                 </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Status do Pagamento</label>
-                                    <select
-                                        className={styles.select}
-                                        value={saleData.paymentStatus}
-                                        onChange={e => setSaleData({ ...saleData, paymentStatus: e.target.value })}
-                                        style={{ borderColor: saleData.paymentStatus === 'pending' ? '#ef4444' : '#10b981', background: saleData.paymentStatus === 'pending' ? 'rgba(239, 68, 68, 0.05)' : 'rgba(16, 185, 129, 0.05)' }}
-                                    >
-                                        <option value="paid">✅ Pago (Gera Caixa)</option>
-                                        <option value="pending">⏳ Pendente (Aguardando)</option>
-                                    </select>
-                                </div>
+                                <select
+                                    id="sale-pet-select"
+                                    className={styles.select}
+                                    value={saleData.petId}
+                                    onChange={e => setSaleData({ ...saleData, petId: e.target.value })}
+                                >
+                                    <option value="">Anônimo / Avulso</option>
+                                    {filteredPets.map(pet => {
+                                        const tutorName = getTutorName(pet)
+                                        return (
+                                            <option key={pet.id} value={pet.id}>
+                                                {pet.name}{tutorName ? ` — ${tutorName}` : ''}
+                                            </option>
+                                        )
+                                    })}
+                                </select>
+                            </div>
+
+                            <div className={styles.formGroup}>
+                                <label htmlFor="sale-payment-status" className={styles.label}>Status do Pagamento</label>
+                                <select
+                                    id="sale-payment-status"
+                                    className={styles.select}
+                                    value={saleData.paymentStatus}
+                                    onChange={e => setSaleData({ ...saleData, paymentStatus: e.target.value })}
+                                    style={{ borderColor: saleData.paymentStatus === 'pending' ? '#ef4444' : '#10b981', background: saleData.paymentStatus === 'pending' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)' }}
+                                >
+                                    <option value="paid">✅ Pago (Gera Caixa)</option>
+                                    <option value="pending">⏳ Pendente (Aguardando)</option>
+                                </select>
                             </div>
 
                             <div className={styles.row}>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Quantidade</label>
+                                <div className={`${styles.formGroup} ${styles.col}`}>
+                                    <label htmlFor="sale-quantity" className={styles.label}>Quantidade</label>
                                     <input
+                                        id="sale-quantity"
                                         className={styles.input}
                                         type="number"
                                         min="1"
                                         max={productToSell.stock_quantity}
                                         required
                                         value={saleData.quantity}
-                                        onChange={e => setSaleData({ ...saleData, quantity: parseInt(e.target.value) })}
+                                        onChange={e => setSaleData({ ...saleData, quantity: parseInt(e.target.value, 10) || 1 })}
                                     />
                                 </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Desconto (%)</label>
+                                <div className={`${styles.formGroup} ${styles.col}`}>
+                                    <label htmlFor="sale-discount" className={styles.label}>Desconto (%)</label>
                                     <input
+                                        id="sale-discount"
                                         className={styles.input}
                                         type="number"
                                         min="0"
                                         max="100"
                                         value={saleData.tempDiscountPercent}
-                                        onChange={e => setSaleData({ ...saleData, tempDiscountPercent: parseFloat(e.target.value) })}
+                                        onChange={e => setSaleData({ ...saleData, tempDiscountPercent: parseFloat(e.target.value) || 0 })}
                                     />
                                 </div>
-                                <div className={styles.formGroup}>
-                                    <label className={styles.label}>Forma de Pagamento</label>
+                                <div className={`${styles.formGroup} ${styles.col}`}>
+                                    <label htmlFor="sale-payment-method" className={styles.label}>Forma de Pagamento</label>
                                     <select
+                                        id="sale-payment-method"
                                         className={styles.select}
                                         value={saleData.paymentMethod}
                                         onChange={e => setSaleData({ ...saleData, paymentMethod: e.target.value })}
@@ -634,8 +706,8 @@ export default function PetshopPage() {
                                 </div>
                             </div>
 
-                            <button type="submit" className={`${styles.submitButton} ${styles.confirmSaleButton}`}>
-                                Confirmar Venda
+                            <button type="submit" disabled={isSavingSale} className={`${styles.submitButton} ${styles.confirmSaleButton}`}>
+                                {isSavingSale ? 'Registrando...' : 'Confirmar Venda'}
                             </button>
                         </form>
                     </div>
@@ -644,14 +716,14 @@ export default function PetshopPage() {
             {viewProduct && (
                 <div className={styles.modalOverlay} onClick={() => setViewProduct(null)}>
                     <div className={styles.modalContent} onClick={e => e.stopPropagation()}>
-                        <button className={styles.closeButton} onClick={() => setViewProduct(null)}>×</button>
+                        <button type="button" className={styles.closeButton} aria-label="Fechar modal" onClick={() => setViewProduct(null)}>×</button>
                         <h2>Detalhes do Produto</h2>
 
                         <div className={styles.detailImageContainer}>
                             {viewProduct.image_url ? (
                                 <img src={viewProduct.image_url} alt={viewProduct.name} className={styles.detailImage} />
                             ) : (
-                                <div style={{ fontSize: '4rem' }}>📦</div>
+                                <div style={{ fontSize: '4rem' }} aria-hidden="true">📦</div>
                             )}
                         </div>
 
@@ -666,7 +738,7 @@ export default function PetshopPage() {
                             </div>
                             <div>
                                 <span className={styles.detailLabel}>Preço de Venda</span>
-                                <div className={styles.detailValue} style={{ color: 'var(--primary)' }}>{formatCurrency(viewProduct.price)}</div>
+                                <div className={styles.detailValue} style={{ color: 'var(--color-primary, #E8826A)' }}>{formatCurrency(viewProduct.price)}</div>
                             </div>
                             <div>
                                 <span className={styles.detailLabel}>Preço de Custo</span>
@@ -697,17 +769,21 @@ export default function PetshopPage() {
 
                         <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
                             <button
+                                type="button"
                                 className={styles.submitButton}
                                 style={{ background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border)' }}
                                 onClick={() => { setViewProduct(null); handleOpenModal(viewProduct) }}
                             >
-                                ✏️ Editar
+                                <Pencil size={16} aria-hidden="true" />
+                                Editar
                             </button>
                             <button
+                                type="button"
                                 className={styles.submitButton}
                                 onClick={() => { setViewProduct(null); handleOpenSaleModal(viewProduct) }}
                             >
-                                💲 Vender
+                                <DollarSign size={16} aria-hidden="true" />
+                                Vender
                             </button>
                         </div>
                     </div>
