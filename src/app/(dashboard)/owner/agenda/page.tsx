@@ -25,6 +25,7 @@ import EditAppointmentModal from '@/components/EditAppointmentModal'
 import BookingModal from '@/components/BookingModal'
 import { Package, Printer } from 'lucide-react'
 import { printThermalTicket } from '@/utils/printThermalTicket'
+import PetPreferencesBadges from '@/components/PetPreferencesBadges'
 
 interface Customer {
     id?: string
@@ -51,6 +52,7 @@ interface Pet {
     special_care: string | null
     medical_notes?: string | null
     allergies?: string | null
+    existing_conditions?: string | null
     temperament?: string | null
     is_adapted?: boolean
 }
@@ -318,7 +320,7 @@ export default function AgendaPage() {
                     ),
                     pets ( 
                         id, name, species, breed, color, size, weight_kg, birth_date,
-                        perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, temperament, is_adapted,
+                        perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, existing_conditions, temperament, is_adapted,
                         customers ( id, name, phone_1, phone_2, address, neighborhood, city )
                     ),
                     services ( 
@@ -373,7 +375,7 @@ export default function AgendaPage() {
                         ),
                         pets ( 
                             id, name, species, breed, color, size, weight_kg, birth_date,
-                            perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, temperament, is_adapted,
+                            perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, existing_conditions, temperament, is_adapted,
                             customers ( id, name, phone_1, phone_2, address, neighborhood, city )
                         ),
                         services ( 
@@ -581,6 +583,7 @@ export default function AgendaPage() {
                 <div className={styles.serviceLine}>
                     <span style={{ marginRight: '0.25rem' }}>{categoryIcon}</span>
                     {appt.services?.name}
+                    <PetPreferencesBadges pet={appt.pets} />
                     {isPackage && (
                         <div className={styles.packageProgressBadge}>
                             {(() => {
@@ -1216,6 +1219,17 @@ export default function AgendaPage() {
                                             placeholder="Ex: Cuidado com patinha traseira, não usar secador muito quente..."
                                         />
                                     </div>
+
+                                    {selectedAppointment.pets?.existing_conditions && (
+                                        <div style={{ marginTop: '0.75rem', background: 'rgba(236, 72, 153, 0.08)', padding: '0.75rem', borderRadius: '6px', border: '1px solid rgba(236, 72, 153, 0.3)' }}>
+                                            <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f9a8d4', marginBottom: '0.2rem' }}>
+                                                🩺 Doença Pré-existente (Ficha do Pet):
+                                            </div>
+                                            <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                                                {selectedAppointment.pets.existing_conditions}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className={styles.detailActions}>

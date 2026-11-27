@@ -11,6 +11,7 @@ import DailyReportModal from '@/components/DailyReportModal'
 import EditAppointmentModal from '@/components/EditAppointmentModal'
 import PaymentControls from '@/components/PaymentControls'
 import { printThermalTicket } from '@/utils/printThermalTicket'
+import PetPreferencesBadges from '@/components/PetPreferencesBadges'
 
 interface Appointment {
     id: string
@@ -25,6 +26,13 @@ interface Appointment {
         name: string
         species: string
         breed: string | null
+        perfume_allowed?: boolean | null
+        accessories_allowed?: boolean | null
+        special_care?: string | null
+        medical_notes?: string | null
+        allergies?: string | null
+        existing_conditions?: string | null
+        temperament?: string | null
         customers: { name: string }
     }
     services: {
@@ -135,7 +143,7 @@ export default function CrechePage() {
                     ),
                     pets ( 
                         id, name, species, breed, color, size, weight_kg, birth_date,
-                        perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, temperament, is_adapted,
+                        perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, existing_conditions, temperament, is_adapted,
                         customers ( id, name, phone_1, phone_2, address, neighborhood, city )
                     ),
                     services!inner ( 
@@ -446,6 +454,7 @@ export default function CrechePage() {
                                         <div style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
                                             <span>{appt.services?.name || 'Creche'}</span>
                                         </div>
+                                        <PetPreferencesBadges pet={appt.pets} />
                                         {(() => {
                                             const pgRaw = (appt as any).package_credits || (appt as any).package_schedule_slots;
                                             const pg = Array.isArray(pgRaw) ? pgRaw[0] : pgRaw;

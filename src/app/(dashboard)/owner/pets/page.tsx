@@ -30,6 +30,10 @@ interface Pet {
     weight_kg: number | null
     is_neutered: boolean
     existing_conditions: string | null
+    perfume_allowed?: boolean | null
+    accessories_allowed?: boolean | null
+    allergies?: string | null
+    special_care?: string | null
     responsible2_name: string | null
     responsible2_phone: string | null
     // vaccination_up_to_date: boolean (remodelado: removido da UI)
@@ -1231,7 +1235,8 @@ function PetsContent() {
                 .from('pets')
                 .select(`
                     id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
-                    existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
+                    existing_conditions, perfume_allowed, accessories_allowed, allergies, special_care,
+                    responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
                     color, characteristics, is_deceased, is_active,
                     customers!inner ( id, name, phone_1, org_id )
                 `)
@@ -1421,6 +1426,27 @@ function PetsContent() {
         setSelectedCustomerId(pet.customer_id)
         setResponsible2Phone(pet.responsible2_phone || '')
         setShowModal(true)
+
+        if (
+            pet.id &&
+            (pet.perfume_allowed === undefined ||
+                pet.accessories_allowed === undefined ||
+                pet.allergies === undefined ||
+                pet.special_care === undefined)
+        ) {
+            try {
+                const { data: prefData } = await supabase
+                    .from('pets')
+                    .select('perfume_allowed, accessories_allowed, allergies, special_care, existing_conditions')
+                    .eq('id', pet.id)
+                    .single()
+                if (prefData) {
+                    setSelectedPet(prev => (prev && prev.id === pet.id ? { ...prev, ...prefData } : prev))
+                }
+            } catch (prefErr) {
+                console.warn('[handleRowClick] Erro ao complementar preferências do pet:', prefErr)
+            }
+        }
     }
 
     const handleCloseModal = () => {
@@ -1452,7 +1478,8 @@ function PetsContent() {
                         .from('pets')
                         .select(`
                             id, name, species, breed, gender, size, weight_kg, birth_date, is_neutered,
-                            existing_conditions, responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
+                            existing_conditions, perfume_allowed, accessories_allowed, allergies, special_care,
+                            responsible2_name, responsible2_phone, vaccination_up_to_date, customer_id, photo_url, vaccine_card_urls, is_adapted,
                             color, characteristics,
                             customers ( id, name, phone_1 )
                         `)
@@ -2271,9 +2298,84 @@ function PetsContent() {
                                                         Adaptação Realizada (Necessário para Creche/Hotel)
                                                     </label>
                                                 </div>
-                                                <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-                                                    <label className={styles.label}>Doença Pré-existente</label>
-                                                    <input name="existing_conditions" className={styles.input} defaultValue={selectedPet?.existing_conditions || ''} placeholder="Ex: Diabetes, Alergia..." />
+                                                <div
+                                                    key={`prefs-${selectedPet?.id || 'new'}-${selectedPet?.perfume_allowed ?? 'u'}-${selectedPet?.accessories_allowed ?? 'u'}-${selectedPet?.allergies ?? ''}-${selectedPet?.special_care ?? ''}`}
+                                                    style={{
+                                                        gridColumn: '1 / -1',
+                                                        background: 'rgba(232, 130, 106, 0.06)',
+                                                        border: '1px solid rgba(232, 130, 106, 0.25)',
+                                                        borderRadius: '12px',
+                                                        padding: '1rem',
+                                                        marginTop: '0.25rem',
+                                                        display: 'grid',
+                                                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                                                        gap: '0.85rem'
+                                                    }}
+                                                >
+                                                    <div style={{ gridColumn: '1 / -1', fontSize: '0.9rem', fontWeight: 700, color: '#F0A090', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                        ✨ Preferências & Saúde do Pet (Comanda e Atendimentos)
+                                                    </div>
+
+                                                    <div className={styles.formGroup} style={{ marginBottom: 0 }}>
+                                                        <label htmlFor="perfume_allowed" className={styles.label}>Perfume</label>
+                                                        <select
+                                                            id="perfume_allowed"
+                                                            name="perfume_allowed"
+                                                            className={styles.input}
+                                                            defaultValue={selectedPet?.perfume_allowed === false ? 'false' : 'true'}
+                                                        >
+                                                            <option value="true">Sim (Permitido)</option>
+                                                            <option value="false">Não (Não usar)</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div className={styles.formGroup} style={{ marginBottom: 0 }}>
+                                                        <label htmlFor="accessories_allowed" className={styles.label}>Acessórios / Laços</label>
+                                                        <select
+                                                            id="accessories_allowed"
+                                                            name="accessories_allowed"
+                                                            className={styles.input}
+                                                            defaultValue={selectedPet?.accessories_allowed === false ? 'false' : 'true'}
+                                                        >
+                                                            <option value="true">Sim (Permitido)</option>
+                                                            <option value="false">Não (Não colocar)</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div className={styles.formGroup} style={{ gridColumn: '1 / -1', marginBottom: 0 }}>
+                                                        <label htmlFor="allergies" className={styles.label}>Alergias</label>
+                                                        <input
+                                                            id="allergies"
+                                                            name="allergies"
+                                                            className={styles.input}
+                                                            defaultValue={selectedPet?.allergies || ''}
+                                                            placeholder="Ex: Shampoo comum, frango, picada de pulga..."
+                                                        />
+                                                    </div>
+
+                                                    <div className={styles.formGroup} style={{ gridColumn: '1 / -1', marginBottom: 0 }}>
+                                                        <label htmlFor="existing_conditions" className={styles.label}>Doença Pré-existente</label>
+                                                        <input
+                                                            id="existing_conditions"
+                                                            name="existing_conditions"
+                                                            className={styles.input}
+                                                            defaultValue={selectedPet?.existing_conditions || ''}
+                                                            placeholder="Ex: Diabetes, cardiopatia, dermatite..."
+                                                        />
+                                                    </div>
+
+                                                    <div className={styles.formGroup} style={{ gridColumn: '1 / -1', marginBottom: 0 }}>
+                                                        <label htmlFor="special_care" className={styles.label}>Outros / Cuidados Especiais</label>
+                                                        <textarea
+                                                            id="special_care"
+                                                            name="special_care"
+                                                            className={styles.input}
+                                                            rows={2}
+                                                            style={{ resize: 'vertical' }}
+                                                            defaultValue={selectedPet?.special_care || ''}
+                                                            placeholder="Ex: Sensível nas patas, não usar soprador forte..."
+                                                        />
+                                                    </div>
                                                 </div>
                                                 <div className={`${styles.formGroup} ${styles.fullWidth}`} style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
                                                     <label className={styles.label} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', cursor: 'pointer', color: '#cbd5e1' }}>

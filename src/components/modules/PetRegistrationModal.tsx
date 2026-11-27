@@ -123,9 +123,35 @@ export default function PetRegistrationModal({ onClose, onSuccess }: { onClose: 
                         />
                     </div>
 
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Perfume</label>
+                        <select name="perfume_allowed" className={styles.select} defaultValue="true">
+                            <option value="true">Sim (Permitido)</option>
+                            <option value="false">Não (Não usar)</option>
+                        </select>
+                    </div>
+
+                    <div className={styles.formGroup}>
+                        <label className={styles.label}>Acessórios / Laços</label>
+                        <select name="accessories_allowed" className={styles.select} defaultValue="true">
+                            <option value="true">Sim (Permitido)</option>
+                            <option value="false">Não (Não colocar)</option>
+                        </select>
+                    </div>
+
                     <div className={`${styles.formGroup} ${styles.fullWidth}`}>
-                        <label className={styles.label}>Condições de Saúde (Opcional)</label>
-                        <textarea name="existing_conditions" className={styles.input} rows={2} placeholder="Ex: Alergia a frango..." />
+                        <label className={styles.label}>Alergias (Opcional)</label>
+                        <input name="allergies" className={styles.input} placeholder="Ex: Shampoo comum, frango, picada de pulga..." />
+                    </div>
+
+                    <div className={`${styles.formGroup} ${styles.fullWidth}`}>
+                        <label className={styles.label}>Doença Pré-existente / Condições de Saúde (Opcional)</label>
+                        <textarea name="existing_conditions" className={styles.input} rows={2} placeholder="Ex: Diabetes, cardiopatia, dermatite..." />
+                    </div>
+
+                    <div className={`${styles.formGroup} ${styles.fullWidth}`}>
+                        <label className={styles.label}>Outros / Cuidados Especiais (Opcional)</label>
+                        <textarea name="special_care" className={styles.input} rows={2} placeholder="Ex: Sensível nas patas, não usar soprador forte..." />
                     </div>
 
                     <button type="submit" className={`btn btn-primary ${styles.submitBtn}`} disabled={isPending}>

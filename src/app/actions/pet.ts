@@ -9,6 +9,15 @@ interface CreatePetState {
     success: boolean
 }
 
+function parseBooleanField(formData: FormData, key: string, defaultValue = true): boolean {
+    const raw = formData.get(key)
+    if (raw === null || raw === '') return defaultValue
+    const normalized = String(raw).toLowerCase()
+    if (normalized === 'false' || normalized === '0' || normalized === 'off' || normalized === 'no') return false
+    if (normalized === 'true' || normalized === '1' || normalized === 'on' || normalized === 'yes') return true
+    return defaultValue
+}
+
 export async function createPet(prevState: CreatePetState, formData: FormData) {
     const supabase = await createClient()
 
@@ -39,6 +48,10 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
     const birthDateStr = formData.get('birthDate') as string
     const isNeutered = formData.get('isNeutered') === 'on'
     const existing_conditions = formData.get('existing_conditions') as string
+    const perfume_allowed = parseBooleanField(formData, 'perfume_allowed', true)
+    const accessories_allowed = parseBooleanField(formData, 'accessories_allowed', true)
+    const allergies = (formData.get('allergies') as string)?.trim() || null
+    const special_care = (formData.get('special_care') as string)?.trim() || null
     const responsible2_name = formData.get('responsible2_name') as string
     const responsible2_phone = formData.get('responsible2_phone') as string
     const color = formData.get('color') as string
@@ -84,6 +97,10 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
             birth_date: birthDateStr ? new Date(birthDateStr).toISOString() : null,
             is_neutered: isNeutered,
             existing_conditions: existing_conditions || null,
+            perfume_allowed,
+            accessories_allowed,
+            allergies,
+            special_care,
             responsible2_name: responsible2_name || null,
             responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null,
@@ -100,6 +117,10 @@ export async function createPet(prevState: CreatePetState, formData: FormData) {
     }
 
     revalidatePath('/owner/pets')
+    revalidatePath('/owner/agenda')
+    revalidatePath('/owner/banho-tosa')
+    revalidatePath('/owner/creche')
+    revalidatePath('/owner/hospedagem')
     return { message: 'Pet cadastrado com sucesso!', success: true }
 }
 
@@ -123,6 +144,10 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
     const isNeutered = formData.get('isNeutered') === 'on'
     const customerId = formData.get('customerId') as string
     const existing_conditions = formData.get('existing_conditions') as string
+    const perfume_allowed = parseBooleanField(formData, 'perfume_allowed', true)
+    const accessories_allowed = parseBooleanField(formData, 'accessories_allowed', true)
+    const allergies = (formData.get('allergies') as string)?.trim() || null
+    const special_care = (formData.get('special_care') as string)?.trim() || null
     const responsible2_name = formData.get('responsible2_name') as string
     const responsible2_phone = formData.get('responsible2_phone') as string
     const photo_url = formData.get('photo_url') as string
@@ -150,6 +175,10 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
             is_neutered: isNeutered,
             customer_id: customerId,
             existing_conditions: existing_conditions || null,
+            perfume_allowed,
+            accessories_allowed,
+            allergies,
+            special_care,
             responsible2_name: responsible2_name || null,
             responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null,
@@ -167,6 +196,10 @@ export async function updatePet(prevState: CreatePetState, formData: FormData) {
     }
 
     revalidatePath('/owner/pets')
+    revalidatePath('/owner/agenda')
+    revalidatePath('/owner/banho-tosa')
+    revalidatePath('/owner/creche')
+    revalidatePath('/owner/hospedagem')
     return { message: 'Pet atualizado com sucesso!', success: true }
 }
 
@@ -226,6 +259,10 @@ export async function createPetByTutor(prevState: CreatePetState, formData: Form
     const birthDateStr = formData.get('birthDate') as string
     const isNeutered = formData.get('isNeutered') === 'on'
     const existing_conditions = formData.get('existing_conditions') as string
+    const perfume_allowed = parseBooleanField(formData, 'perfume_allowed', true)
+    const accessories_allowed = parseBooleanField(formData, 'accessories_allowed', true)
+    const allergies = (formData.get('allergies') as string)?.trim() || null
+    const special_care = (formData.get('special_care') as string)?.trim() || null
     const responsible2_name = formData.get('responsible2_name') as string
     const responsible2_phone = formData.get('responsible2_phone') as string
     const photo_url = formData.get('photo_url') as string
@@ -253,6 +290,10 @@ export async function createPetByTutor(prevState: CreatePetState, formData: Form
             birth_date: birthDateStr ? new Date(birthDateStr).toISOString() : null,
             is_neutered: isNeutered,
             existing_conditions: existing_conditions || null,
+            perfume_allowed,
+            accessories_allowed,
+            allergies,
+            special_care,
             responsible2_name: responsible2_name || null,
             responsible2_phone: responsible2_phone || null,
             photo_url: photo_url || null,

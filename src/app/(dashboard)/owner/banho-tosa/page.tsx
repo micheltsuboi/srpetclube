@@ -13,6 +13,7 @@ import EditAppointmentModal from '@/components/EditAppointmentModal'
 import ServiceExecutionModal from '@/components/ServiceExecutionModal'
 import { createAppointment } from '@/app/actions/appointment'
 import { printThermalTicket } from '@/utils/printThermalTicket'
+import PetPreferencesBadges from '@/components/PetPreferencesBadges'
 
 interface Appointment {
     id: string
@@ -37,6 +38,7 @@ interface Appointment {
         special_care?: string | null
         medical_notes?: string | null
         allergies?: string | null
+        existing_conditions?: string | null
         temperament?: string | null
         customers: {
             id?: string
@@ -156,7 +158,7 @@ export default function BanhoTosaPage() {
                     ),
                     pets ( 
                         id, name, species, breed, color, size, weight_kg, birth_date,
-                        perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, temperament,
+                        perfume_allowed, accessories_allowed, special_care, medical_notes, allergies, existing_conditions, temperament,
                         customers ( id, name, phone_1, phone_2, address, neighborhood, city )
                     ),
                     services!inner ( 
@@ -441,6 +443,7 @@ export default function BanhoTosaPage() {
                                         <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: '0.5rem' }}>
                                             {appt.services?.name || 'Serviço'}
                                         </span>
+                                        <PetPreferencesBadges pet={appt.pets} />
                                         {(() => {
                                             const cp = Array.isArray((appt.package_credits as any)?.customer_packages)
                                                 ? (appt.package_credits as any)?.customer_packages[0]
